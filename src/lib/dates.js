@@ -1,0 +1,15 @@
+export const pad = (n) => String(n).padStart(2, "0");
+export const toISO = (d) => { const x = new Date(d); return `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}`; };
+export const parseISO = (s) => { const [y, m, d] = String(s).split("-").map(Number); return new Date(y, (m || 1) - 1, d || 1); };
+export const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+export const addMonths = (d, n) => { const x = new Date(d); x.setMonth(x.getMonth() + n); return x; };
+export const daysBetween = (a, b) => Math.round((parseISO(b) - parseISO(a)) / 86400000);
+export const startOfWeekMon = (d) => { const x = new Date(d); const w = (x.getDay() + 6) % 7; x.setDate(x.getDate() - w); x.setHours(0, 0, 0, 0); return x; };
+export const startOfMonth = (d) => new Date(d.getFullYear(), d.getMonth(), 1);
+export const endOfMonth = (d) => new Date(d.getFullYear(), d.getMonth() + 1, 0);
+export const isWeekend = (d) => d.getDay() === 0 || d.getDay() === 6;
+export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+export const MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+export const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+export const fmtH = (h) => { const n = Math.round(h * 10) / 10; return Number.isInteger(n) ? String(n) : n.toFixed(1); };
+export const money = (n) => "£" + (Number(n) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });

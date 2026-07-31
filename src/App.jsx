@@ -8,8 +8,12 @@ import Onboarding from "./screens/Onboarding.jsx";
 import Team from "./screens/Team.jsx";
 import Settings from "./screens/Settings.jsx";
 import Admin from "./screens/Admin.jsx";
-import { ProjectsScreen, ComingSoon, TrackerScreen, TeamLite, NoAccess } from "./screens/Workspace.jsx";
+import { TeamLite, NoAccess } from "./screens/Workspace.jsx";
 import Schedule from "./screens/Schedule.jsx";
+import Summary from "./screens/Summary.jsx";
+import Tasks from "./screens/Tasks.jsx";
+import Projects from "./screens/Projects.jsx";
+import Tracker from "./screens/Tracker.jsx";
 import { CalendarDays, Table2, LayoutGrid, Landmark, Users, Settings as Cog, Clock, FolderKanban, Shield, ChevronDown } from "lucide-react";
 
 const PRODUCT = "Cadence";
@@ -133,22 +137,13 @@ export default function App() {
           {tab === "admin" && profile?.platform_admin ? <Admin />
             : current === "people" ? (can(me, "team.manage") ? <Team org={org} me={me} members={data.members} reload={reload} /> : <TeamLite members={data.members} />)
             : current === "settings" ? <Settings org={org} me={me} reload={() => { loadMe(); reload(); }} />
-            : current === "projects" ? <ProjectsScreen org={org} me={me} data={data} reload={reload} />
-            : current === "tracker" ? <TrackerScreen org={org} me={me} data={data} reload={reload} />
-            : current === "schedule" ? (can(me, "schedule.view")
-                ? <Schedule org={org} me={me} data={data} reload={reload} />
-                : <NoAccess what="the schedule" />)
-            : current === "summary" ? (can(me, "summary.view")
-                ? <ComingSoon title="Summary" blurb="Time reporting, calendar view and phase budgets."
-                    bullets={["Day, week and month calendar of logged hours", "Editable hour bubbles", "Phase hours: budget vs logged", "Holiday allowance tracking"]} />
-                : <NoAccess what="summaries" />)
-            : current === "tasks" ? (can(me, "tasks.view")
-                ? <ComingSoon title="Tasks" blurb="The Trello-style board, scoped to your studio."
-                    bullets={["Drag cards between people", "Link tasks to a project and phase", "Priorities and teams", "Assign to the schedule"]} />
-                : <NoAccess what="tasks" />)
+            : current === "projects" ? <Projects org={org} me={me} data={data} reload={reload} />
+            : current === "tracker" ? <Tracker org={org} me={me} data={data} reload={reload} />
+            : current === "schedule" ? (can(me, "schedule.view") ? <Schedule org={org} me={me} data={data} reload={reload} /> : <NoAccess what="the schedule" />)
+            : current === "summary" ? (can(me, "summary.view") ? <Summary org={org} me={me} data={data} reload={reload} /> : <NoAccess what="summaries" />)
+            : current === "tasks" ? (can(me, "tasks.view") ? <Tasks org={org} me={me} data={data} reload={reload} /> : <NoAccess what="tasks" />)
             : current === "billing" ? (can(me, "billing.view")
-                ? <ComingSoon title="Billing" blurb="The April–March billing plan, invoices and expenses."
-                    bullets={["Phase-by-phase income timeline", "Prospective work, likely vs less likely", "Overheads and predicted net", "Invoice PDFs with your branding"]} />
+                ? <ComingSoonBilling />
                 : <NoAccess what="billing" />)
             : null}
         </main>
@@ -175,6 +170,20 @@ function OrgSwitcher({ memberships, activeId, onPick }) {
           </button>
         ))}
       </div></>}
+  </div>);
+}
+
+function ComingSoonBilling() {
+  return (<div className="p-4 h-full overflow-y-auto">
+    <div className="bg-white border border-slate-200 rounded-xl p-5 max-w-xl">
+      <h3 className="text-sm font-semibold text-slate-700 mb-2">Billing</h3>
+      <p className="text-sm text-slate-600 mb-3">The April–March billing plan, invoices and expenses are the next screen to come across from the studio tool.</p>
+      <ul className="text-sm text-slate-500 list-disc pl-5 space-y-1">
+        <li>Phase-by-phase income timeline</li><li>Prospective work — likely vs less likely</li>
+        <li>Overheads and predicted net</li><li>Invoice PDFs with your branding</li>
+      </ul>
+      <p className="text-xs text-slate-400 mt-4">Billing is permission-gated already — only people with "see billing" reach this page, and only "edit billing" can change it.</p>
+    </div>
   </div>);
 }
 

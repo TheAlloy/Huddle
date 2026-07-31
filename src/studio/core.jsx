@@ -144,6 +144,7 @@ export function mapData(cad){
     timeLogs: (cad.timeLogs||[]).map(l=>({ id:l.id, memberId:l.membership_id, projectId:l.project_id, phaseId:l.phase_id, taskId:l.task_id, date:l.log_date, minutes:l.minutes, source:l.source||"manual" })),
     internalTasks: (cad.tasks||[]).map(t=>({ id:t.id, title:t.title, notes:t.notes||"", assigneeId:t.assignee_id, status:t.status, priority:t.priority, team:t.team, projectId:t.project_id, phaseId:t.phase_id, ord:t.ord })),
     publicHolidays: (cad.holidays||[]).map(h=>({ id:h.id, day:h.day, name:h.name||"" })),
+    billing: (cad.billing||[]).map(b=>({ id:b.id, kind:b.kind, title:b.title||"", client:b.client||"", amount:Number(b.amount)||0, status:b.status||"", date:b.entry_date||"", projectId:b.project_id||null, memberId:b.membership_id||null, meta:b.meta||{}, createdAt:b.created_at||null })),
   };
 }
 
@@ -167,5 +168,8 @@ export function makeHandlers(org, reload, cadData){
     addTask: async (t) => { await sb.from("tasks").insert({org_id:org.id,title:t.title,notes:t.notes||null,assignee_id:t.assigneeId||null,team:t.team||null,priority:t.priority||"med",status:t.status||"todo",ord:Number.isFinite(t.ord)?t.ord:Date.now(),project_id:t.projectId||null,phase_id:t.phaseId||null}); R(); },
     editTask: async (t) => { await sb.from("tasks").update({title:t.title,notes:t.notes||null,assignee_id:t.assigneeId||null,team:t.team||null,priority:t.priority||"med",status:t.status||"todo",ord:Number.isFinite(t.ord)?t.ord:0,project_id:t.projectId||null,phase_id:t.phaseId||null}).eq("id",t.id); R(); },
     delTask: async (id) => { await sb.from("tasks").delete().eq("id",id); R(); },
+    addBilling: async (b) => { await sb.from("billing_entries").insert({ org_id:org.id, kind:b.kind, title:b.title||null, client:b.client||null, amount:Number(b.amount)||0, status:b.status||null, entry_date:b.date||null, project_id:b.projectId||null, membership_id:b.memberId||null, meta:b.meta||{} }); R(); },
+    editBilling: async (b) => { await sb.from("billing_entries").update({ kind:b.kind, title:b.title||null, client:b.client||null, amount:Number(b.amount)||0, status:b.status||null, entry_date:b.date||null, project_id:b.projectId||null, membership_id:b.memberId||null, meta:b.meta||{} }).eq("id",b.id); R(); },
+    delBilling: async (id) => { await sb.from("billing_entries").delete().eq("id",id); R(); },
   };
 }

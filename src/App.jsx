@@ -14,6 +14,7 @@ import Summary from "./screens/Summary.jsx";
 import Tasks from "./screens/Tasks.jsx";
 import Projects from "./screens/Projects.jsx";
 import Tracker from "./screens/Tracker.jsx";
+import Billing from "./screens/Billing.jsx";
 import { CalendarDays, Table2, LayoutGrid, Landmark, Users, Settings as Cog, Clock, FolderKanban, Shield, ChevronDown } from "lucide-react";
 
 const PRODUCT = "Cadence";
@@ -143,7 +144,7 @@ export default function App() {
             : current === "summary" ? (can(me, "summary.view") ? <Summary org={org} me={me} data={data} reload={reload} /> : <NoAccess what="summaries" />)
             : current === "tasks" ? (can(me, "tasks.view") ? <Tasks org={org} me={me} data={data} reload={reload} /> : <NoAccess what="tasks" />)
             : current === "billing" ? (can(me, "billing.view")
-                ? <ComingSoonBilling />
+                ? <Billing org={org} me={me} data={data} reload={reload} />
                 : <NoAccess what="billing" />)
             : null}
         </main>

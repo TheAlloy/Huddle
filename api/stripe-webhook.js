@@ -7,9 +7,11 @@ import { createClient } from "@supabase/supabase-js";
 export const config = { api: { bodyParser: true } };
 
 const PLAN_BY_PRICE = {
-  // "price_xxx": "starter",
-  // "price_yyy": "studio",
+  [process.env.STRIPE_PRICE_STARTER || "_s"]: "starter",
+  [process.env.STRIPE_PRICE_STUDIO || "_t"]: "studio",
+  [process.env.STRIPE_PRICE_ENTERPRISE || "_e"]: "enterprise",
 };
+const PLAN_SEATS = { trial: 5, starter: 5, studio: 20, enterprise: 100 };
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
@@ -21,9 +23,11 @@ export default async function handler(req, res) {
     if (!orgId) return res.status(200).json({ ignored: true });
 
     if (event.type === "checkout.session.completed") {
+      const plan = obj.metadata?.plan || "starter";
+      const seats = Number(obj.metadata?.seats) || PLAN_SEATS[plan] || 5;
       await admin.from("organizations").update({
         stripe_customer_id: obj.customer, stripe_subscription_id: obj.subscription,
-        status: "active", plan: "starter",
+        status: "active", plan, seats,
       }).eq("id", orgId);
     }
     if (event.type === "customer.subscription.updated") {
@@ -31,8 +35,11 @@ export default async function handler(req, res) {
       const status = obj.status === "active" || obj.status === "trialing" ? "active"
         : obj.status === "past_due" ? "past_due" : "suspended";
       const patch = { status };
-      if (PLAN_BY_PRICE[priceId]) patch.plan = PLAN_BY_PRICE[priceId];
-      if (obj.items?.data?.[0]?.quantity) patch.seats = obj.items.data[0].quantity;
+      const mappedPlan = PLAN_BY_PRICE[priceId];
+      if (mappedPlan) patch.plan = mappedPlan;
+      const qty = obj.items?.data?.[0]?.quantity;
+      if (qty && qty > 1) patch.seats = qty;
+      else if (mappedPlan) patch.seats = PLAN_SEATS[mappedPlan] || 5;
       await admin.from("organizations").update(patch).eq("id", orgId);
     }
     if (event.type === "customer.subscription.deleted") {

@@ -4,6 +4,7 @@ import { logAudit } from "../lib/api.js";
 import { Btn, Field, inputCls, Modal, NAVY, Avatar } from "../ui.jsx";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
+import MiniTracker from "./MiniTracker.jsx";
 import { ChevronLeft, ChevronRight, Plus, Minus, CalendarClock, Users, Trash2 } from "lucide-react";
 
 /* ── date helpers ─────────────────────────────────────────────────────────── */
@@ -118,6 +119,7 @@ export default function Schedule({ org, me, data, reload }) {
 
   return (
     <div className="h-full flex flex-col">
+      <MiniTracker org={org} me={me} data={data} reload={reload} />
       {/* toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-200 bg-white shrink-0 flex-wrap">
         <h2 className="text-sm font-bold text-slate-800 mr-1">Schedule</h2>

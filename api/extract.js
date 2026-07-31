@@ -23,6 +23,8 @@ given, split it sensibly across the phases. If durations are not stated at all, 
 conservatively based on the scope. "days" must be positive whole numbers.
 Never invent a client name — use null if it is not present.`;
 
+export const config = { api: { bodyParser: { sizeLimit: "9mb" } } };
+
 export default async function handler(req, res) {
   if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
   const key = process.env.ANTHROPIC_API_KEY;

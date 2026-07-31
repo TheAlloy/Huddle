@@ -142,6 +142,8 @@ function Bar({ a, ctx, baseLeft, baseWidth, top, height, dayW, onCommit, onOpen,
       style={{left,top:topPos,width,height,background:ctx.colorOf(a),touchAction:"none",zIndex:drag?30:1,boxShadow:active?"0 8px 20px rgba(0,0,0,.28)":"0 1px 2px rgba(0,0,0,.12)",cursor:ctx.canEdit?(drag?(drag.mode==="move"?"grabbing":"ew-resize"):"grab"):"pointer",transition:drag?"none":"box-shadow .15s"}}>
       {fill!=null && <><div className="absolute inset-y-0 left-0 pointer-events-none" style={{width:`${fill*100}%`,background:"rgba(0,0,0,0.22)"}}/>
         <div className="absolute inset-y-0 pointer-events-none" style={{left:`${fill*100}%`,right:0,background:"linear-gradient(to right, rgba(255,255,255,0.22), rgba(255,255,255,0.06))"}}/>
+        {fill>0 && fill<1 && <div className="absolute pointer-events-none" style={{left:`${Math.min(100,fill*100)}%`,bottom:0,height:"50%",width:2,transform:"translateX(-1px)",zIndex:6,background:"repeating-linear-gradient(to bottom, #fff 0 3px, transparent 3px 7px)",WebkitMaskImage:"linear-gradient(to top, #000 30%, transparent 100%)",maskImage:"linear-gradient(to top, #000 30%, transparent 100%)"}}/>}
+        {fill>0 && fill<1 && <div className="absolute pointer-events-none" style={{left:`${Math.min(100,fill*100)}%`,bottom:"10%",transform:"translateX(-50%)",width:0,height:0,borderLeft:"3.5px solid transparent",borderRight:"3.5px solid transparent",borderBottom:"5px solid #ffffff",zIndex:7}}/>}
         {ratio>1 && <div className="absolute left-0 right-0 bottom-0 pointer-events-none" style={{height:3,background:"#eb5757"}}/>}
         {ratio>1 && <span className="absolute grid place-items-center pointer-events-none" style={{top:3,right:3,width:16,height:16,borderRadius:9999,background:"#eb5757",zIndex:8}}><AlertTriangle size={11} color="#fff"/></span>}</>}
       <div onPointerDown={begin("l")} className="absolute left-0 top-0 bottom-0" style={{width:9,zIndex:5,cursor:ctx.canEdit?"ew-resize":"default"}}/>
@@ -243,8 +245,15 @@ function TimelineBoard(ctx) {
     const used=[];
     const fits=(i,s,e)=> !(used[i]||[]).some(iv=> s<=iv.e && e>=iv.s);
     const place=(a,desired)=>{ const s=parseISO(a.start),e=parseISO(a.end); let i=Math.max(0,desired||0); while(!fits(i,s,e)) i++; (used[i]=used[i]||[]).push({s,e}); return {a,lane:base+i,laneIndex:i}; };
+    const keyOf=(a)=>{ if(a.projectId) return "p:"+a.projectId; const pr=ctx.projectById(a.projectId); return (pr&&pr.clientId)?"c:"+pr.clientId:null; };
+    const clientOf=(a)=>{ const pr=ctx.projectById(a.projectId); return pr?pr.clientId:""; };
+    const groupLane={}; // remember the lane a project/client first landed on, so siblings line up
     const pinned=work.filter(a=>Number.isFinite(a.lane)), auto=work.filter(a=>!Number.isFinite(a.lane));
-    const placedWork=[...pinned.map(a=>place(a,a.lane)), ...auto.map(a=>place(a,0))];
+    // group auto bars by client then project so related work clusters onto shared lanes
+    auto.sort((a,b)=> String(clientOf(a)).localeCompare(String(clientOf(b))) || String(a.projectId||"").localeCompare(String(b.projectId||"")) || (parseISO(a.start)-parseISO(b.start)));
+    const placedPinned=pinned.map(a=>{ const r=place(a,a.lane); const k=keyOf(a); if(k!=null && groupLane[k]==null) groupLane[k]=r.laneIndex; return r; });
+    const placedAuto=auto.map(a=>{ const k=keyOf(a); const desired=(k!=null && groupLane[k]!=null)?groupLane[k]:0; const r=place(a,desired); if(k!=null && groupLane[k]==null) groupLane[k]=r.laneIndex; return r; });
+    const placedWork=[...placedPinned,...placedAuto];
     const placed=[...leave.map(a=>({a,lane:0,laneIndex:null})), ...placedWork];
     const lanes=Math.max(1,base+used.length);
     return {m,idx,placed,lanes};
@@ -587,7 +596,26 @@ function DashTracker(ctx){
   );
 }
 function abToBase64(buf){ let bin=""; const bytes=new Uint8Array(buf); const chunk=0x8000; for(let i=0;i<bytes.length;i+=chunk){ bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+chunk)); } return btoa(bin); }
-async function extractPdfText(){ return ""; } // browser-side PDF text is skipped; small PDFs are sent to the API as base64
+function loadPdfJs(){
+  if (typeof window==="undefined") return Promise.resolve(null);
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  return new Promise((resolve)=>{
+    const s=document.createElement("script");
+    s.src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    s.onload=()=>{ try{ window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; }catch(_){} resolve(window.pdfjsLib||null); };
+    s.onerror=()=>resolve(null);
+    document.head.appendChild(s);
+  });
+}
+async function extractPdfText(buf){
+  const lib=await loadPdfJs(); if(!lib) return "";
+  try{
+    const pdf=await lib.getDocument({ data:new Uint8Array(buf) }).promise;
+    let out=""; const max=Math.min(pdf.numPages, 60);
+    for(let p=1;p<=max;p++){ const page=await pdf.getPage(p); const tc=await page.getTextContent(); out+=tc.items.map(it=>it.str).join(" ")+"\n"; }
+    return out.trim();
+  }catch(_){ return ""; }
+}
 
 function ProposalForm({ clients, members, anchor, onCreate, onClose }) {
   const [step,setStep]=useState("input");
@@ -619,8 +647,8 @@ function ProposalForm({ clients, members, anchor, onCreate, onClose }) {
         if(fileIsPdf){
           let text=""; try{ text=await extractPdfText(buf); }catch(_){ text=""; }
           if(text.length>200){ payload.text=text; }
-          else if(buf.byteLength<3500000){ payload.pdfBase64=abToBase64(buf); }
-          else { setBusy(false); setError("This looks like a scanned/image PDF and it's too large to send. Please paste the text instead."); return; }
+          else if(buf.byteLength<5*1024*1024){ payload.pdfBase64=abToBase64(buf); }
+          else { setBusy(false); setError("This looks like a scanned/image PDF over 5 MB — too large to send. Please use a smaller or text-based PDF, or paste the text."); return; }
         } else { payload.text=new TextDecoder().decode(buf); }
       } else if(paste.trim()){ payload.text=paste.trim(); }
       if(!payload.text && !payload.pdfBase64){ setBusy(false); setError("Add a PDF, a text file, or paste the proposal text first."); return; }
@@ -733,11 +761,13 @@ function mapData(cad) {
   };
 }
 
-export default function Schedule({ org, me, data: cadData, reload, onNavigate }) {
+export default function Schedule({ org, me, data: cadData, reload, onNavigate, peopleFilter: pfProp, onPeopleFilter }) {
   const canEdit = can(me, "schedule.edit");
   const [anchor,setAnchor]=useState(()=>startOfDay(new Date()));
   const [zoomT,setZoomT]=useState(0.55);
-  const [peopleFilter,setPeopleFilter]=useState("all");
+  const [pfLocal,setPfLocal]=useState("all");
+  const peopleFilter = pfProp!==undefined ? pfProp : pfLocal;
+  const setPeopleFilter = onPeopleFilter || setPfLocal;
   const [holidayFilter,setHolidayFilter]=useState("show");
   const [clientFilter,setClientFilter]=useState("all");
   const [q,setQ]=useState("");

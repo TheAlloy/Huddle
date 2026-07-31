@@ -57,8 +57,9 @@ export default function Settings({ org, me, reload }) {
   };
 
   return (
-    <div className="p-4 space-y-4 overflow-y-auto h-full max-w-2xl">
+    <div className="p-4 space-y-4 overflow-y-auto h-full w-full">
       <h2 className="text-base font-bold text-slate-800">Settings</h2>
+      <div className="space-y-4">
 
       <Card title="Studio">
         <Field label="Studio name">
@@ -156,6 +157,7 @@ export default function Settings({ org, me, reload }) {
           <Btn variant="outline" onClick={async () => { await sb.auth.signOut(); window.location.reload(); }}>Sign out</Btn>
         </div>
       </Card>
+    </div>
     </div>
   );
 }

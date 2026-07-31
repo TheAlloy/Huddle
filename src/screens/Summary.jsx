@@ -314,8 +314,10 @@ function SummaryView(ctx) {
   );
 }
 
-export default function Summary({ org, me, data: cadData, reload }){
-  const [peopleFilter,setPeopleFilter]=useState("all");
+export default function Summary({ org, me, data: cadData, reload, peopleFilter: pfProp, onPeopleFilter }){
+  const [pfLocal,setPfLocal]=useState("all");
+  const peopleFilter = pfProp!==undefined ? pfProp : pfLocal;
+  const setPeopleFilter = onPeopleFilter || setPfLocal;
   const data=useMemo(()=>mapData(cadData),[cadData]);
   const H=useMemo(()=>makeHandlers(org,reload,cadData),[org,cadData]); // eslint-disable-line
   const clientById=useCallback((id)=>data.clients.find(c=>c.id===id),[data.clients]);

@@ -154,6 +154,7 @@ export function makeHandlers(org, reload, cadData){
   return {
     addTimeLog: async ({memberId,projectId,phaseId,taskId,date,minutes,source}) => { await sb.from("time_logs").insert({org_id:org.id,membership_id:memberId,project_id:projectId||null,phase_id:phaseId||null,task_id:taskId||null,log_date:date,minutes,source:source||"manual"}); R(); },
     updateTimeLog: async (id,minutes) => { if(minutes<=0){ await sb.from("time_logs").delete().eq("id",id); } else { await sb.from("time_logs").update({minutes}).eq("id",id); } R(); },
+    editTimeLog: async (id,patch) => { const row={}; if(patch.minutes!=null) row.minutes=patch.minutes; if("projectId" in patch) row.project_id=patch.projectId||null; if("phaseId" in patch) row.phase_id=patch.phaseId||null; if("taskId" in patch) row.task_id=patch.taskId||null; if(patch.minutes!=null && patch.minutes<=0){ await sb.from("time_logs").delete().eq("id",id); } else { await sb.from("time_logs").update(row).eq("id",id); } R(); },
     delTimeLogs: async (ids) => { if(!ids||!ids.length) return; await sb.from("time_logs").delete().in("id",ids); R(); },
     moveTimeLogs: async (ids,newDate) => { if(!ids||!ids.length||!newDate) return; await sb.from("time_logs").update({log_date:newDate}).in("id",ids); R(); },
     setTimeLogTotal: async ({ids,minutes,memberId,projectId,phaseId,taskId,date}) => {

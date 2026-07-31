@@ -11,13 +11,13 @@ export default function Tracker({ org, me, data: cadData, reload }){
   const meId=me.id;
   const data=useMemo(()=>mapData(cadData),[cadData]);
   const H=useMemo(()=>makeHandlers(org,reload,cadData),[org,cadData]); // eslint-disable-line
-  const { addTimeLog, updateTimeLog, delTimeLogs } = H;
+  const { addTimeLog, updateTimeLog, editTimeLog, delTimeLogs } = H;
 
   const [run,setRun]=useState(()=>lsGet("tracker_run_"+meId));
   const [now,setNow]=useState(Date.now());
   const [selP,setSelP]=useState(""),[selPh,setSelPh]=useState("");
   const [mP,setMP]=useState(""),[mPh,setMPh]=useState(""),[mDate,setMDate]=useState(toISO(startOfDay(new Date()))),[mH,setMH]=useState(1),[mM,setMM]=useState(0);
-  const [editId,setEditId]=useState(null),[eH,setEH]=useState(0),[eM,setEM]=useState(0);
+  const [editId,setEditId]=useState(null),[eH,setEH]=useState(0),[eM,setEM]=useState(0),[eProj,setEProj]=useState(""),[ePh,setEPh]=useState("");
   const pip=useRef(null), pipActions=useRef({});
   const closePip=()=>{ if(pip.current){ try{pip.current.close();}catch(_){} pip.current=null; } };
   useEffect(()=>{ if(!run) return; const t=setInterval(()=>setNow(Date.now()),1000); return ()=>clearInterval(t); },[run]);
@@ -55,8 +55,8 @@ export default function Tracker({ org, me, data: cadData, reload }){
   const stop=()=>{ if(!run) return; const mins=Math.max(1,Math.round((Date.now()-run.startedAt)/60000)); addTimeLog({memberId:meId,projectId:run.projectId,phaseId:run.phaseId,taskId:run.taskId,date:todayISO,minutes:mins,source:"timer"}); setRunning(null); };
   const cancel=()=>setRunning(null);
   const addManual=()=>{ const mins=Math.max(0,Number(mH||0)*60+Number(mM||0)); if(!mP||mins<=0) return; addTimeLog({memberId:meId,projectId:mP,phaseId:mPh||null,date:mDate||todayISO,minutes:mins,source:"manual"}); setMH(1); setMM(0); };
-  const beginEdit=(l)=>{ setEditId(l.id); setEH(Math.floor(l.minutes/60)); setEM(l.minutes%60); };
-  const saveEdit=()=>{ const mins=Math.max(0,Number(eH||0)*60+Number(eM||0)); updateTimeLog(editId,mins); setEditId(null); };
+  const beginEdit=(l)=>{ setEditId(l.id); setEH(Math.floor(l.minutes/60)); setEM(l.minutes%60); setEProj(l.projectId||""); setEPh(l.phaseId||""); };
+  const saveEdit=(l)=>{ const mins=Math.max(0,Number(eH||0)*60+Number(eM||0)); if(l&&l.taskId) editTimeLog(editId,{minutes:mins}); else editTimeLog(editId,{minutes:mins,projectId:eProj||null,phaseId:ePh||null}); setEditId(null); };
   const selproj=projById(selP), mproj=projById(mP);
   const elapsed=run?fmtClock((now-run.startedAt)/1000):null;
   const runTop=()=> run? (run.taskId? "Task · "+((taskById(run.taskId)||{}).title||"task") : labProj(run.projectId)) : "—";
@@ -138,10 +138,12 @@ export default function Tracker({ org, me, data: cadData, reload }){
                 <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{background:l.taskId?NAVY:colorOf(l.projectId)}}/>
                 <span className="text-slate-700 truncate">{l.taskId?("Task · "+((taskById(l.taskId)||{}).title||"task")):(labProj(l.projectId)+(phName(l.projectId,l.phaseId)?" · "+phName(l.projectId,l.phaseId):""))}</span>
                 <span className="text-slate-300" style={{fontSize:11}}>{l.source}</span>
-                {editing ? (<span className="ml-auto flex items-center gap-1">
+                {editing ? (<span className="ml-auto flex items-center gap-1 flex-wrap justify-end">
+                  {!l.taskId && <select value={eProj} onChange={e=>{setEProj(e.target.value);setEPh("");}} className="text-xs rounded border border-slate-200 px-1 py-1 outline-none max-w-[130px]"><option value="">No project</option>{groups.map(grp)}</select>}
+                  {!l.taskId && projById(eProj)?.phases?.length>0 && <select value={ePh} onChange={e=>setEPh(e.target.value)} className="text-xs rounded border border-slate-200 px-1 py-1 outline-none max-w-[120px]"><option value="">No phase</option>{projById(eProj).phases.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>}
                   <input type="number" min="0" value={eH} onChange={e=>setEH(e.target.value)} className="w-11 rounded border border-slate-200 px-1.5 py-1 outline-none"/><span className="text-xs text-slate-400">h</span>
                   <input type="number" min="0" max="59" value={eM} onChange={e=>setEM(e.target.value)} className="w-11 rounded border border-slate-200 px-1.5 py-1 outline-none"/><span className="text-xs text-slate-400">m</span>
-                  <button onClick={saveEdit} className="text-xs font-semibold text-white bg-blue-600 px-2 py-1 rounded">Save</button>
+                  <button onClick={()=>saveEdit(l)} className="text-xs font-semibold text-white bg-blue-600 px-2 py-1 rounded">Save</button>
                   <button onClick={()=>setEditId(null)} className="text-slate-400 hover:text-slate-700"><X size={15}/></button>
                 </span>) : (<span className="ml-auto flex items-center gap-2">
                   <span className="font-medium text-slate-700 tabular-nums">{hm(l.minutes)}</span>

@@ -15,6 +15,7 @@ import Tasks from "./screens/Tasks.jsx";
 import Projects from "./screens/Projects.jsx";
 import Tracker from "./screens/Tracker.jsx";
 import Billing from "./screens/Billing.jsx";
+import { lsGet, fmtClock } from "./studio/core.jsx";
 import { CalendarDays, Table2, LayoutGrid, Landmark, Users, Settings as Cog, Clock, FolderKanban, Shield, ChevronDown } from "lucide-react";
 
 const PRODUCT = "Cadence";
@@ -107,6 +108,7 @@ export default function App() {
         <div className="font-bold">{PRODUCT}</div>
         <OrgSwitcher memberships={memberships} activeId={active.org_id} onPick={(id) => { setOrgId(id); localStorage.setItem("cadence_org", id); }} />
         <div className="ml-auto flex items-center gap-2">
+          {can(me, "time.track") && <HeaderTracker me={me} active={current === "tracker"} onOpen={() => setTab("tracker")} />}
           {profile?.platform_admin && (
             <button onClick={() => setTab("admin")} title="Subscriber console"
               className={`flex items-center gap-1.5 text-xs px-2.5 h-7 rounded-md ${tab === "admin" ? "bg-white text-slate-800" : "text-white"}`}
@@ -172,6 +174,25 @@ function OrgSwitcher({ memberships, activeId, onPick }) {
         ))}
       </div></>}
   </div>);
+}
+
+function HeaderTracker({ me, active, onOpen }) {
+  const [run, setRun] = useState(() => lsGet("tracker_run_" + me.id));
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const iv = setInterval(() => { setRun(lsGet("tracker_run_" + me.id)); tick(t => t + 1); }, 1000);
+    return () => clearInterval(iv);
+  }, [me.id]);
+  const elapsed = run ? fmtClock((Date.now() - run.startedAt) / 1000) : null;
+  return (
+    <button onClick={onOpen} title="Time tracker"
+      className={`flex items-center gap-1.5 text-xs px-2.5 h-7 rounded-md ${active ? "bg-white text-slate-800" : "text-white"}`}
+      style={active ? undefined : { background: run ? "#22c55e33" : "#ffffff1f" }}>
+      {run
+        ? <><span className="w-1.5 h-1.5 rounded-full bg-emerald-300" style={{ animation: "pulse 1.5s infinite" }} /> <span className="tabular-nums font-semibold">{elapsed}</span></>
+        : <><Clock size={13} /> Track</>}
+    </button>
+  );
 }
 
 function ComingSoonBilling() {

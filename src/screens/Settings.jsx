@@ -126,6 +126,26 @@ export default function Settings({ org, me, reload }) {
           <Field label="Accent colour (hex)"><input className={inputCls} value={inv.accent || ""} onChange={e => setF("accent", e.target.value)} placeholder="#1f2d4e" /></Field>
           <Field label="Short logo text (top of invoice)"><input className={inputCls} value={inv.logoText || ""} onChange={e => setF("logoText", e.target.value)} placeholder={org.name?.split(" ")[0] || "Studio"} /></Field>
         </div>
+
+        <div className="mt-2 mb-3 rounded-xl border border-slate-200 p-3">
+          <div className="text-xs font-semibold text-slate-500 mb-1.5">Letterhead / template image</div>
+          <p className="text-[11px] text-slate-400 mb-2">Upload a PNG or JPG of your header (or a full A4 letterhead). It's placed on every invoice PDF, so downloads look like your own template. Keep it under ~600&nbsp;KB.</p>
+          {inv.letterhead && <div className="mb-2"><img src={inv.letterhead} alt="letterhead" style={{ maxHeight: 80, maxWidth: "100%", border: "1px solid #e2e8f0", borderRadius: 6 }} /></div>}
+          <div className="flex items-center gap-2 flex-wrap">
+            <label className="text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer border border-blue-200 rounded-lg px-2.5 py-1.5">
+              {inv.letterhead ? "Replace image" : "Upload image"}
+              <input type="file" accept="image/png,image/jpeg" className="hidden" onChange={e => {
+                const f = e.target.files && e.target.files[0]; if (!f) return;
+                if (f.size > 900000) { alert("That image is a bit large — please use one under ~600–900 KB so invoices stay quick to generate."); return; }
+                const r = new FileReader(); r.onload = () => setF("letterhead", r.result); r.readAsDataURL(f);
+              }} />
+            </label>
+            {inv.letterhead && <button onClick={() => setInv(p => { const n = { ...p }; delete n.letterhead; return n; })} className="text-xs text-red-600 hover:bg-red-50 rounded-lg px-2 py-1.5">Remove</button>}
+            {inv.letterhead && <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer ml-1"><input type="checkbox" checked={!!inv.letterheadFull} onChange={e => setF("letterheadFull", e.target.checked)} /> It's a full-page background</label>}
+          </div>
+          <p className="text-[11px] text-slate-400 mt-2">Banner mode (default) sits your header across the top and prints the invoice below it. Tick "full-page background" only if your image is a complete A4 template with space left in the middle for the invoice text.</p>
+        </div>
+
         <div className="flex items-center gap-2"><Btn onClick={saveInvoice} disabled={busy}>Save invoice details</Btn>{invSaved && <span className="text-xs text-green-600">Saved.</span>}</div>
       </Card>}
 

@@ -21,6 +21,7 @@ function SummaryView(ctx) {
   const [cf,setCf]=useState("all");
   const [layout,setLayout]=useState("calendar");
   const [cEdit,setCEdit]=useState(null);
+  const [cPh,setCPh]=useState("");
   const [calGhost,setCalGhost]=useState(null);
   const calBoardRef=useRef(null);
   const [edit,setEdit]=useState(null);
@@ -156,7 +157,7 @@ function SummaryView(ctx) {
             const move=(ev)=>{ if(!d.moved){ if(Math.hypot(ev.clientX-d.sx,ev.clientY-d.sy)<5) return; d.moved=true; document.body.style.userSelect="none"; } ev.preventDefault(); setCalGhost({label,color,x:ev.clientX,y:ev.clientY}); };
             const up=(ev)=>{ document.removeEventListener("pointermove",move); document.removeEventListener("pointerup",up); document.body.style.userSelect=""; setCalGhost(null);
               if(d.moved){ const t=dayAt(ev.clientX,ev.clientY); if(t && t.mid===m.id && t.day!==dayISO) moveTimeLogs(g.ids,t.day); }
-              else { setCEdit({mid:m.id,day:dayISO,key:g.key}); setEH(Math.floor(g.mins/60)); setEM(g.mins%60); } };
+              else { setCEdit({mid:m.id,day:dayISO,key:g.key}); setEH(Math.floor(g.mins/60)); setEM(g.mins%60); setCPh(g.phaseId||""); } };
             document.addEventListener("pointermove",move); document.addEventListener("pointerup",up);
           };
           const dayCell=(m,d)=>{ const dayISO=toISO(d); const gs=bubblesFor(m.id,dayISO); const dayTot=gs.reduce((x,g)=>x+g.mins,0); const wknd=d.getDay()===0||d.getDay()===6;
@@ -166,10 +167,13 @@ function SummaryView(ctx) {
                 {gs.length===0 && <div className="text-[10px] text-slate-300 text-center py-1">—</div>}
                 {gs.map(g=>{ const {label,color}=bub(g); const editing=cEdit&&cEdit.mid===m.id&&cEdit.day===dayISO&&cEdit.key===g.key;
                   return (<div key={g.key} onPointerDown={editing?undefined:(e=>startCalDrag(e,g,m,dayISO))} className="rounded-md px-1.5 py-1 text-[11px] text-white cursor-grab active:cursor-grabbing" style={{background:color,touchAction:"none"}} title={label}>
-                    {editing ? (<div className="flex items-center gap-1" onClick={e=>e.stopPropagation()}>
-                      <input type="number" min="0" value={eH} onChange={e=>setEH(e.target.value)} className="w-8 text-slate-800 rounded px-1 py-0.5 outline-none"/><span>h</span>
-                      <input type="number" min="0" max="59" value={eM} onChange={e=>setEM(e.target.value)} className="w-8 text-slate-800 rounded px-1 py-0.5 outline-none"/>
-                      <button onClick={()=>{ const mins=Math.max(0,Number(eH||0)*60+Number(eM||0)); setTimeLogTotal({ids:g.ids,minutes:mins,memberId:m.id,projectId:g.taskId?null:g.projectId,phaseId:g.taskId?null:g.phaseId,taskId:g.taskId||null,date:dayISO}); setCEdit(null); }} className="ml-auto font-bold">✓</button>
+                    {editing ? (<div className="flex flex-col gap-1" onClick={e=>e.stopPropagation()}>
+                      {!g.taskId && (()=>{ const pr=projectById(g.projectId); return pr&&pr.phases&&pr.phases.length>0 ? <select value={cPh} onChange={e=>setCPh(e.target.value)} className="text-slate-800 rounded px-1 py-0.5 outline-none text-[10px]"><option value="">No phase</option>{pr.phases.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select> : null; })()}
+                      <div className="flex items-center gap-1">
+                        <input type="number" min="0" value={eH} onChange={e=>setEH(e.target.value)} className="w-8 text-slate-800 rounded px-1 py-0.5 outline-none"/><span>h</span>
+                        <input type="number" min="0" max="59" value={eM} onChange={e=>setEM(e.target.value)} className="w-8 text-slate-800 rounded px-1 py-0.5 outline-none"/>
+                        <button onClick={()=>{ const mins=Math.max(0,Number(eH||0)*60+Number(eM||0)); setTimeLogTotal({ids:g.ids,minutes:mins,memberId:m.id,projectId:g.taskId?null:g.projectId,phaseId:g.taskId?null:(cPh||null),taskId:g.taskId||null,date:dayISO}); setCEdit(null); }} className="ml-auto font-bold">✓</button>
+                      </div>
                     </div>) : (<div className="flex items-center justify-between gap-1"><span className="truncate">{label}</span><span className="font-semibold shrink-0">{fmtH(g.mins/60)}</span></div>)}
                   </div>); })}
               </div>
@@ -202,7 +206,7 @@ function SummaryView(ctx) {
               </div>
               {rows.length===0
                 ? <div className="px-3 py-4 text-xs text-slate-400">Nothing logged in this period.</div>
-                : <table className="w-full text-sm"><thead><tr className="text-xs text-slate-400 text-left"><th className="font-medium px-3 py-1.5">Client · Project</th><th className="font-medium px-2 py-1.5">Phase</th><th className="font-medium px-3 py-1.5 text-right">Logged</th>{individual&&<th className="w-16"></th>}</tr></thead>
+                : <table className="w-full text-sm"><thead><tr className="text-xs text-slate-400 text-left"><th className="font-medium px-3 py-1.5">Client · Project</th><th className="font-medium px-2 py-1.5">Phase</th><th className="font-medium px-3 py-1.5 text-right">Logged</th>{ctx.canEdit&&<th className="w-16"></th>}</tr></thead>
                     <tbody>{rows.map(r=>{const editing=edit&&edit.mid===m.id&&edit.key===r.key;return (<tr key={r.key} className="border-t border-slate-100">
                       <td className="px-3 py-1.5">{r.leave
                         ? <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{background:LEAVE_TYPES.vacation.color}}/><span className="text-slate-700">Holiday / time off</span></span>
@@ -219,7 +223,7 @@ function SummaryView(ctx) {
                             <button onClick={()=>setEdit(null)} className="text-slate-400 hover:text-slate-700"><X size={15}/></button>
                           </div></td>
                         : <><td className="px-3 py-1.5 text-right font-medium text-slate-700">{fmtH(r.mins/60)}h</td>
-                           {individual&&<td className="px-2 py-1.5">{!r.leave && <div className="flex items-center gap-1.5 justify-end"><button onClick={()=>beginEdit(m.id,r)} className="text-slate-300 hover:text-blue-600" title="Edit total"><Pencil size={14}/></button><button onClick={()=>{ if(confirm("Remove this logged time for the period?")) delTimeLogs(r.ids); }} className="text-slate-300 hover:text-red-500" title="Delete"><Trash2 size={14}/></button></div>}</td>}</>}
+                           {ctx.canEdit&&<td className="px-2 py-1.5">{!r.leave && <div className="flex items-center gap-1.5 justify-end"><button onClick={()=>beginEdit(m.id,r)} className="text-slate-300 hover:text-blue-600" title="Edit total"><Pencil size={14}/></button><button onClick={()=>{ if(confirm("Remove this logged time for the period?")) delTimeLogs(r.ids); }} className="text-slate-300 hover:text-red-500" title="Delete"><Trash2 size={14}/></button></div>}</td>}</>}
                       </tr>);})}</tbody></table>}
               <div className="px-3 py-2 border-t border-slate-100">
                 {addFor===m.id ? (
@@ -322,7 +326,7 @@ export default function Summary({ org, me, data: cadData, reload }){
   const canEditAny = can(me,"summary.edit");
   const setPeople=(v)=>setPeopleFilter(v);
   const ctx={ data, clientById, projectById, phaseLogged, myMemberId:me.id, teamList, peopleFilter, setPeople, publicHolidays:data.publicHolidays,
-    canSeeCost: can(me,"billing.view"),
+    canSeeCost: can(me,"billing.view"), canEdit: canEditAny,
     delTimeLogs:canEditAny?H.delTimeLogs:(()=>{}), moveTimeLogs:canEditAny?H.moveTimeLogs:(()=>{}), setTimeLogTotal:canEditAny?H.setTimeLogTotal:(()=>{}), addTimeLog:canEditAny?H.addTimeLog:(()=>{}),
     patchMember: can(me,"team.manage")?H.patchMember:(()=>{}), addPublicHoliday:can(me,"team.manage")?H.addPublicHoliday:(()=>{}), delPublicHoliday:can(me,"team.manage")?H.delPublicHoliday:(()=>{}) };
   return <div className="h-full overflow-y-auto bg-slate-50/40"><SummaryView {...ctx} /></div>;

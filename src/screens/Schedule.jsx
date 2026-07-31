@@ -3,6 +3,7 @@ import { sb } from "../lib/supabase.js";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
 import { inputCls } from "../ui.jsx";
+import { phaseRanges } from "../studio/core.jsx";
 import {
   Plus, X, ChevronLeft, ChevronRight, Search, Trash2, AlertTriangle, Users,
   Pencil, ZoomIn, ZoomOut, Plane, Building2, Calendar, Play, Square,
@@ -33,6 +34,7 @@ const CLIENT_COLORS = ["#2f80ed","#9b51e0","#16a0a0","#eb5757","#27ae60","#f2994
 const AVATAR_BG = ["#5b8def","#9b6dd6","#3aa99f","#e0884b","#d65f6e","#4caf8f"];
 const LEAVE_TYPES = { vacation:{label:"Holiday",color:"#f2994a"}, parental:{label:"Parental Leave",color:"#e67e22"}, sick:{label:"Sick Leave",color:"#c0563f"}, holiday:{label:"Public Holiday",color:"#7f8fa6"} };
 const pfIncludes = (pf,id) => pf==="all" || (Array.isArray(pf)?pf.includes(id):pf===id);
+const cfIncludes = (cf,id) => cf==="all" || (Array.isArray(cf)?(cf.length===0||cf.includes(id)):cf===id);
 const pfList = (members,pf) => pf==="all"?members:members.filter(m=>pfIncludes(pf,m.id));
 const hm = (min) => { min=Math.round(min); const h=Math.floor(min/60), m=min%60; return h?(m?`${h}h ${m}m`:`${h}h`):`${m}m`; };
 const fmtClock = (sec) => { sec=Math.max(0,Math.floor(sec)); const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60; return `${pad(h)}:${pad(m)}:${pad(s)}`; };
@@ -330,6 +332,25 @@ function PeoplePicker({ members, teams, value, onChange, me }){
   </div>);
 }
 
+function ClientPicker({ clients, value, onChange }){
+  const [open,setOpen]=useState(false);
+  const allIds=clients.map(c=>c.id);
+  const isAll=value==="all";
+  const sel=new Set(isAll?allIds:(Array.isArray(value)?value:(value?[value]:[])));
+  const commit=(s)=>{ if(s.size===0||s.size===allIds.length) onChange("all"); else onChange([...s]); };
+  const toggle=(id)=>{ const s=new Set(sel); s.has(id)?s.delete(id):s.add(id); commit(s); };
+  const summary=isAll?"All clients":(sel.size===1?((clients.find(c=>c.id===[...sel][0])||{}).name||"1 client"):`${sel.size} clients`);
+  return (<div className="relative">
+    <button onClick={()=>setOpen(o=>!o)} className="flex items-center gap-1.5 text-sm outline-none text-slate-700"><Building2 size={14} className="text-slate-400"/>{summary}<ChevronRight size={13} className="text-slate-400" style={{transform:open?"rotate(90deg)":"none",transition:"transform .15s"}}/></button>
+    {open && <><div className="fixed inset-0 z-30" onClick={()=>setOpen(false)}/>
+      <div className="absolute z-40 mt-1 left-0 w-56 bg-white border border-slate-200 rounded-xl shadow-lg p-2 max-h-96 overflow-y-auto text-sm">
+        <button onClick={()=>onChange("all")} className={`w-full text-xs py-1 rounded mb-1.5 ${isAll?"bg-slate-800 text-white":"bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>All clients</button>
+        {clients.length===0 && <div className="text-xs text-slate-400 px-1.5 py-1">No clients yet.</div>}
+        {clients.map(c=><label key={c.id} className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-slate-50 cursor-pointer text-slate-600"><input type="checkbox" checked={sel.has(c.id)} onChange={()=>toggle(c.id)} className="w-3.5 h-3.5"/><span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{background:c.color}}/>{c.name}</label>)}
+      </div></>}
+  </div>);
+}
+
 function AssignForm({ assignment, preset, members, projects, clients, anchor, onSave, onDelete, onClose, onInternalAssign, tasks=[], teams=[] }){
   const [kind,setKind]=useState(assignment?.kind||"work");
   const [taskId,setTaskId]=useState(assignment?.taskId||"");
@@ -409,14 +430,14 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
   <ModalFoot onSave={save} onDelete={onDelete?()=>onDelete(assignment.id):null} saveLabel={assignment?"Save":"Assign"}/></ModalShell>);
 }
 function DashTracker(ctx){
-  const { data, myMemberId, addTimeLog, updateTimeLog, delTimeLogs } = ctx;
+  const { data, myMemberId, addTimeLog, updateTimeLog, editTimeLog, delTimeLogs } = ctx;
   const meId=myMemberId;
   const [open,setOpen]=useState(false);
   const [run,setRun]=useState(()=> meId? lsGet("tracker_run_"+meId): null);
   const [now,setNow]=useState(Date.now());
   const [selP,setSelP]=useState(""),[selPh,setSelPh]=useState("");
   const [mP,setMP]=useState(""),[mPh,setMPh]=useState(""),[mDate,setMDate]=useState(toISO(startOfDay(new Date()))),[mH,setMH]=useState(1),[mM,setMM]=useState(0);
-  const [editId,setEditId]=useState(null),[eH,setEH]=useState(0),[eM,setEM]=useState(0);
+  const [editId,setEditId]=useState(null),[eH,setEH]=useState(0),[eM,setEM]=useState(0),[eProj,setEProj]=useState(""),[ePh,setEPh]=useState("");
   const [logOpen,setLogOpen]=useState(false);
   const pip=useRef(null), pipActions=useRef({});
   const closePip=()=>{ if(pip.current){ try{pip.current.close();}catch(_){} pip.current=null; } };
@@ -450,8 +471,8 @@ function DashTracker(ctx){
   const stop=()=>{ if(!run) return; const mins=Math.max(1,Math.round((Date.now()-run.startedAt)/60000)); addTimeLog({memberId:meId,projectId:run.projectId,phaseId:run.phaseId,taskId:run.taskId,date:todayISO,minutes:mins,source:"timer"}); lsSet("tracker_run_"+meId,null); setRun(null); };
   const cancel=()=>{ lsSet("tracker_run_"+meId,null); setRun(null); };
   const addManual=()=>{ const mins=Math.max(0,Number(mH||0)*60+Number(mM||0)); if(!mP||mins<=0) return; addTimeLog({memberId:meId,projectId:mP,phaseId:mPh||null,date:mDate||todayISO,minutes:mins,source:"manual"}); setMH(1); setMM(0); };
-  const beginEdit=(l)=>{ setEditId(l.id); setEH(Math.floor(l.minutes/60)); setEM(l.minutes%60); };
-  const saveEdit=()=>{ const mins=Math.max(0,Number(eH||0)*60+Number(eM||0)); updateTimeLog(editId,mins); setEditId(null); };
+  const beginEdit=(l)=>{ setEditId(l.id); setEH(Math.floor(l.minutes/60)); setEM(l.minutes%60); setEProj(l.projectId||""); setEPh(l.phaseId||""); };
+  const saveEdit=(l)=>{ const mins=Math.max(0,Number(eH||0)*60+Number(eM||0)); if(l.taskId) editTimeLog(editId,{minutes:mins}); else editTimeLog(editId,{minutes:mins,projectId:eProj||null,phaseId:ePh||null}); setEditId(null); };
   const selproj=projById(selP);
   const elapsed=run?fmtClock((now-run.startedAt)/1000):null;
   const mproj=projById(mP);
@@ -546,10 +567,12 @@ function DashTracker(ctx){
                 <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{background:l.taskId?NAVY:colorOf(l.projectId)}}/>
                 <span className="text-slate-700 truncate">{l.taskId?("Task · "+((taskById(l.taskId)||{}).title||"task")):(labProj(l.projectId)+(phName(l.projectId,l.phaseId)?" · "+phName(l.projectId,l.phaseId):""))}</span>
                 <span className="text-slate-300" style={{fontSize:11}}>{l.source}</span>
-                {editing ? (<span className="ml-auto flex items-center gap-1">
+                {editing ? (<span className="ml-auto flex items-center gap-1 flex-wrap justify-end">
+                  {!l.taskId && <select value={eProj} onChange={e=>{setEProj(e.target.value);setEPh("");}} className="text-xs rounded border border-slate-200 px-1 py-1 outline-none max-w-[120px]"><option value="">No project</option>{groups.map(grp)}</select>}
+                  {!l.taskId && projById(eProj)?.phases?.length>0 && <select value={ePh} onChange={e=>setEPh(e.target.value)} className="text-xs rounded border border-slate-200 px-1 py-1 outline-none max-w-[110px]"><option value="">No phase</option>{projById(eProj).phases.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>}
                   <input type="number" min="0" value={eH} onChange={e=>setEH(e.target.value)} className="w-11 rounded border border-slate-200 px-1.5 py-1 outline-none"/><span className="text-xs text-slate-400">h</span>
                   <input type="number" min="0" max="59" value={eM} onChange={e=>setEM(e.target.value)} className="w-11 rounded border border-slate-200 px-1.5 py-1 outline-none"/><span className="text-xs text-slate-400">m</span>
-                  <button onClick={saveEdit} className="text-xs font-semibold text-white bg-blue-600 px-2 py-1 rounded">Save</button>
+                  <button onClick={()=>saveEdit(l)} className="text-xs font-semibold text-white bg-blue-600 px-2 py-1 rounded">Save</button>
                   <button onClick={()=>setEditId(null)} className="text-slate-400 hover:text-slate-700"><X size={15}/></button>
                 </span>) : (<span className="ml-auto flex items-center gap-2">
                   <span className="font-medium text-slate-700 tabular-nums">{hm(l.minutes)}</span>
@@ -727,7 +750,7 @@ export default function Schedule({ org, me, data: cadData, reload, onNavigate })
   const teams=useMemo(()=>[...new Set(data.members.flatMap(m=>m.teams||[]))].sort(),[data.members]);
   const phaseLogged=useMemo(()=>{ const map={}; data.timeLogs.forEach(l=>{ if(l.projectId){ const k=l.projectId+"|"+(l.phaseId||""); map[k]=(map[k]||0)+l.minutes; } }); return map; },[data.timeLogs]);
   const colorOf=useCallback((a)=>{ if(a.kind==="leave") return (LEAVE_TYPES[a.leaveType]||LEAVE_TYPES.vacation).color; if(a.kind==="internal") return NAVY; const p=projectById(a.projectId); const c=p&&clientById(p.clientId); return c?c.color:"#94a3b8"; },[projectById,clientById]);
-  const matches=useCallback((a)=>{ if(clientFilter!=="all"){ if(a.kind==="leave") return false; const pr=projectById(a.projectId); if(!pr||pr.clientId!==clientFilter) return false; } if(q.trim()){ const s=q.toLowerCase(); const m=data.members.find(x=>x.id===a.memberId); const pr=a.kind==="work"?projectById(a.projectId):null; const cl=pr&&clientById(pr.clientId); const tk=a.kind==="internal"?((data.internalTasks||[]).find(t=>t.id===a.taskId)||{}).title:""; const hay=[m&&m.name,pr&&pr.name,pr&&pr.index,cl&&cl.name,tk,a.kind==="leave"?(LEAVE_TYPES[a.leaveType]||{}).label:""].join(" ").toLowerCase(); if(!hay.includes(s)) return false; } return true; },[clientFilter,q,data,projectById,clientById]);
+  const matches=useCallback((a)=>{ if(clientFilter!=="all"){ if(a.kind==="leave") return false; const pr=projectById(a.projectId); if(!pr||!cfIncludes(clientFilter,pr.clientId)) return false; } if(q.trim()){ const s=q.toLowerCase(); const m=data.members.find(x=>x.id===a.memberId); const pr=a.kind==="work"?projectById(a.projectId):null; const cl=pr&&clientById(pr.clientId); const tk=a.kind==="internal"?((data.internalTasks||[]).find(t=>t.id===a.taskId)||{}).title:""; const hay=[m&&m.name,pr&&pr.name,pr&&pr.index,cl&&cl.name,tk,a.kind==="leave"?(LEAVE_TYPES[a.leaveType]||{}).label:""].join(" ").toLowerCase(); if(!hay.includes(s)) return false; } return true; },[clientFilter,q,data,projectById,clientById]);
 
   const moveAssign=async(a,start,end,lane)=>{ if(!canEdit) return; await sb.from("assignments").update({start_date:start,end_date:end,...(lane===undefined?{}:{lane})}).eq("id",a.id); reload(); };
   const asgRow=(a)=>({ org_id:org.id, kind:a.kind==="internal"?"task":a.kind, membership_id:a.memberId, project_id:a.projectId||null, phase_id:a.phaseId||null, leave_type:a.leaveType||null, start_date:a.start, end_date:a.end, mode:a.mode||null, value:(a.value??null), note:a.note||null, start_time:a.startTime||null, end_time:a.endTime||null, lane:Number.isFinite(a.lane)?a.lane:null, task_id:a.taskId||null });
@@ -736,10 +759,11 @@ export default function Schedule({ org, me, data: cadData, reload, onNavigate })
   const saveInternalAssign=async({taskId,newTask,memberId,start,end})=>{ let tid=taskId; if(newTask){ const {data:t}=await sb.from("tasks").insert({org_id:org.id,title:newTask.title,priority:newTask.priority||"med",team:newTask.team||null,status:"todo",assignee_id:memberId||null,ord:Date.now()}).select().single(); tid=t&&t.id; } await sb.from("assignments").insert({org_id:org.id,kind:"task",membership_id:memberId,task_id:tid,start_date:start,end_date:end}); reload(); };
   const addTimeLog=async({memberId,projectId,phaseId,taskId,date,minutes,source})=>{ await sb.from("time_logs").insert({org_id:org.id,membership_id:memberId,project_id:projectId||null,phase_id:phaseId||null,task_id:taskId||null,log_date:date,minutes,source:source||"manual"}); reload(); };
   const updateTimeLog=async(id,minutes)=>{ if(minutes<=0){ await sb.from("time_logs").delete().eq("id",id); } else { await sb.from("time_logs").update({minutes}).eq("id",id); } reload(); };
+  const editTimeLog=async(id,patch)=>{ const row={}; if(patch.minutes!=null) row.minutes=patch.minutes; if("projectId" in patch) row.project_id=patch.projectId||null; if("phaseId" in patch) row.phase_id=patch.phaseId||null; if("taskId" in patch) row.task_id=patch.taskId||null; if(patch.minutes!=null && patch.minutes<=0){ await sb.from("time_logs").delete().eq("id",id); } else { await sb.from("time_logs").update(row).eq("id",id); } reload(); };
   const delTimeLogs=async(ids)=>{ if(!ids||!ids.length) return; await sb.from("time_logs").delete().in("id",ids); reload(); };
   const createFromProposal=async({newClient,project,assignments})=>{ let clientId=project.clientId; if(newClient){ const {data:c}=await sb.from("clients").insert({org_id:org.id,name:newClient.name,color:newClient.color,payment_terms:30}).select().single(); clientId=c&&c.id; } const {data:p}=await sb.from("projects").insert({org_id:org.id,code:project.index,name:project.name,client_id:clientId,cost:project.cost,phases:project.phases}).select().single(); const projId=p&&p.id; if(projId&&assignments.length){ const rows=assignments.map(a=>({org_id:org.id,kind:"work",membership_id:a.memberId,project_id:projId,phase_id:a.phaseId||null,start_date:a.start,end_date:a.end})); await sb.from("assignments").insert(rows); } setModal(null); reload(); };
 
-  const ctx={ data, anchor, matches, setModal, moveAssign, peopleFilter, zoomT, holidayFilter, boardScroll, phaseLogged, projectById, clientById, colorOf, canEdit, myMemberId:me.id, addTimeLog, updateTimeLog, delTimeLogs, openTrackerPage:()=>onNavigate&&onNavigate("tracker") };
+  const ctx={ data, anchor, matches, setModal, moveAssign, peopleFilter, zoomT, holidayFilter, boardScroll, phaseLogged, projectById, clientById, colorOf, canEdit, myMemberId:me.id, addTimeLog, updateTimeLog, editTimeLog, delTimeLogs, openTrackerPage:()=>onNavigate&&onNavigate("tracker") };
 
   if(!can(me,"schedule.view")) return <NoAccess what="the schedule" />;
   const step=(dir)=>setAnchor(a=>addMonths(a,dir));
@@ -760,7 +784,7 @@ export default function Schedule({ org, me, data: cadData, reload, onNavigate })
           <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5"><Search size={14} className="text-slate-400"/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search" className="text-sm outline-none w-24 sm:w-32 bg-transparent"/></div>
           <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5"><PeoplePicker members={data.members} teams={teams} value={peopleFilter} onChange={setPeopleFilter} me={me.id}/></div>
           <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5"><Plane size={14} className="text-slate-400"/><select value={holidayFilter} onChange={e=>setHolidayFilter(e.target.value)} className="text-sm outline-none bg-transparent"><option value="show">Holidays: show</option><option value="hide">Holidays: hide</option><option value="only">Holidays: only</option></select></div>
-          <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5"><Building2 size={14} className="text-slate-400"/><select value={clientFilter} onChange={e=>setClientFilter(e.target.value)} className="text-sm outline-none bg-transparent"><option value="all">All clients</option>{data.clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+          <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5"><ClientPicker clients={data.clients} value={clientFilter} onChange={setClientFilter}/></div>
           {canEdit && <button onClick={()=>setModal({type:"proposal"})} className="flex items-center gap-1.5 text-sm px-2.5 h-8 rounded-lg text-white hover:brightness-110" style={{background:"#7c3aed"}}><Sparkles size={15}/> <span className="hidden sm:inline">Proposal</span></button>}
           {canEdit && <button onClick={()=>setModal({type:"assign"})} className="flex items-center gap-1.5 text-sm px-2.5 h-8 rounded-lg text-white" style={{background:"#2f6fed"}}><Plus size={15}/> <span className="hidden sm:inline">Assign Work</span></button>}
         </div>

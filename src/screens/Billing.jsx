@@ -39,8 +39,24 @@ function buildInvoicePdf(JS, { inv, client, project, phase, profile }){
   const set = (size, style, color) => { doc.setFont("helvetica", style || "normal"); doc.setFontSize(size); const [r,g,b] = hexRgb(color || "#222222"); doc.setTextColor(r,g,b); };
   const [ar,ag,ab] = hexRgb(P.accent || NAVY);
   const logo = (P.logoText || (P.company || "").split(" ")[0] || "").slice(0, 10);
-  if (logo) { doc.setFillColor(ar,ag,ab); doc.rect(M,40,Math.max(46, logo.length*13),46,"F"); set(20,"bold","#ffffff"); doc.text(logo, M+9, 71); }
-  let y = 150; set(10,"normal","#222");
+  let contentTop = 150;
+  const lh = P.letterhead;
+  if (lh) {
+    try {
+      const fmt = /^data:image\/png/i.test(lh) ? "PNG" : "JPEG";
+      if (P.letterheadFull) {
+        doc.addImage(lh, fmt, 0, 0, W, 841.89);
+      } else {
+        let bh = 150;
+        try { const pr = doc.getImageProperties(lh); bh = Math.min(180, W * (pr.height / pr.width)); } catch (_) {}
+        doc.addImage(lh, fmt, 0, 0, W, bh);
+        contentTop = Math.max(150, bh + 34);
+      }
+    } catch (_) {}
+  } else if (logo) {
+    doc.setFillColor(ar,ag,ab); doc.rect(M,40,Math.max(46, logo.length*13),46,"F"); set(20,"bold","#ffffff"); doc.text(logo, M+9, 71);
+  }
+  let y = contentTop; set(10,"normal","#222");
   const addrLines = (client && client.billingAddress) ? client.billingAddress.split("\n") : [inv.client || (client && client.name) || ""];
   const block = ["Accounts Payable", ...addrLines].filter(Boolean); block.forEach((ln,i)=>doc.text(String(ln), M, y+i*14)); y += block.length*14 + 30;
   doc.text("Date/Tax Point", M, y); doc.text(invLongDate(inv.date), M+150, y); y += 34;

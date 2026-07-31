@@ -1,29 +1,15 @@
-// Starts a Stripe Checkout (subscription) so a studio can subscribe to Cadence.
-// Requires (Vercel env vars):
-//   STRIPE_SECRET_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, APP_URL
-//   STRIPE_PRICE_STARTER, STRIPE_PRICE_STUDIO, STRIPE_PRICE_ENTERPRISE  (Stripe price IDs)
+// Starts a Stripe Checkout (subscription) for a specific price the studio picked.
+// Works for paid, 1p, or £0 plans — a payment method is always collected so
+// "Manage billing" works afterwards.
+// Requires: STRIPE_SECRET_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, APP_URL
 import { createClient } from "@supabase/supabase-js";
-
-// How many seats each plan grants (adjust to match your Stripe pricing).
-const PLAN_SEATS = { starter: 5, studio: 20, enterprise: 100 };
-
-function priceForPlan(plan) {
-  return {
-    starter: process.env.STRIPE_PRICE_STARTER,
-    studio: process.env.STRIPE_PRICE_STUDIO,
-    enterprise: process.env.STRIPE_PRICE_ENTERPRISE,
-  }[plan];
-}
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-  const { orgId, plan, accessToken } = req.body || {};
+  const { orgId, priceId, accessToken } = req.body || {};
   const secret = process.env.STRIPE_SECRET_KEY;
   if (!secret) return res.status(500).json({ error: "Billing is not connected yet (no Stripe key set)." });
-  if (!orgId || !plan) return res.status(400).json({ error: "Missing details." });
-
-  const priceId = priceForPlan(plan);
-  if (!priceId) return res.status(400).json({ error: `No Stripe price is set for the ${plan} plan yet. Add STRIPE_PRICE_${plan.toUpperCase()} in Vercel.` });
+  if (!orgId || !priceId) return res.status(400).json({ error: "Missing plan details." });
 
   const admin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
@@ -34,19 +20,29 @@ export default async function handler(req, res) {
   if (!mem || !["owner", "admin"].includes(mem.role)) return res.status(403).json({ error: "Only owners and admins can manage billing." });
 
   const { data: org } = await admin.from("organizations").select("stripe_customer_id,name").eq("id", orgId).single();
-  const appUrl = process.env.APP_URL || `https://${req.headers.host}`;
-  const seats = PLAN_SEATS[plan] || 5;
 
+  // Look up the price so we can label the plan and read a seat count (price/product metadata "seats").
+  let planName = "", seats = "";
+  try {
+    const pr = await fetch(`https://api.stripe.com/v1/prices/${priceId}?expand[]=product`, { headers: { Authorization: `Bearer ${secret}` } });
+    const pj = await pr.json();
+    if (pr.ok) { planName = pj.product?.name || ""; seats = pj.metadata?.seats || pj.product?.metadata?.seats || ""; }
+  } catch (_) {}
+
+  const appUrl = process.env.APP_URL || `https://${req.headers.host}`;
   const params = new URLSearchParams();
   params.set("mode", "subscription");
   params.set("line_items[0][price]", priceId);
   params.set("line_items[0][quantity]", "1");
+  params.set("payment_method_collection", "always"); // capture a card even on £0/1p plans
   params.set("client_reference_id", orgId);
   params.set("metadata[org_id]", orgId);
-  params.set("metadata[plan]", plan);
-  params.set("metadata[seats]", String(seats));
+  params.set("metadata[price_id]", priceId);
+  if (planName) params.set("metadata[plan]", planName);
+  if (seats) params.set("metadata[seats]", String(seats));
   params.set("subscription_data[metadata][org_id]", orgId);
-  params.set("subscription_data[metadata][plan]", plan);
+  params.set("subscription_data[metadata][price_id]", priceId);
+  if (planName) params.set("subscription_data[metadata][plan]", planName);
   params.set("allow_promotion_codes", "true");
   params.set("success_url", `${appUrl}/?billing=success`);
   params.set("cancel_url", `${appUrl}/?billing=cancelled`);

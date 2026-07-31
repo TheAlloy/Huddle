@@ -1,14 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
 import { Btn, Card, Field, inputCls, Pill } from "../ui.jsx";
 import { can } from "../lib/permissions.js";
-
-const PLAN_INFO = {
-  trial:      { label: "Free trial",  price: "£0",    blurb: "14 days, up to 5 people." },
-  starter:    { label: "Starter",     price: "£29",   blurb: "Up to 5 people." },
-  studio:     { label: "Studio",      price: "£79",   blurb: "Up to 20 people, billing plan included." },
-  enterprise: { label: "Enterprise",  price: "£249",  blurb: "Unlimited people, priority support." },
-};
 
 export default function Settings({ org, me, reload }) {
   const [name, setName] = useState(org.name);
@@ -18,7 +11,53 @@ export default function Settings({ org, me, reload }) {
   const [invSaved, setInvSaved] = useState(false);
   const setF = (k, v) => setInv(p => ({ ...p, [k]: v }));
   const admin = can(me, "org.admin");
-  const plan = PLAN_INFO[org.plan] || PLAN_INFO.trial;
+  const [plans, setPlans] = useState(null);
+  const [plansMsg, setPlansMsg] = useState("");
+  const currentPriceId = org.settings?.stripe_price_id || null;
+
+  useEffect(() => {
+    let live = true;
+    fetch("/api/plans").then(r => r.json()).then(b => {
+      if (!live) return;
+      if (b.configured === false) { setPlans([]); setPlansMsg("Stripe isn't connected yet — add your keys in Vercel."); }
+      else if (b.error) { setPlans([]); setPlansMsg(b.error); }
+      else setPlans(b.plans || []);
+    }).catch(() => { if (live) { setPlans([]); setPlansMsg("Couldn't load plans (this only works on the live site)."); } });
+    return () => { live = false; };
+  }, []);
+
+  const fmtPrice = (p) => {
+    if (p.amount == null) return "";
+    if (p.amount === 0) return "Free";
+    const sym = p.currency === "GBP" ? "£" : p.currency === "USD" ? "$" : p.currency === "EUR" ? "€" : p.currency + " ";
+    const n = Number.isInteger(p.amount) ? p.amount : p.amount.toFixed(2);
+    return `${sym}${n}`;
+  };
+  const perInterval = (p) => p.interval === "year" ? "/yr" : p.interval === "week" ? "/wk" : "/mo";
+  const currentPlan = (plans || []).find(p => p.priceId === currentPriceId);
+
+  const openBillingPortal = async () => {
+    setBusy(true);
+    try {
+      const token = (await sb.auth.getSession()).data.session?.access_token;
+      const res = await fetch("/api/billing-portal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: org.id, accessToken: token }) });
+      const body = await res.json();
+      if (body.url) window.location.href = body.url;
+      else alert(body.error || "Billing portal isn't available yet.");
+    } catch (_) { alert("Couldn't reach the billing portal (only works on the live site)."); }
+    setBusy(false);
+  };
+
+  const subscribe = async (priceId) => {
+    setBusy(true);
+    try {
+      const token = (await sb.auth.getSession()).data.session?.access_token;
+      const res = await fetch("/api/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: org.id, priceId, accessToken: token }) });
+      const body = await res.json();
+      if (body.url) window.location.href = body.url; else alert(body.error || "Couldn't start checkout.");
+    } catch (_) { alert("Couldn't reach the checkout — it only runs on the live site with Stripe connected."); }
+    setBusy(false);
+  };
 
   const saveInvoice = async () => {
     setBusy(true);
@@ -32,28 +71,6 @@ export default function Settings({ org, me, reload }) {
     await sb.from("organizations").update({ name: name.trim() }).eq("id", org.id);
     setBusy(false); setSaved(true); reload();
     setTimeout(() => setSaved(false), 2500);
-  };
-
-  const openBillingPortal = async () => {
-    setBusy(true);
-    try {
-      const token = (await sb.auth.getSession()).data.session?.access_token;
-      const res = await fetch("/api/billing-portal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: org.id, accessToken: token }) });
-      const body = await res.json();
-      if (body.url) window.location.href = body.url; else alert(body.error || "Billing is not connected yet.");
-    } catch (_) { alert("Billing is not connected yet."); }
-    setBusy(false);
-  };
-
-  const subscribe = async (planKey) => {
-    setBusy(true);
-    try {
-      const token = (await sb.auth.getSession()).data.session?.access_token;
-      const res = await fetch("/api/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: org.id, plan: planKey, accessToken: token }) });
-      const body = await res.json();
-      if (body.url) window.location.href = body.url; else alert(body.error || "Couldn't start checkout.");
-    } catch (_) { alert("Couldn't reach the checkout — it only runs on the live site with Stripe connected."); }
-    setBusy(false);
   };
 
   return (
@@ -75,34 +92,37 @@ export default function Settings({ org, me, reload }) {
       <Card title="Subscription">
         <div className="flex items-center gap-3 flex-wrap">
           <div>
-            <div className="text-lg font-bold text-slate-800">{plan.label} <span className="text-sm font-normal text-slate-400">{plan.price}/month</span></div>
-            <div className="text-xs text-slate-500">{plan.blurb}</div>
+            <div className="text-lg font-bold text-slate-800">{currentPlan ? currentPlan.name : (org.plan || "No plan")} {currentPlan && <span className="text-sm font-normal text-slate-400">{fmtPrice(currentPlan)}{perInterval(currentPlan)}</span>}</div>
+            <div className="text-xs text-slate-500">{currentPlan?.description || (org.plan === "trial" ? "Free trial" : "")}</div>
           </div>
-          <Pill color={org.status === "active" ? "#27ae60" : "#f59e0b"}>{org.status}</Pill>
+          <Pill color={org.status === "active" ? "#27ae60" : org.status === "past_due" ? "#f59e0b" : "#eb5757"}>{org.status}</Pill>
           {admin && <Btn variant="outline" className="ml-auto" onClick={openBillingPortal} disabled={busy}>Manage billing</Btn>}
         </div>
         <div className="text-xs text-slate-400 mt-3">
-          {org.plan === "trial" && org.trial_ends_at
+          {org.plan === "trial" && org.trial_ends_at && !currentPlan
             ? <>Your trial ends on {String(org.trial_ends_at).slice(0, 10)}.</>
-            : <>Seats: {org.seats}. Manage payment details or cancel through Manage billing.</>}
+            : <>Seats: {org.seats}. Update your card or cancel through Manage billing.</>}
         </div>
 
         {admin && <div className="mt-4 pt-4 border-t border-slate-100">
-          <div className="text-xs font-semibold text-slate-500 mb-2">{org.status === "active" && org.plan !== "trial" ? "Switch plan" : "Choose a plan"}</div>
-          <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))" }}>
-            {["starter", "studio", "enterprise"].map(k => {
-              const p = PLAN_INFO[k]; const current = org.plan === k && org.status === "active";
-              return (<div key={k} className={`rounded-xl border p-3 ${current ? "border-blue-400 bg-blue-50" : "border-slate-200"}`}>
-                <div className="font-semibold text-slate-800 text-sm">{p.label}</div>
-                <div className="text-lg font-bold text-slate-800">{p.price}<span className="text-xs font-normal text-slate-400">/mo</span></div>
-                <div className="text-[11px] text-slate-500 mb-2 leading-snug">{p.blurb}</div>
+          <div className="text-xs font-semibold text-slate-500 mb-2">{currentPlan ? "Switch plan" : "Choose a plan"}</div>
+          {plans === null && <div className="text-xs text-slate-400">Loading plans from Stripe…</div>}
+          {plans !== null && plans.length === 0 && <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">{plansMsg || "No active plans found in Stripe. Create products with recurring prices in your Stripe dashboard and they'll appear here automatically."}</div>}
+          {plans !== null && plans.length > 0 && <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))" }}>
+            {plans.map(p => {
+              const current = p.priceId === currentPriceId && org.status === "active";
+              return (<div key={p.priceId} className={`rounded-xl border p-3 ${current ? "border-blue-400 bg-blue-50" : "border-slate-200"}`}>
+                <div className="font-semibold text-slate-800 text-sm">{p.name}</div>
+                <div className="text-lg font-bold text-slate-800">{fmtPrice(p)}<span className="text-xs font-normal text-slate-400">{p.amount ? perInterval(p) : ""}</span></div>
+                {p.description && <div className="text-[11px] text-slate-500 mb-1 leading-snug">{p.description}</div>}
+                {p.seats != null && <div className="text-[10px] text-slate-400 mb-1.5">Up to {p.seats} seats</div>}
                 {current
                   ? <span className="text-[11px] font-semibold text-blue-600">Current plan</span>
-                  : <Btn className="w-full justify-center" onClick={() => subscribe(k)} disabled={busy}>{org.status === "active" && org.plan !== "trial" ? "Switch" : "Subscribe"}</Btn>}
+                  : <Btn className="w-full justify-center" onClick={() => subscribe(p.priceId)} disabled={busy}>{currentPlan ? "Switch" : "Subscribe"}</Btn>}
               </div>);
             })}
-          </div>
-          <p className="text-[11px] text-slate-400 mt-2">Subscribing opens Stripe Checkout in this window. Switching an existing subscription is best done via <button onClick={openBillingPortal} className="underline">Manage billing</button> so it prorates correctly.</p>
+          </div>}
+          <p className="text-[11px] text-slate-400 mt-2">These come straight from your Stripe products. Subscribing opens Stripe Checkout. To change or cancel an existing subscription, use <button onClick={openBillingPortal} className="underline">Manage billing</button> so Stripe prorates it correctly.</p>
         </div>}
       </Card>
 

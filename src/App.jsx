@@ -9,6 +9,7 @@ import Team from "./screens/Team.jsx";
 import Settings from "./screens/Settings.jsx";
 import Admin from "./screens/Admin.jsx";
 import { ProjectsScreen, ComingSoon, TrackerScreen, TeamLite, NoAccess } from "./screens/Workspace.jsx";
+import Schedule from "./screens/Schedule.jsx";
 import { CalendarDays, Table2, LayoutGrid, Landmark, Users, Settings as Cog, Clock, FolderKanban, Shield, ChevronDown } from "lucide-react";
 
 const PRODUCT = "Cadence";
@@ -135,8 +136,7 @@ export default function App() {
             : current === "projects" ? <ProjectsScreen org={org} me={me} data={data} reload={reload} />
             : current === "tracker" ? <TrackerScreen org={org} me={me} data={data} reload={reload} />
             : current === "schedule" ? (can(me, "schedule.view")
-                ? <ComingSoon title="Schedule" blurb="The team scheduling timeline lands here — the same Gantt-style board as the studio tool."
-                    bullets={["Drag to book and move work", "Leave and holidays inline", "Filter by person or team", "Phase progress against hours budget"]} />
+                ? <Schedule org={org} me={me} data={data} reload={reload} />
                 : <NoAccess what="the schedule" />)
             : current === "summary" ? (can(me, "summary.view")
                 ? <ComingSoon title="Summary" blurb="Time reporting, calendar view and phase budgets."

@@ -38,9 +38,12 @@ export default function App() {
   /* session */
   useEffect(() => {
     if (!CONFIGURED) { setSession(null); return; }
-    sb.auth.getSession().then(({ data }) => setSession(data.session || null));
+    let done = false;
+    sb.auth.getSession().then(({ data }) => { done = true; setSession(data.session || null); }).catch(() => { done = true; setSession(null); });
+    // Safety net: if a corrupted token makes getSession hang, fall back to the sign-in screen.
+    const t = setTimeout(() => { if (!done) setSession(s => (s === undefined ? null : s)); }, 8000);
     const { data: sub } = sb.auth.onAuthStateChange((_e, s) => setSession(s || null));
-    return () => sub.subscription.unsubscribe();
+    return () => { clearTimeout(t); sub.subscription.unsubscribe(); };
   }, []);
 
   /* profile + memberships */

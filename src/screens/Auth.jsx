@@ -48,7 +48,7 @@ export default function Auth({ inviteToken, productName }) {
     <div className="h-full grid place-items-center p-4" style={{ background: "#f1f5f9" }}>
       <div className="w-full max-w-sm">
         <div className="text-center mb-6">
-          <div className="w-12 h-12 rounded-xl mx-auto mb-3 grid place-items-center text-white font-bold text-lg" style={{ background: NAVY }}>C</div>
+          <img src="/huddle-icon.png" alt="Huddle" className="w-12 h-12 rounded-xl mx-auto mb-3" />
           <h1 className="text-xl font-bold text-slate-800">{productName}</h1>
           <p className="text-sm text-slate-500 mt-1">
             {inviteToken ? "Create your account to join your team." : "Scheduling and time tracking for studios."}

@@ -20,17 +20,35 @@ export default function Team({ org, me, members, reload }) {
   };
   useEffect(() => { loadInvites(); }, [org.id, manage]); // eslint-disable-line
 
+  // Keep the team list fresh when a member accepts an invite elsewhere: on focus, on a poll, and via realtime if enabled.
+  useEffect(() => {
+    const refresh = () => { loadInvites(); reload(); };
+    const onFocus = () => refresh();
+    window.addEventListener("focus", onFocus);
+    const iv = setInterval(refresh, 25000);
+    let ch;
+    try {
+      ch = sb.channel("team-" + org.id)
+        .on("postgres_changes", { event: "*", schema: "public", table: "memberships", filter: "org_id=eq." + org.id }, refresh)
+        .on("postgres_changes", { event: "*", schema: "public", table: "invites", filter: "org_id=eq." + org.id }, () => loadInvites())
+        .subscribe();
+    } catch (_) {}
+    return () => { window.removeEventListener("focus", onFocus); clearInterval(iv); if (ch) { try { sb.removeChannel(ch); } catch (_) {} } };
+  }, [org.id]); // eslint-disable-line
+
+  const unlimitedSeats = (org.seats || 0) >= 9999;
   const seatsUsed = members.filter(m => m.status !== "suspended").length + invites.length;
-  const overSeats = seatsUsed >= (org.seats || 0);
+  const overSeats = !unlimitedSeats && seatsUsed >= (org.seats || 0);
 
   return (
     <div className="p-4 space-y-4 overflow-y-auto h-full">
       <div className="flex items-center gap-3 flex-wrap">
         <div>
           <h2 className="text-base font-bold text-slate-800">People</h2>
-          <p className="text-xs text-slate-500">{seatsUsed} of {org.seats} seats used on the {org.plan} plan.</p>
+          <p className="text-xs text-slate-500">{unlimitedSeats ? `${seatsUsed} team member${seatsUsed === 1 ? "" : "s"} · unlimited invites` : `${seatsUsed} of ${org.seats} seats used`} on the {org.plan && org.plan !== "trial" ? org.plan : "current"} plan.</p>
         </div>
-        {manage && <Btn className="ml-auto" onClick={() => setInviteOpen(true)} disabled={overSeats}><Plus size={14} /> Invite someone</Btn>}
+        {manage && <button onClick={() => { loadInvites(); reload(); }} title="Refresh" className="ml-auto grid place-items-center w-9 h-9 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"><RefreshCw size={15} /></button>}
+        {manage && <Btn onClick={() => setInviteOpen(true)} disabled={overSeats}><Plus size={14} /> Invite someone</Btn>}
       </div>
       {overSeats && manage && <div className="text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2">
         You've used all your seats. Add more in Settings → Subscription to invite additional people.
@@ -93,7 +111,7 @@ export default function Team({ org, me, members, reload }) {
   );
 }
 
-function InviteModal({ org, onClose, onSent }) {
+export function InviteModal({ org, onClose, onSent }) {
   const [email, setEmail] = useState(""); const [role, setRole] = useState("member");
   const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
   const send = async () => {

@@ -3,6 +3,7 @@ import { sb } from "../lib/supabase.js";
 import { Btn, Field, inputCls, NAVY, Pill } from "../ui.jsx";
 import { ROLES, ROLE_KEYS } from "../lib/permissions.js";
 import { USAGE_OPTIONS } from "../lib/terms.js";
+import { PlanCard } from "./PlanCard.jsx";
 import { Check, Plus, Trash2 } from "lucide-react";
 
 /** First-run wizard. Creates the organization, invites the team, adds a first client/project, and picks a plan. */
@@ -185,16 +186,8 @@ export default function Onboarding({ user, onDone }) {
             {plans === null && <div className="text-sm text-slate-400 py-4">Loading plans…</div>}
             {plans !== null && plans.length === 0 && <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">{plansMsg}</div>}
             {plans !== null && plans.length > 0 && (
-              <div className="grid gap-2 mb-4" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))" }}>
-                {plans.map(p => (
-                  <div key={p.priceId} className="rounded-xl border border-slate-200 p-3 flex flex-col">
-                    <div className="font-semibold text-slate-800 text-sm">{p.name}</div>
-                    <div className="text-lg font-bold text-slate-800">{fmtPrice(p)}<span className="text-xs font-normal text-slate-400">{p.amount ? perInterval(p) : ""}</span></div>
-                    {p.description && <div className="text-[11px] text-slate-500 mb-1 leading-snug">{p.description}</div>}
-                    {p.seats != null && <div className="text-[10px] text-slate-400 mb-1.5">Up to {p.seats} seats</div>}
-                    <div className="mt-3"><Btn className="w-full justify-center" onClick={() => choosePlan(p.priceId)} disabled={busy}>Choose</Btn></div>
-                  </div>
-                ))}
+              <div className="grid gap-2 mb-4" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))" }}>
+                {plans.map(p => <PlanCard key={p.priceId} plan={p} onChoose={choosePlan} busy={busy} ctaLabel="Choose" />)}
               </div>
             )}
             {err && <div className="text-xs text-red-600 mb-3">{err}</div>}

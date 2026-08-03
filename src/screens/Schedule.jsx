@@ -4,6 +4,8 @@ import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
 import { inputCls } from "../ui.jsx";
 import { phaseRanges } from "../studio/core.jsx";
+import { InviteModal } from "./Team.jsx";
+import { ProjectModal } from "./Projects.jsx";
 import {
   Plus, X, ChevronLeft, ChevronRight, Search, Trash2, AlertTriangle, Users,
   Pencil, ZoomIn, ZoomOut, Plane, Building2, Calendar, Play, Square,
@@ -362,7 +364,7 @@ function ClientPicker({ clients, value, onChange }){
   </div>);
 }
 
-function AssignForm({ assignment, preset, members, projects, clients, anchor, onSave, onDelete, onClose, onInternalAssign, tasks=[], teams=[] }){
+function AssignForm({ assignment, preset, members, projects, clients, anchor, onSave, onDelete, onClose, onInternalAssign, onInvite, onNewProject, tasks=[], teams=[] }){
   const [kind,setKind]=useState(assignment?.kind||"work");
   const [taskId,setTaskId]=useState(assignment?.taskId||"");
   const [taskTitle,setTaskTitle]=useState(""),[taskPri,setTaskPri]=useState("med"),[taskTeam,setTaskTeam]=useState("");
@@ -403,9 +405,9 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
     {!assignment
       ? <div className="flex gap-2 mb-4">{[["work","Project work"],["leave","Time off"],["internal","Tasks"]].map(([v,l])=><button key={v} onClick={()=>setKind(v)} className={`flex-1 text-sm py-2 rounded-lg border ${kind===v?"border-blue-500 bg-blue-50 text-blue-700":"border-slate-200 text-slate-600"}`}>{l}</button>)}</div>
       : <div className="mb-4 text-xs inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 text-slate-600">{kind==="leave"?"Time off":kind==="internal"?"Task":"Project work"}</div>}
-    <Field label={kind==="internal"?"Assign to":"Person"}><select className={inputCls} value={memberId} onChange={e=>setMemberId(e.target.value)}>{members.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></Field>
+    <Field label={kind==="internal"?"Assign to":"Person"}><select className={inputCls} value={memberId} onChange={e=>{ if(e.target.value==="__invite__"){ onInvite&&onInvite(); return; } setMemberId(e.target.value); }}>{members.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}{onInvite && <option value="__invite__">➕ Invite someone…</option>}</select></Field>
     {kind==="work" ? (<>
-      <Field label="Project"><select className={inputCls} value={projectId} onChange={e=>{ setProjectId(e.target.value);setPhaseId(""); }}>{projectsByClient(projects,clients).map(g=>(<optgroup key={g.client?g.client.id:"none"} label={g.client?g.client.name:"No client"}>{g.projects.map(p=><option key={p.id} value={p.id}>{p.index} — {p.name}</option>)}</optgroup>))}</select></Field>
+      <Field label="Project"><select className={inputCls} value={projectId} onChange={e=>{ if(e.target.value==="__new__"){ onNewProject&&onNewProject(); return; } setProjectId(e.target.value);setPhaseId(""); }}>{projectsByClient(projects,clients).map(g=>(<optgroup key={g.client?g.client.id:"none"} label={g.client?g.client.name:"No client"}>{g.projects.map(p=><option key={p.id} value={p.id}>{p.index} — {p.name}</option>)}</optgroup>))}{onNewProject && <option value="__new__">➕ New project / client…</option>}</select></Field>
       {client && <div className="-mt-1 mb-3 flex items-center gap-2 text-xs text-slate-500"><span className="w-3 h-3 rounded-sm" style={{background:client.color}}/>Client: <span className="font-medium text-slate-700">{client.name} · {proj.index} {proj.name}</span></div>}
       {proj?.phases?.length>0 && <Field label="Phase"><select className={inputCls} value={phaseId} onChange={e=>setPhaseId(e.target.value)}><option value="">— none —</option>{proj.phases.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
       {phaseId && <Field label="Monitor designer hours for this phase (optional)"><input type="number" min="0" className={inputCls} value={phaseHours} onChange={e=>setPhaseHours(e.target.value)} placeholder="e.g. 20"/><p className="text-xs text-slate-400 mt-1">Sets the hours budget for this phase across the whole project — the bar fills up as time is logged. Leave blank for no monitoring.</p></Field>}
@@ -774,6 +776,7 @@ export default function Schedule({ org, me, data: cadData, reload, onNavigate, p
   const [clientFilter,setClientFilter]=useState("all");
   const [q,setQ]=useState("");
   const [modal,setModal]=useState(null);
+  const [quickModal,setQuickModal]=useState(null); // "invite" | "newproject" — layered over the assign form
   const boardScroll=useRef(null);
 
   const data=useMemo(()=>mapData(cadData),[cadData]);
@@ -846,10 +849,13 @@ export default function Schedule({ org, me, data: cadData, reload, onNavigate, p
       <DashTracker {...ctx} />
 
       {modal?.type==="assign" && <AssignForm assignment={modal.payload&&modal.payload.id?modal.payload:null} preset={modal.payload} members={data.members} projects={data.projects} clients={data.clients} anchor={anchor} tasks={data.internalTasks||[]} teams={teams}
+        onInvite={canEdit?()=>setQuickModal("invite"):null} onNewProject={canEdit?()=>setQuickModal("newproject"):null}
         onInternalAssign={(x)=>{ saveInternalAssign(x); setModal(null); }} onSave={(a,ph)=>{ saveAssignment(a,ph); setModal(null); }} onDelete={modal.payload&&modal.payload.id?id=>{ delAssign(id); setModal(null); }:null} onClose={()=>setModal(null)} />}
       {modal?.type==="member" && <MemberForm org={org} member={modal.payload} teams={teams} canEdit={canEdit} onClose={()=>setModal(null)} onSaved={()=>{ setModal(null); reload(); }} />}
       {modal?.type==="client" && <ClientForm org={org} client={modal.payload} canEdit={canEdit} onClose={()=>setModal(null)} onSaved={()=>{ setModal(null); reload(); }} />}
       {modal?.type==="proposal" && <ProposalForm clients={data.clients} members={data.members} anchor={anchor} onCreate={createFromProposal} onClose={()=>setModal(null)} />}
+      {quickModal==="invite" && <InviteModal org={org} onClose={()=>setQuickModal(null)} onSent={()=>{ setQuickModal(null); reload(); }} />}
+      {quickModal==="newproject" && <ProjectModal org={org} project={null} clients={cadData.clients} onClose={()=>setQuickModal(null)} onSaved={()=>{ setQuickModal(null); reload(); }} />}
     </div>
   );
 }

@@ -15,16 +15,23 @@ export default async function handler(req, res) {
 
     const plans = (body.data || [])
       .filter((p) => p.recurring && p.active && p.product && p.product.active !== false)
-      .map((p) => ({
-        priceId: p.id,
-        name: p.product?.name || "Plan",
-        description: p.product?.description || "",
-        amount: p.unit_amount != null ? p.unit_amount / 100 : null, // in major units (e.g. pounds)
-        currency: (p.currency || "gbp").toUpperCase(),
-        interval: p.recurring?.interval || "month",
-        seats: p.metadata?.seats ? Number(p.metadata.seats) : (p.product?.metadata?.seats ? Number(p.product.metadata.seats) : null),
-        order: p.product?.metadata?.order ? Number(p.product.metadata.order) : (p.unit_amount || 0),
-      }))
+      .map((p) => {
+        const seatsRaw = p.metadata?.seats ?? p.product?.metadata?.seats;
+        const seatsNum = seatsRaw != null ? parseInt(seatsRaw, 10) : NaN;
+        const trialRaw = p.metadata?.trial_days ?? p.product?.metadata?.trial_days;
+        const trialNum = trialRaw != null ? parseInt(trialRaw, 10) : 0;
+        return {
+          priceId: p.id,
+          name: p.product?.name || "Plan",
+          description: p.product?.description || "",
+          amount: p.unit_amount != null ? p.unit_amount / 100 : null, // in major units (e.g. pounds)
+          currency: (p.currency || "gbp").toUpperCase(),
+          interval: p.recurring?.interval || "month",
+          seats: Number.isFinite(seatsNum) && seatsNum > 0 ? seatsNum : null, // null = unlimited
+          trialDays: Number.isFinite(trialNum) && trialNum > 0 ? trialNum : 0,
+          order: p.product?.metadata?.order ? Number(p.product.metadata.order) : (p.unit_amount || 0),
+        };
+      })
       .sort((a, b) => a.order - b.order);
 
     return res.status(200).json({ configured: true, plans });

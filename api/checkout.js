@@ -21,12 +21,16 @@ export default async function handler(req, res) {
 
   const { data: org } = await admin.from("organizations").select("stripe_customer_id,name").eq("id", orgId).single();
 
-  // Look up the price so we can label the plan and read a seat count (price/product metadata "seats").
-  let planName = "", seats = "";
+  // Look up the price so we can label the plan and read seats + trial length.
+  let planName = "", seats = "", trialDays = 0;
   try {
     const pr = await fetch(`https://api.stripe.com/v1/prices/${priceId}?expand[]=product`, { headers: { Authorization: `Bearer ${secret}` } });
     const pj = await pr.json();
-    if (pr.ok) { planName = pj.product?.name || ""; seats = pj.metadata?.seats || pj.product?.metadata?.seats || ""; }
+    if (pr.ok) {
+      planName = pj.product?.name || "";
+      seats = pj.metadata?.seats || pj.product?.metadata?.seats || "";
+      trialDays = parseInt(pj.metadata?.trial_days || pj.product?.metadata?.trial_days || "0", 10) || 0;
+    }
   } catch (_) {}
 
   const appUrl = process.env.APP_URL || `https://${req.headers.host}`;
@@ -34,7 +38,8 @@ export default async function handler(req, res) {
   params.set("mode", "subscription");
   params.set("line_items[0][price]", priceId);
   params.set("line_items[0][quantity]", "1");
-  params.set("payment_method_collection", "always"); // capture a card even on £0/1p plans
+  params.set("payment_method_collection", "always"); // capture a card even during a trial or on £0/1p plans
+  if (trialDays > 0) params.set("subscription_data[trial_period_days]", String(trialDays)); // free trial, then auto-charge
   params.set("client_reference_id", orgId);
   params.set("metadata[org_id]", orgId);
   params.set("metadata[price_id]", priceId);

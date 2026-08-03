@@ -3,6 +3,7 @@ import { sb } from "../lib/supabase.js";
 import { Btn, Card, Field, inputCls, Pill } from "../ui.jsx";
 import { can } from "../lib/permissions.js";
 import { USAGE_OPTIONS } from "../lib/terms.js";
+import { PlanCard } from "./PlanCard.jsx";
 
 export default function Settings({ org, me, reload }) {
   const [name, setName] = useState(org.name);
@@ -128,16 +129,18 @@ export default function Settings({ org, me, reload }) {
       <Card title="Subscription">
         <div className="flex items-center gap-3 flex-wrap">
           <div>
-            <div className="text-lg font-bold text-slate-800">{currentPlan ? currentPlan.name : (org.plan || "No plan")} {currentPlan && <span className="text-sm font-normal text-slate-400">{fmtPrice(currentPlan)}{perInterval(currentPlan)}</span>}</div>
-            <div className="text-xs text-slate-500">{currentPlan?.description || (org.plan === "trial" ? "Free trial" : "")}</div>
+            <div className="text-lg font-bold text-slate-800">{currentPlan ? currentPlan.name : (org.plan && org.plan !== "trial" ? org.plan : "No plan")} {currentPlan && <span className="text-sm font-normal text-slate-400">{fmtPrice(currentPlan)}{perInterval(currentPlan)}</span>}</div>
+            <div className="text-xs text-slate-500">{currentPlan?.description || ""}</div>
           </div>
-          <Pill color={org.status === "active" ? "#27ae60" : org.status === "past_due" ? "#f59e0b" : "#eb5757"}>{org.status}</Pill>
+          {liveSub?.status === "trialing"
+            ? <Pill color="#2f80ed">Free trial{liveSub.trialEnd ? " — " + Math.max(0, Math.ceil((liveSub.trialEnd * 1000 - Date.now()) / 86400000)) + " days left" : ""}</Pill>
+            : <Pill color={org.status === "active" ? "#27ae60" : org.status === "past_due" ? "#f59e0b" : "#eb5757"}>{org.status}</Pill>}
           {admin && <Btn variant="outline" className="ml-auto" onClick={openBillingPortal} disabled={busy}>Manage billing</Btn>}
         </div>
         <div className="text-xs text-slate-400 mt-3">
-          {org.plan === "trial" && org.trial_ends_at && !currentPlan
-            ? <>Your trial ends on {String(org.trial_ends_at).slice(0, 10)}.</>
-            : <>Seats: {org.seats}. Update your card or cancel through Manage billing.</>}
+          {liveSub?.status === "trialing" && liveSub.trialEnd
+            ? <>Your free trial ends on {new Date(liveSub.trialEnd * 1000).toISOString().slice(0, 10)}, then billing starts automatically. Cancel any time before then through Manage billing.</>
+            : <>Seats: {org.seats >= 9999 ? "Unlimited" : org.seats}. Update your card or cancel through Manage billing.</>}
         </div>
 
         {admin && <div className="mt-4 pt-4 border-t border-slate-100">
@@ -146,18 +149,8 @@ export default function Settings({ org, me, reload }) {
           {plans !== null && plans.length === 0 && <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">{plansMsg || "No active plans found in Stripe. Create products with recurring prices in your Stripe dashboard and they'll appear here automatically."}</div>}
           {plans !== null && plans.length > 0 && <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))" }}>
             {plans.map(p => {
-              const current = p.priceId === currentPriceId && org.status === "active";
-              return (<div key={p.priceId} className={`rounded-xl border p-3 ${current ? "border-blue-400 bg-blue-50" : "border-slate-200"}`}>
-                <div className="font-semibold text-slate-800 text-sm">{p.name}</div>
-                <div className="text-lg font-bold text-slate-800">{fmtPrice(p)}<span className="text-xs font-normal text-slate-400">{p.amount ? perInterval(p) : ""}</span></div>
-                {p.description && <div className="text-[11px] text-slate-500 mb-1 leading-snug">{p.description}</div>}
-                {p.seats != null && <div className="text-[10px] text-slate-400 mb-1.5">Up to {p.seats} seats</div>}
-                <div className="mt-4">
-                {current
-                  ? <span className="inline-flex items-center justify-center w-full gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 rounded-lg py-2">✓ Current plan</span>
-                  : <Btn className="w-full justify-center" onClick={() => subscribe(p.priceId)} disabled={busy}>{currentPlan ? "Switch to this" : "Subscribe"}</Btn>}
-                </div>
-              </div>);
+              const current = p.priceId === currentPriceId && ["active", "trialing", "past_due"].includes(org.status);
+              return <PlanCard key={p.priceId} plan={p} current={current} onChoose={subscribe} busy={busy} ctaLabel={currentPlan ? "Switch to this" : "Subscribe"} />;
             })}
           </div>}
           <p className="text-[11px] text-slate-400 mt-2">These come straight from your Stripe products. Subscribing opens Stripe Checkout. To change or cancel an existing subscription, use <button onClick={openBillingPortal} className="underline">Manage billing</button> so Stripe prorates it correctly.</p>

@@ -1,5 +1,16 @@
 import { sb } from "./supabase.js";
 
+/** Turn an email (or empty name) into a readable name, e.g. alex.dangerfield@x.com → "Alex Dangerfield". */
+export function prettyName(email) {
+  if (!email) return "Member";
+  const local = String(email).split("@")[0];
+  const parts = local.split(/[._\-+]+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1));
+  return parts.length ? parts.join(" ") : String(email);
+}
+export function memberName(m) {
+  return (m && m.display_name && String(m.display_name).trim()) ? m.display_name : prettyName(m && m.email);
+}
+
 /** Everything here is org-scoped. The database enforces it too (RLS). */
 export async function loadOrgData(orgId){
   const q = (t, sel="*") => sb.from(t).select(sel).eq("org_id", orgId);
@@ -13,7 +24,8 @@ export async function loadOrgData(orgId){
   let billing = [];
   try { const b = await q("billing_entries"); if(!b.error) billing = b.data||[]; } catch(_) {}
   return {
-    members: members.data||[], clients: clients.data||[], projects: projects.data||[],
+    members: (members.data||[]).map(m => ({ ...m, display_name: (m.display_name && String(m.display_name).trim()) ? m.display_name : prettyName(m.email) })),
+    clients: clients.data||[], projects: projects.data||[],
     assignments: assignments.data||[], timeLogs: timeLogs.data||[], tasks: tasks.data||[],
     holidays: holidays.data||[], billing,
   };

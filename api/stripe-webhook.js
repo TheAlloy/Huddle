@@ -6,6 +6,9 @@ import { createClient } from "@supabase/supabase-js";
 
 export const config = { api: { bodyParser: true } };
 
+const UNLIMITED = 999999;
+const seatsFor = (raw) => { const n = parseInt(raw, 10); return Number.isFinite(n) && n > 0 ? n : UNLIMITED; };
+
 // Given a Stripe price id, fetch its product name + any seats metadata.
 async function priceInfo(priceId) {
   const secret = process.env.STRIPE_SECRET_KEY;
@@ -37,7 +40,7 @@ export default async function handler(req, res) {
       const priceId = obj.metadata?.price_id || null;
       const patch = { stripe_customer_id: obj.customer, stripe_subscription_id: obj.subscription, status: "active" };
       if (obj.metadata?.plan) patch.plan = obj.metadata.plan;
-      if (obj.metadata?.seats) patch.seats = Number(obj.metadata.seats);
+      patch.seats = seatsFor(obj.metadata?.seats); // number, or "unlimited" fallback
       if (priceId) patch.settings = await mergeSettings({ stripe_price_id: priceId });
       await admin.from("organizations").update(patch).eq("id", orgId);
     }
@@ -51,7 +54,7 @@ export default async function handler(req, res) {
       if (info.plan) patch.plan = info.plan;
       const qty = obj.items?.data?.[0]?.quantity;
       if (qty && qty > 1) patch.seats = qty;
-      else if (info.seats) patch.seats = Number(info.seats);
+      else patch.seats = seatsFor(info.seats);
       if (priceId) patch.settings = await mergeSettings({ stripe_price_id: priceId });
       await admin.from("organizations").update(patch).eq("id", orgId);
     }

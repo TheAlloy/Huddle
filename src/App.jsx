@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { sb, CONFIGURED } from "./lib/supabase.js";
-import { loadOrgData } from "./lib/api.js";
+import { loadOrgData, memberName } from "./lib/api.js";
 import { can } from "./lib/permissions.js";
 import { NAVY, Avatar, Spinner, Btn } from "./ui.jsx";
 import Auth from "./screens/Auth.jsx";
@@ -73,6 +73,11 @@ export default function App() {
       if (!error && data) {
         setOrgId(data); localStorage.setItem("cadence_org", data);
         setPendingInvite(null);
+        // Give the new member their real name (from sign-up) instead of showing an email.
+        const fullName = session.user.user_metadata?.full_name;
+        if (fullName && fullName.trim()) {
+          try { await sb.from("memberships").update({ display_name: fullName.trim() }).eq("org_id", data).eq("user_id", session.user.id); } catch (_) {}
+        }
         await loadMe();
       } else {
         setInviteErr(error?.message || "This invitation link is invalid or has already been used. You can sign in normally instead.");
@@ -130,7 +135,8 @@ export default function App() {
         const r = await fetch("/api/subscription", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: active.org_id, accessToken: token }) });
         const b = await r.json();
         if (!live) return;
-        if (b.configured === false) setBillingOk(true); // billing not set up yet → don't lock anyone out
+        if (b.free) setBillingOk(true); // free internal domain
+        else if (b.configured === false) setBillingOk(true); // billing not set up yet → don't lock anyone out
         else setBillingOk(!!(b.hasSubscription && ["active", "trialing", "past_due"].includes(b.status)));
       } catch (_) { if (live) setBillingOk(false); }
       if (live) setBillingChecked(true);
@@ -149,7 +155,7 @@ export default function App() {
   }
   if (!org || !data) return <Spinner label="Loading your studio…" />;
 
-  const me = active;
+  const me = active ? { ...active, display_name: memberName(active) } : active;
   const suspended = org.status === "suspended" || org.status === "cancelled";
   const terms = makeTerms(org.settings?.usage);
 

@@ -21,6 +21,13 @@ export default async function handler(req, res) {
   const { data: mem } = await admin.from("memberships").select("role").eq("org_id", orgId).eq("user_id", userInfo.user.id).maybeSingle();
   if (!mem) return res.status(403).json({ error: "Not a member." });
 
+  // Free internal users (e.g. your own staff) bypass billing entirely.
+  const FREE_DOMAINS = (process.env.FREE_DOMAINS || "thealloy.com").split(",").map(d => d.trim().toLowerCase()).filter(Boolean);
+  const emailDomain = (userInfo.user.email || "").split("@")[1]?.toLowerCase();
+  if (emailDomain && FREE_DOMAINS.includes(emailDomain)) {
+    return res.status(200).json({ configured: true, free: true, hasSubscription: false });
+  }
+
   const { data: org } = await admin.from("organizations").select("stripe_customer_id,stripe_subscription_id,settings").eq("id", orgId).single();
 
   let customer = org?.stripe_customer_id || null;
@@ -53,5 +60,5 @@ export default async function handler(req, res) {
   if (priceId && org?.settings?.stripe_price_id !== priceId) patch.settings = { ...(org?.settings || {}), stripe_price_id: priceId };
   if (Object.keys(patch).length) await admin.from("organizations").update(patch).eq("id", orgId);
 
-  return res.status(200).json({ configured: true, hasSubscription: true, priceId, status, customerId: customer, cancelAtPeriodEnd: !!sub.cancel_at_period_end });
+  return res.status(200).json({ configured: true, hasSubscription: true, priceId, status, customerId: customer, cancelAtPeriodEnd: !!sub.cancel_at_period_end, trialEnd: sub.trial_end || null, currentPeriodEnd: sub.current_period_end || null });
 }

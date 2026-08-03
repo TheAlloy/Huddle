@@ -4,13 +4,11 @@
 <meta charset="utf-8" />
 <style>
   * { box-sizing: border-box; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
-  body { margin: 0; background: #fff; color: #1f2d4e; user-select: none; }
-  .drag { -webkit-app-region: drag; height: 10px; }
-  .wrap { padding: 20px 24px 20px; }
-  h1 { font-size: 16px; margin: 0 0 6px; }
-  p { font-size: 13px; color: #64748b; margin: 0 0 22px; line-height: 1.4; }
-  .row { display: flex; gap: 10px; justify-content: flex-end; }
-  button { border: none; border-radius: 8px; padding: 10px 18px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  body { margin: 0; padding: 22px; height: 100vh; background: #fff; color: #1f2d4e; user-select: none; display: flex; flex-direction: column; -webkit-app-region: drag; }
+  h1 { font-size: 16px; margin: 0 0 8px; }
+  p { font-size: 13px; color: #64748b; margin: 0; line-height: 1.45; }
+  .row { display: flex; gap: 12px; margin-top: auto; -webkit-app-region: no-drag; }
+  .row button { flex: 1; border: none; border-radius: 8px; padding: 11px 0; font-size: 13px; font-weight: 600; cursor: pointer; }
   .cancel { background: #eb5757; color: #fff; }
   .cancel:hover { background: #d94545; }
   .yes { background: #eef2fb; color: #1f2d4e; }
@@ -18,17 +16,12 @@
 </style>
 </head>
 <body>
-  <div class="drag"></div>
-  <div class="wrap">
-    <h1>Have you recorded all your time?</h1>
-    <p>Make sure today's hours are logged before you leave.</p>
-    <div class="row">
-      <button class="cancel" onclick="window.huddle.choose('cancel')">No, Cancel</button>
-      <button class="yes" onclick="window.huddle.choose('yes')">Yes</button>
-    </div>
+  <h1>Have you recorded all your time?</h1>
+  <p>Make sure today's hours are logged before you leave.</p>
+  <div class="row">
+    <button class="cancel" onclick="window.huddle.choose('cancel')">No, Cancel</button>
+    <button class="yes" onclick="window.huddle.choose('yes')">Yes</button>
   </div>
-  <script>
-    document.addEventListener("keydown", (e) => { if (e.key === "Escape") window.huddle.choose("cancel"); });
-  </script>
+  <script>document.addEventListener("keydown", (e) => { if (e.key === "Escape") window.huddle.choose("cancel"); });</script>
 </body>
 </html>

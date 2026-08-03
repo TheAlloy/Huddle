@@ -195,6 +195,7 @@ export default function Onboarding({ user, onDone }) {
               <button onClick={finishFree} disabled={busy} className="w-full text-sm text-slate-500 hover:text-slate-700 py-2">Continue →</button>
             )}
             <p className="text-[11px] text-slate-400 mt-1 text-center">A subscription is required to use Huddle. You can change plans any time in Settings.</p>
+            <p className="text-[11px] text-slate-400 mt-1 text-center">Trouble signing up or signing in? <a href="mailto:hello@thealloy.com?subject=Huddle%20sign-up%20help" className="underline">Get in touch</a>.</p>
           </>)}
 
         </div>

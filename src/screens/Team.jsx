@@ -4,10 +4,11 @@ import { Btn, Field, inputCls, Modal, Avatar, Pill, Card, Empty } from "../ui.js
 import { PERMISSIONS, PERMISSION_GROUPS, ROLES, ROLE_KEYS, effectivePermissions, isFromRole, can } from "../lib/permissions.js";
 import { Plus, Mail, Trash2, Pencil, RefreshCw, Link as LinkIcon } from "lucide-react";
 
-export default function Team({ org, me, members, reload }) {
+export default function Team({ org, me, members, reload, onNavigate }) {
   const [invites, setInvites] = useState([]);
   const [editing, setEditing] = useState(null);   // membership being edited
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
 
@@ -48,7 +49,7 @@ export default function Team({ org, me, members, reload }) {
           <p className="text-xs text-slate-500">{unlimitedSeats ? `${seatsUsed} team member${seatsUsed === 1 ? "" : "s"} · unlimited invites` : `${seatsUsed} of ${org.seats} seats used`} on the {org.plan && org.plan !== "trial" ? org.plan : "current"} plan.</p>
         </div>
         {manage && <button onClick={() => { loadInvites(); reload(); }} title="Refresh" className="ml-auto grid place-items-center w-9 h-9 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"><RefreshCw size={15} /></button>}
-        {manage && <Btn onClick={() => setInviteOpen(true)} disabled={overSeats}><Plus size={14} /> Invite someone</Btn>}
+        {manage && <Btn onClick={() => overSeats ? setUpgradeOpen(true) : setInviteOpen(true)}><Plus size={14} /> Invite someone</Btn>}
       </div>
       {overSeats && manage && <div className="text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2">
         You've used all your seats. Add more in Settings → Subscription to invite additional people.
@@ -105,13 +106,16 @@ export default function Team({ org, me, members, reload }) {
         </Card>
       )}
 
-      {inviteOpen && <InviteModal org={org} onClose={() => setInviteOpen(false)} onSent={(email, altNote) => { setInviteOpen(false); setNote(altNote || ("Invitation sent to " + email)); loadInvites(); }} />}
+      {inviteOpen && <InviteModal org={org} onClose={() => setInviteOpen(false)} onSent={(email, altNote) => { setInviteOpen(false); setNote(altNote || ("Invitation sent to " + email)); loadInvites(); }} onSeatsFull={() => { setInviteOpen(false); setUpgradeOpen(true); }} />}
+      {upgradeOpen && <Modal title="Upgrade to add more people" onClose={() => setUpgradeOpen(false)} footer={<><Btn variant="ghost" onClick={() => setUpgradeOpen(false)}>Not now</Btn><Btn variant="dark" onClick={() => { setUpgradeOpen(false); onNavigate && onNavigate("settings"); }}>See plans</Btn></>}>
+        <p className="text-sm text-slate-600">You've reached the team limit on your current plan{unlimitedSeats ? "" : ` (${org.seats} member${org.seats === 1 ? "" : "s"})`}. Upgrade to a larger plan to invite more people.</p>
+      </Modal>}
       {editing && <AccessModal m={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />}
     </div>
   );
 }
 
-export function InviteModal({ org, onClose, onSent }) {
+export function InviteModal({ org, onClose, onSent, onSeatsFull }) {
   const [email, setEmail] = useState(""); const [role, setRole] = useState("member");
   const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
   const send = async () => {
@@ -121,6 +125,7 @@ export function InviteModal({ org, onClose, onSent }) {
       const token = (await sb.auth.getSession()).data.session?.access_token;
       const res = await fetch("/api/invite", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: org.id, email: email.trim(), role, accessToken: token }) });
       const body = await res.json().catch(() => ({}));
+      if (res.status === 402 && onSeatsFull) { onSeatsFull(); return; }
       if (!res.ok) throw new Error(body.error || "Could not send the invitation.");
       if (body.emailed === false && body.link) {
         try { await navigator.clipboard?.writeText(body.link); } catch (_) {}

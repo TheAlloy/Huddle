@@ -1,5 +1,7 @@
--- Feedback submissions (for the "1 month free" feedback prompt).
--- Run this in Supabase → SQL Editor.
+-- Feedback submissions. Run this in Supabase → SQL Editor.
+
+-- Make sure the column the read policy relies on exists.
+alter table profiles add column if not exists platform_admin boolean default false;
 
 create table if not exists feedback (
   id uuid primary key default gen_random_uuid(),

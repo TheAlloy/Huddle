@@ -22,7 +22,7 @@ async function readLS(key) {
 function openCloseConfirm() {
   if (confirmWin) { confirmWin.focus(); return; }
   confirmWin = new BrowserWindow({
-    width: 430, height: 250, parent: win, modal: true, resizable: false,
+    width: 420, height: 190, parent: win, modal: true, resizable: false,
     minimizable: false, maximizable: false, frame: false, backgroundColor: "#ffffff", title: "Huddle",
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false },
   });

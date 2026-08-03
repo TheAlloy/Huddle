@@ -53,12 +53,29 @@ export default async function handler(req, res) {
 
   const priceId = sub.items?.data?.[0]?.price?.id || null;
   const status = sub.status;
-  // back-fill our record so Manage billing & the highlight keep working
+
+  // Read the plan's seat limit from Stripe (price or product metadata) so seats are authoritative even without a webhook.
+  let seats = null; // null = unlimited
+  if (priceId) {
+    try {
+      const pr = await fetch(`https://api.stripe.com/v1/prices/${priceId}?expand[]=product`, { headers: { Authorization: `Bearer ${secret}` } });
+      const pj = await pr.json();
+      if (pr.ok) {
+        const raw = pj.metadata?.seats ?? pj.product?.metadata?.seats;
+        const n = raw != null ? parseInt(raw, 10) : NaN;
+        seats = Number.isFinite(n) && n > 0 ? n : null;
+      }
+    } catch (_) {}
+  }
+  const seatsForDb = seats == null ? 999999 : seats;
+
+  // back-fill our record so Manage billing, the highlight, and seat limits keep working
   const patch = {};
   if (customer && customer !== org?.stripe_customer_id) patch.stripe_customer_id = customer;
   if (sub.id && sub.id !== org?.stripe_subscription_id) patch.stripe_subscription_id = sub.id;
   if (priceId && org?.settings?.stripe_price_id !== priceId) patch.settings = { ...(org?.settings || {}), stripe_price_id: priceId };
+  if (org?.seats !== seatsForDb) patch.seats = seatsForDb;
   if (Object.keys(patch).length) await admin.from("organizations").update(patch).eq("id", orgId);
 
-  return res.status(200).json({ configured: true, hasSubscription: true, priceId, status, customerId: customer, cancelAtPeriodEnd: !!sub.cancel_at_period_end, trialEnd: sub.trial_end || null, currentPeriodEnd: sub.current_period_end || null });
+  return res.status(200).json({ configured: true, hasSubscription: true, priceId, status, seats, customerId: customer, cancelAtPeriodEnd: !!sub.cancel_at_period_end, trialEnd: sub.trial_end || null, currentPeriodEnd: sub.current_period_end || null });
 }

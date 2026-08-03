@@ -226,7 +226,7 @@ export default function App() {
         {/* content */}
         <main className="flex-1 min-w-0 bg-slate-50/50">
           {tab === "admin" && profile?.platform_admin ? <Admin />
-            : current === "people" ? (can(me, "team.manage") ? <Team org={org} me={me} members={data.members} reload={reload} /> : <TeamLite members={data.members} />)
+            : current === "people" ? (can(me, "team.manage") ? <Team org={org} me={me} members={data.members} reload={reload} onNavigate={setTab} /> : <TeamLite members={data.members} />)
             : current === "settings" ? <Settings org={org} me={me} reload={() => { loadMe(); reload(); }} />
             : current === "projects" ? <Projects org={org} me={me} data={data} reload={reload} terms={terms} />
             : current === "tracker" ? <Tracker org={org} me={me} data={data} reload={reload} />

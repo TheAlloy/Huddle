@@ -91,7 +91,7 @@ export default function Paywall({ org, me, memberships, onPickOrg, onSignOut }) 
               </div>
             )}
             <div className="mt-4 text-center">
-              <button onClick={manageBilling} disabled={busy} className="text-xs text-slate-500 hover:text-slate-700 underline">Already subscribed? Manage billing</button>
+              <a href="mailto:hello@thealloy.com?subject=Huddle%20sign-up%20help" className="text-xs text-slate-500 hover:text-slate-700 underline">Trouble signing up or signing in? Get in touch</a>
             </div>
           </div>
         )}

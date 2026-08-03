@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useRef } from "react";
 import { sb } from "../lib/supabase.js";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
@@ -95,8 +95,9 @@ async function emailInvoice(args){ const JS = await loadJsPdf(); if (!JS) { aler
   window.location.href = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body + "\n\n(The invoice PDF has just downloaded — attach it before sending.)")}`;
 }
 
-function MiniGantt({ items, empty, minHeight=110, rangeStart, rangeEnd, pxPerDay=3, onBarMove, dropRef, highlight }){
+function MiniGantt({ items, empty, minHeight=110, rangeStart, rangeEnd, onBarMove, onBarResize, dropRef, highlight }){
   const [dragState,setDragState]=useState(null);
+  const trackRef=useRef(null);
   const withDates=(items||[]).filter(i=>i.s&&i.e&&i.e>=i.s);
   let minS=rangeStart, maxE=rangeEnd;
   if(!minS||!maxE){ if(withDates.length){ minS=minS||withDates[0].s; maxE=maxE||withDates[0].e; withDates.forEach(i=>{ if(i.s<minS)minS=i.s; if(i.e>maxE)maxE=i.e; }); } }
@@ -104,34 +105,47 @@ function MiniGantt({ items, empty, minHeight=110, rangeStart, rangeEnd, pxPerDay
   const start=startOfMonth(parseISO(minS)); const end=endOfMonth(parseISO(maxE));
   const dayOf=(iso)=> (parseISO(iso)-start)/MS;
   const totalDays=Math.max(1,(end-start)/MS+1);
-  const width=Math.max(Math.round(totalDays*pxPerDay), 240);
+  const pct=(days)=>(days/totalDays)*100;
   const months=[]; for(let d=new Date(start); d<=end; d=addMonths(d,1)) months.push(new Date(d));
-  const startDrag=(item,e)=>{ if(!onBarMove||(e.button&&e.button!==0)) return; e.preventDefault(); e.stopPropagation(); const sx=e.clientX; const id=item.key||item.label; const d={moved:false,delta:0};
-    const move=(ev)=>{ const px=ev.clientX-sx; if(!d.moved){ if(Math.abs(px)<4) return; d.moved=true; document.body.style.userSelect="none"; } d.delta=Math.round(px/pxPerDay); setDragState({id,delta:d.delta}); };
-    const up=()=>{ document.removeEventListener("pointermove",move); document.removeEventListener("pointerup",up); document.body.style.userSelect=""; setDragState(null); if(d.moved && d.delta!==0) onBarMove(item,d.delta); };
+  const ppd=()=>{ const w=trackRef.current?trackRef.current.getBoundingClientRect().width:600; return Math.max(0.5,w/totalDays); };
+  const startDrag=(item,mode,e)=>{
+    const editable = mode==="move" ? !!onBarMove : !!onBarResize;
+    if(!editable||(e.button&&e.button!==0)) return;
+    e.preventDefault(); e.stopPropagation();
+    const sx=e.clientX; const per=ppd(); const id=item.key||item.label; const d={moved:false,delta:0};
+    const move=(ev)=>{ const px=ev.clientX-sx; if(!d.moved){ if(Math.abs(px)<4) return; d.moved=true; document.body.style.userSelect="none"; } d.delta=Math.round(px/per); setDragState({id,delta:d.delta,mode}); };
+    const up=()=>{ document.removeEventListener("pointermove",move); document.removeEventListener("pointerup",up); document.body.style.userSelect=""; setDragState(null); if(d.moved && d.delta!==0){ if(mode==="move") onBarMove && onBarMove(item,d.delta); else onBarResize && onBarResize(item,mode,d.delta); } };
     document.addEventListener("pointermove",move); document.addEventListener("pointerup",up);
   };
+  const canResize=!!onBarResize;
   return (
     <div ref={dropRef} className={`border rounded-xl overflow-hidden ${highlight?"border-blue-400 ring-2 ring-blue-200":"border-slate-200"}`}>
-      <div className="overflow-x-auto">
-        <div style={{width, minHeight}}>
-          <div className="relative h-6 bg-slate-50 border-b border-slate-200 text-[10px] text-slate-400">
-            {months.map((m,i)=>(<div key={i} className="absolute top-0 bottom-0 border-l border-slate-200 pl-1 flex items-center" style={{left:dayOf(toISO(m))*pxPerDay}}>{MONTHS[m.getMonth()]} {String(m.getFullYear()).slice(2)}</div>))}
-          </div>
-          <div className="relative p-2" style={{minHeight:minHeight-24}}>
-            {withDates.map((i,idx)=>{ const id=i.key||i.label; const live=(dragState&&dragState.id===id)?dragState.delta*pxPerDay:0;
-              return (<div key={idx} className="relative" style={{height:30}} title={i.label}>
-                <div onPointerDown={onBarMove?(e=>startDrag(i,e)):undefined} className="absolute rounded-md text-white text-[11px] flex items-center px-2 overflow-hidden whitespace-nowrap shadow-sm" style={{left:dayOf(i.s)*pxPerDay+live, width:Math.max(8,(dayOf(i.e)-dayOf(i.s)+1)*pxPerDay), top:3, bottom:3, background:i.color, cursor:onBarMove?"grab":"default", touchAction:onBarMove?"none":"auto", opacity:live?0.85:1}}>{i.label}</div>
-              </div>);
-            })}
-          </div>
-        </div>
+      <div ref={trackRef} className="relative h-6 bg-slate-50 border-b border-slate-200 text-[10px] text-slate-400">
+        {months.map((m,i)=>(<div key={i} className="absolute top-0 bottom-0 border-l border-slate-200 pl-1 flex items-center" style={{left:pct(dayOf(toISO(m)))+"%"}}>{MONTHS[m.getMonth()]} {String(m.getFullYear()).slice(2)}</div>))}
+      </div>
+      <div className="relative py-2" style={{minHeight:minHeight-24}}>
+        {months.map((m,i)=> i>0 && <div key={"g"+i} className="absolute top-0 bottom-0 border-l border-slate-100" style={{left:pct(dayOf(toISO(m)))+"%"}}/>)}
+        {withDates.map((i,idx)=>{ const id=i.key||i.label; const ds=(dragState&&dragState.id===id)?dragState:null;
+          let leftDays=dayOf(i.s), widthDays=(dayOf(i.e)-dayOf(i.s)+1);
+          if(ds){ if(ds.mode==="move") leftDays+=ds.delta; else if(ds.mode==="l"){ leftDays+=ds.delta; widthDays-=ds.delta; } else widthDays+=ds.delta; }
+          widthDays=Math.max(1,widthDays); leftDays=Math.max(0,leftDays);
+          return (<div key={idx} className="relative group" style={{height:30}} title={i.label}>
+            <div onPointerDown={(e)=>startDrag(i,"move",e)} className="absolute rounded-md text-white text-[11px] flex items-center px-2 overflow-hidden whitespace-nowrap shadow-sm select-none"
+              style={{left:pct(leftDays)+"%", width:pct(widthDays)+"%", top:3, bottom:3, background:i.color, cursor:onBarMove?"grab":"default", touchAction:"none", opacity:ds?0.9:1}}>
+              {canResize && <span onPointerDown={(e)=>startDrag(i,"l",e)} className="absolute left-0 top-0 bottom-0" style={{width:9,cursor:"ew-resize",zIndex:5}}/>}
+              {canResize && <span onPointerDown={(e)=>startDrag(i,"r",e)} className="absolute right-0 top-0 bottom-0" style={{width:9,cursor:"ew-resize",zIndex:5}}/>}
+              <span className="truncate pointer-events-none">{i.label}</span>
+              {canResize && <span className="absolute left-1 top-1/2 opacity-0 group-hover:opacity-90" style={{transform:"translateY(-50%)",width:3,height:"45%",background:"#fff",borderRadius:2,pointerEvents:"none",zIndex:6}}/>}
+              {canResize && <span className="absolute right-1 top-1/2 opacity-0 group-hover:opacity-90" style={{transform:"translateY(-50%)",width:3,height:"45%",background:"#fff",borderRadius:2,pointerEvents:"none",zIndex:6}}/>}
+            </div>
+          </div>);
+        })}
       </div>
     </div>
   );
 }
 function BillingPlan(ctx){
-  const { data, clientById, isLeadership, delBilling, editBilling, addBilling, setModal, convertPipeline, teamList, myMemberId, shiftProjectDates } = ctx;
+  const { data, clientById, isLeadership, delBilling, editBilling, addBilling, setModal, convertPipeline, teamList, myMemberId, shiftProjectDates, shiftProjectEdge } = ctx;
   const [expMonth,setExpMonth]=useState("");
   const [expPeople,setExpPeople]=useState("all");
   const seedPipeline=()=>{ const base=fyStartDate(); [["Rebrand — Northwind","Northwind",24000,"high",1,3],["App UI — Bluewave","Bluewave",38000,"high",4,7],["Brand refresh — Kestrel","Kestrel",9000,"high",8,9],["Packaging — Perlini S2","Perlini",12000,"low",6,8],["Website — Sayvr","Sayvr",16000,"low",2,4],["Trade stand — HID","HID",7000,"low",9,10]].forEach(([t,c,a,l,sm,em])=>addBilling({kind:"pipeline",title:t,client:c,amount:a,status:l==="high"?"sent":"bidding",meta:{start:toISO(addMonths(base,sm)),end:toISO(addMonths(base,em)),likelihood:l}})); };
@@ -156,6 +170,9 @@ function BillingPlan(ctx){
   if(allBars.length){ ovStart=allBars[0].s; ovEnd=allBars[0].e; allBars.forEach(i=>{ if(i.s<ovStart)ovStart=i.s; if(i.e>ovEnd)ovEnd=i.e; }); }
   const moveConfirmed=(item,delta)=>shiftProjectDates(item.pid,delta);
   const moveProspective=(item,delta)=>{ const b=item.entry; if(!b||!b.meta) return; const ns=b.meta.start?toISO(addDays(parseISO(b.meta.start),delta)):""; const ne=b.meta.end?toISO(addDays(parseISO(b.meta.end),delta)):""; editBilling({...b,meta:{...b.meta,start:ns,end:ne}}); };
+  const resizeConfirmed=(item,edge,delta)=>{ if(shiftProjectEdge) shiftProjectEdge(item.pid,edge,delta); };
+  const resizeProspective=(item,edge,delta)=>{ const b=item.entry; if(!b||!b.meta) return; const m={...b.meta}; if(edge==="l" && m.start) m.start=toISO(addDays(parseISO(m.start),delta)); if(edge==="r" && m.end) m.end=toISO(addDays(parseISO(m.end),delta)); editBilling({...b,meta:m}); };
+  const fyS=fyStartDate(); const fyStartISO=toISO(fyS); const fyEndISO=toISO(new Date(fyS.getFullYear()+1,2,31));
   const memberName=(id)=>(data.members.find(m=>m.id===id)||{}).name||"—";
   const clientByName=(nm)=>data.clients.find(c=>c.name===nm);
   const openForm=(kind,entry,preset)=>setModal({type:"billing",payload:{kind,entry,preset}});
@@ -198,10 +215,11 @@ function BillingPlan(ctx){
         {sub==="invoices" && !isLeadership && <span className="ml-auto text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">Invoices are managed by team leadership</span>}
       </div>
       <div className="flex-1 min-h-0 overflow-auto p-4 space-y-6">
-        {sub==="timeline" && (()=>{ const cell="px-2 py-1 text-right whitespace-nowrap border-l border-slate-100"; const lab="px-2 py-1 text-left sticky left-0 bg-white z-10 whitespace-nowrap"; const mrow=(arr)=>arr.map((v,i)=><td key={i} className={cell}>{money0(v)}</td>);
+        {sub==="timeline" && (()=>{ const cell="px-1.5 py-1 text-right border-l border-slate-100 align-top"; const lab="px-2 py-1 text-left sticky left-0 bg-white z-10 align-top"; const mrow=(arr)=>arr.map((v,i)=><td key={i} className={cell}>{money0(v)}</td>); const confirmedNet=monthConfirmed.map((v,i)=>v-ohRow[i]); const predictedNet=bestCase.map((v,i)=>v-ohRow[i]);
           return (<div className="text-xs">
             <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-slate-700">Billing timeline</h3><span className="text-xs text-slate-400">FY {fyLabel} · April → March</span></div>
-            <table className="border-collapse w-full" style={{minWidth:1040}}>
+            <table className="border-collapse w-full table-fixed">
+              <colgroup><col style={{width:"22%"}}/>{FY_MONTHS.map((m,i)=><col key={i}/>)}<col style={{width:"8%"}}/></colgroup>
               <thead><tr className="text-[11px] text-slate-400 border-b border-slate-200">
                 <th className={lab+" font-semibold text-slate-500"}>Client / phase</th>
                 {FY_MONTHS.map((m,i)=><th key={i} className={cell+" font-semibold"}>{m}</th>)}
@@ -216,24 +234,32 @@ function BillingPlan(ctx){
                     {FY_MONTHS.map((m,i)=><td key={i} className={cell}>{r.mi===i && <div className="leading-tight">
                       <div className="text-slate-700 font-medium">{money0(r.fee)}</div>
                       {r.inv?<div className="mt-0.5 inline-block text-[9px] text-green-700 bg-green-50 border border-green-200 rounded px-1">Inv #{(r.inv.meta&&r.inv.meta.number)||"—"}</div>
-                        :(isLeadership&&r.ended?<button onClick={()=>generateInvoice({p:r.p,cl,ph:r.ph,amount:r.fee})} className="mt-0.5 text-[9px] text-blue-600 hover:underline">+ invoice</button>:<div className="text-[9px] text-transparent">–</div>)}
+                        :(isLeadership&&r.ended?<button onClick={()=>generateInvoice({p:r.p,cl,ph:r.ph,amount:r.fee})} className="mt-0.5 text-[9px] text-blue-600 hover:underline">+ invoice</button>:null)}
                     </div>}</td>)}
                     <td className={cell+" text-slate-500"}>{money0(r.fee)}</td>
                   </tr>))}
                 </React.Fragment>))}
-                <tr style={{background:"#eafaf0"}}><td className={lab+" font-bold pt-2"} style={{background:"#eafaf0",color:"#1e874b"}}><span className="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style={{background:"#27ae60"}}/>Highly likely to convert</td>{FY_MONTHS.map((m,i)=><td key={i} className={cell} style={{background:"#eafaf0"}}></td>)}<td className={cell+" font-semibold"} style={{background:"#eafaf0",color:"#1e874b"}}>{money0(sum(highRows.map(h=>h.b.amount||0)))}</td></tr>
+
+                {/* ---- CONFIRMED (money that's actually booked) ---- */}
+                <tr className="border-t-2 border-slate-400"><td className={lab+" font-bold text-slate-800"}>Confirmed income</td>{monthConfirmed.map((v,i)=><td key={i} className={cell+" font-semibold text-slate-800"}>{money0(v)}</td>)}<td className={cell+" font-bold text-slate-800"}>{money0(sum(monthConfirmed))}</td></tr>
+                <tr className="text-red-500"><td className={lab}>Overheads</td>{mrow(ohRow)}<td className={cell}>{money0(sum(ohRow))}</td></tr>
+                <tr className="font-bold" style={{background:"#e9f7ef"}}><td className={lab} style={{color:NAVY,background:"#e9f7ef"}}>Confirmed net</td>{confirmedNet.map((v,i)=><td key={i} className={cell} style={{color:v<0?"#eb5757":"#1e874b",background:"#e9f7ef"}}>{money0(v)}</td>)}<td className={cell} style={{color:sum(confirmedNet)<0?"#eb5757":"#1e874b",background:"#e9f7ef"}}>{money0(sum(confirmedNet))}</td></tr>
+
+                <tr><td colSpan={14} className="py-1.5"></td></tr>
+
+                {/* ---- PIPELINE ---- */}
+                <tr style={{background:"#eafaf0"}}><td className={lab+" font-bold"} style={{background:"#eafaf0",color:"#1e874b"}}><span className="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style={{background:"#27ae60"}}/>Highly likely to convert</td>{FY_MONTHS.map((m,i)=><td key={i} className={cell} style={{background:"#eafaf0"}}></td>)}<td className={cell+" font-semibold"} style={{background:"#eafaf0",color:"#1e874b"}}>{money0(sum(highRows.map(h=>h.b.amount||0)))}</td></tr>
                 {highRows.length===0 && <tr><td className={lab+" text-slate-300 pl-4"} colSpan={14}>—</td></tr>}
                 {highRows.map(({b,mi},i)=>(<tr key={"h"+i} className="hover:bg-green-50/40"><td className={lab+" pl-4 text-slate-600"}>{b.client?b.client+" · ":""}{b.title}</td>{FY_MONTHS.map((m,j)=><td key={j} className={cell} style={{color:"#1e874b"}}>{mi===j?money0(b.amount):""}</td>)}<td className={cell+" text-slate-500"}>{money0(b.amount)}</td></tr>))}
                 <tr style={{background:"#fff5e6"}}><td className={lab+" font-bold"} style={{background:"#fff5e6",color:"#b26b00"}}><span className="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style={{background:"#f59e0b"}}/>Less likely to convert</td>{FY_MONTHS.map((m,i)=><td key={i} className={cell} style={{background:"#fff5e6"}}></td>)}<td className={cell+" font-semibold"} style={{background:"#fff5e6",color:"#b26b00"}}>{money0(sum(lowRows.map(l=>l.b.amount||0)))}</td></tr>
                 {lowRows.length===0 && <tr><td className={lab+" text-slate-300 pl-4"} colSpan={14}>—</td></tr>}
                 {lowRows.map(({b,mi},i)=>(<tr key={"l"+i} className="hover:bg-amber-50/40"><td className={lab+" pl-4 text-slate-500"}>{b.client?b.client+" · ":""}{b.title}</td>{FY_MONTHS.map((m,j)=><td key={j} className={cell} style={{color:"#b26b00"}}>{mi===j?money0(b.amount):""}</td>)}<td className={cell+" text-slate-400"}>{money0(b.amount)}</td></tr>))}
-                <tr className="border-t-2 border-slate-300 font-medium text-slate-700"><td className={lab+" font-semibold"}>Confirmed income</td>{mrow(monthConfirmed)}<td className={cell+" font-bold"}>{money0(sum(monthConfirmed))}</td></tr>
-                <tr className="text-slate-500"><td className={lab}>+ Highly likely</td>{mrow(monthHigh)}<td className={cell}>{money0(sum(monthHigh))}</td></tr>
-                <tr className="font-semibold text-blue-700 bg-blue-50/40"><td className={lab+" bg-blue-50/40"}>Proposals total</td>{mrow(proposals)}<td className={cell+" font-bold"}>{money0(sum(proposals))}</td></tr>
-                <tr className="text-slate-400"><td className={lab}>+ Less likely</td>{mrow(monthLow)}<td className={cell}>{money0(sum(monthLow))}</td></tr>
+
+                {/* ---- PREDICTION ---- */}
+                <tr className="border-t-2 border-slate-300 font-semibold text-blue-700 bg-blue-50/40"><td className={lab+" bg-blue-50/40"}>Proposals total</td>{mrow(proposals)}<td className={cell+" font-bold"}>{money0(sum(proposals))}</td></tr>
                 <tr className="font-semibold text-slate-700"><td className={lab}>Best case total</td>{mrow(bestCase)}<td className={cell+" font-bold"}>{money0(sum(bestCase))}</td></tr>
-                <tr className="text-red-500 border-t border-slate-200"><td className={lab}>Predicted overheads</td>{mrow(ohRow)}<td className={cell}>{money0(sum(ohRow))}</td></tr>
-                <tr className="font-bold"><td className={lab} style={{color:NAVY}}>Predicted net</td>{netRow.map((v,i)=><td key={i} className={cell} style={{color:v<0?"#eb5757":"#27ae60"}}>{money0(v)}</td>)}<td className={cell} style={{color:sum(netRow)<0?"#eb5757":"#27ae60"}}>{money0(sum(netRow))}</td></tr>
+                <tr className="text-red-500"><td className={lab}>Predicted overheads</td>{mrow(ohRow)}<td className={cell}>{money0(sum(ohRow))}</td></tr>
+                <tr className="font-bold" style={{background:"#eef2fb"}}><td className={lab} style={{color:NAVY,background:"#eef2fb"}}>Predicted net (best case)</td>{predictedNet.map((v,i)=><td key={i} className={cell} style={{color:v<0?"#eb5757":"#27ae60",background:"#eef2fb"}}>{money0(v)}</td>)}<td className={cell} style={{color:sum(predictedNet)<0?"#eb5757":"#27ae60",background:"#eef2fb"}}>{money0(sum(predictedNet))}</td></tr>
               </tbody>
             </table>
             <p className="text-[11px] text-slate-400 mt-2">Phase fees are set per phase in the project editor; each sits in the month its phase ends. Once a phase has finished, leadership can hit "invoice" to raise it (with an auto number) — that feeds the Invoices tab.</p>
@@ -248,18 +274,13 @@ function BillingPlan(ctx){
             <Stat label="Expenses owed" value={money(expensesTotal)}/>
           </div>
           <div>
-            <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-slate-700">Confirmed work — timeline</h3><span className="text-[11px] text-slate-400">drag a bar sideways to reschedule</span>
-              <div className="ml-auto flex items-center gap-1"><span className="text-xs text-slate-400 mr-1">Zoom</span>
-                <button onClick={()=>setOvZoom(z=>Math.max(1.2,Math.round((z/1.4)*10)/10))} className="w-6 h-6 rounded border border-slate-200 text-slate-600 hover:bg-slate-50 grid place-items-center"><Minus size={13}/></button>
-                <button onClick={()=>setOvZoom(z=>Math.min(14,Math.round((z*1.4)*10)/10))} className="w-6 h-6 rounded border border-slate-200 text-slate-600 hover:bg-slate-50 grid place-items-center"><Plus size={13}/></button>
-              </div>
-            </div>
-            <MiniGantt rangeStart={ovStart} rangeEnd={ovEnd} pxPerDay={ovZoom} onBarMove={isLeadership?moveConfirmed:null} minHeight={140} items={confirmedItems} empty="No scheduled projects yet — book work on the schedule, or confirm a prospective job below."/>
+            <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-slate-700">Confirmed work — timeline</h3><span className="text-[11px] text-slate-400">drag to move · drag an edge to stretch the start/end</span></div>
+            <MiniGantt rangeStart={fyStartISO} rangeEnd={fyEndISO} onBarMove={isLeadership?moveConfirmed:null} onBarResize={isLeadership?resizeConfirmed:null} minHeight={150} items={confirmedItems} empty="No scheduled projects yet — book work on the schedule, or confirm a prospective job below."/>
           </div>
           <div>
             <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-slate-700">Prospective work — timeline</h3><div className="ml-auto flex items-center gap-2">{byKind("pipeline").length===0 && <button onClick={seedPipeline} className="text-xs font-semibold text-slate-500 hover:text-slate-700 border border-slate-200 rounded-lg px-2 py-1">Add examples</button>}<button onClick={()=>openForm("pipeline")} className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700"><Plus size={13}/> Add</button></div></div>
-            <MiniGantt rangeStart={ovStart} rangeEnd={ovEnd} pxPerDay={ovZoom} onBarMove={moveProspective} minHeight={140} items={prospectiveItems} empty="Add prospective jobs with expected dates to see them here."/>
-            <p className="text-[11px] text-slate-400 mt-1">Both timelines share the same scale. Drag a prospective bar sideways to change its expected dates; use "→ Confirm" below to turn it into a scheduled project.</p>
+            <MiniGantt rangeStart={fyStartISO} rangeEnd={fyEndISO} onBarMove={moveProspective} onBarResize={resizeProspective} minHeight={150} items={prospectiveItems} empty="Add prospective jobs with expected dates to see them here."/>
+            <p className="text-[11px] text-slate-400 mt-1">Both timelines cover the full financial year (April → March). Drag a bar to move it, or drag either end to change its start/end. Use "→ Confirm" below to turn a prospect into a scheduled project.</p>
             <div className="rounded-xl border border-slate-200 overflow-hidden mt-2">
               {byKind("pipeline").length===0 && <div className="px-3 py-3 text-sm text-slate-400">Nothing in the pipeline yet.</div>}
               {byKind("pipeline").map(b=>{ const low=b.meta&&b.meta.likelihood==="low"; return (<div key={b.id} className="flex items-center gap-3 px-3 py-2 border-t border-slate-100 first:border-t-0 text-sm">
@@ -440,6 +461,10 @@ export default function Billing({ org, me, data: cadData, reload }){
   const canEdit=can(me,"billing.edit");
 
   const shiftProjectDates=async(projectId,deltaDays)=>{ if(!deltaDays||!canEdit) return; const affected=(cadData.assignments||[]).filter(a=>a.project_id===projectId&&a.kind==="work"); for(const a of affected){ await sb.from("assignments").update({ start_date:toISO(addDays(parseISO(a.start_date),deltaDays)), end_date:toISO(addDays(parseISO(a.end_date),deltaDays)) }).eq("id",a.id); } reload(); };
+  const shiftProjectEdge=async(projectId,edge,deltaDays)=>{ if(!deltaDays||!canEdit) return; const as=(cadData.assignments||[]).filter(a=>a.project_id===projectId&&a.kind==="work"); if(!as.length) return;
+    if(edge==="r"){ const maxEnd=as.reduce((m,a)=>a.end_date>m?a.end_date:m,as[0].end_date); for(const a of as){ if(a.end_date===maxEnd){ const ne=toISO(addDays(parseISO(a.end_date),deltaDays)); if(ne>=a.start_date) await sb.from("assignments").update({end_date:ne}).eq("id",a.id); } } }
+    else { const minStart=as.reduce((m,a)=>a.start_date<m?a.start_date:m,as[0].start_date); for(const a of as){ if(a.start_date===minStart){ const ns=toISO(addDays(parseISO(a.start_date),deltaDays)); if(ns<=a.end_date) await sb.from("assignments").update({start_date:ns}).eq("id",a.id); } } }
+    reload(); };
   const convertPipeline=async(entry)=>{ if(!canEdit) return; let cid;
     const ex=data.clients.find(c=>(c.name||"").toLowerCase()===(entry.client||"").trim().toLowerCase());
     if(ex) cid=ex.id; else { const {data:nc}=await sb.from("clients").insert({org_id:org.id,name:(entry.client||entry.title||"New client").trim(),color:CLIENT_COLORS[data.clients.length%CLIENT_COLORS.length],payment_terms:30}).select().single(); cid=nc&&nc.id; }
@@ -453,7 +478,7 @@ export default function Billing({ org, me, data: cadData, reload }){
   const invoiceProfile={ ...(org.settings?.invoice||{}), company:(org.settings?.invoice?.company)||org.name };
   const ctx={ data, clientById, projectById, isLeadership:canEdit, teamList, myMemberId:me.id, setModal, invoiceProfile,
     addBilling:canEdit?H.addBilling:(()=>{}), editBilling:canEdit?H.editBilling:(()=>{}), delBilling:canEdit?H.delBilling:(()=>{}),
-    convertPipeline, shiftProjectDates };
+    convertPipeline, shiftProjectDates, shiftProjectEdge };
 
   return (<div className="h-full">
     {!canEdit && <div className="px-4 py-2 text-xs bg-amber-50 border-b border-amber-200 text-amber-800">You can view billing but not edit it.</div>}

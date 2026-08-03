@@ -6,6 +6,7 @@
   "license": "UNLICENSED",
   "private": true,
   "main": "main.js",
+  "repository": "https://github.com/TheAlloy/Huddle",
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder",
@@ -15,7 +16,7 @@
   },
   "build": {
     "appId": "com.cadenceapp.desktop",
-    "productName": "Cadence",
+    "productName": "Cadence", "publish": null,
     "directories": { "output": "dist", "buildResources": "build" },
     "files": ["main.js", "package.json"],
     "win": { "target": "nsis" },

@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  * { box-sizing: border-box; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { margin: 0; height: 100vh; display: grid; place-items: center; background: #f1f5f9; color: #1f2d4e; }
+  .card { text-align: center; max-width: 360px; padding: 24px; }
+  .dot { width: 46px; height: 46px; border-radius: 50%; background: #e2e8f0; margin: 0 auto 14px; display: grid; place-items: center; font-size: 22px; }
+  h1 { font-size: 18px; margin: 0 0 8px; }
+  p { font-size: 13px; color: #64748b; margin: 0 0 20px; line-height: 1.5; }
+  button { border: none; border-radius: 8px; padding: 10px 20px; font-size: 13px; font-weight: 600; cursor: pointer; background: #1f2d4e; color: #fff; }
+  button:hover { filter: brightness(1.1); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="dot">📡</div>
+    <h1>You're offline</h1>
+    <p>Huddle needs an internet connection to reach your studio's data. Check your connection and try again.</p>
+    <button onclick="window.huddle.retry()">Try again</button>
+  </div>
+</body>
+</html>

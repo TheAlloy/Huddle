@@ -1,5 +1,5 @@
 // Records a team invite and emails it.
-// Preferred email path: Resend (set RESEND_API_KEY + INVITE_FROM, e.g. "Cadence <invites@yourdomain.com>").
+// Preferred email path: Resend (set RESEND_API_KEY + INVITE_FROM, e.g. "Huddle <invites@yourdomain.com>").
 // Falls back to Supabase's built-in invite email if Resend isn't configured.
 // Always returns the shareable link so the inviter can copy it if email fails.
 // Requires: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, APP_URL
@@ -11,7 +11,7 @@ async function sendViaResend({ to, link, orgName, fromDefault }) {
   const from = process.env.INVITE_FROM || fromDefault;
   const html = `
     <div style="font-family:system-ui,-apple-system,sans-serif;max-width:520px;margin:auto">
-      <h2 style="color:#1f2d4e">You're invited to ${orgName || "a studio"} on Cadence</h2>
+      <h2 style="color:#1f2d4e">You're invited to ${orgName || "a studio"} on Huddle</h2>
       <p>You've been invited to join the team. Click below to set up your account with this email address.</p>
       <p style="margin:24px 0">
         <a href="${link}" style="background:#1f2d4e;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600">Accept invitation</a>
@@ -22,7 +22,7 @@ async function sendViaResend({ to, link, orgName, fromDefault }) {
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to: [to], subject: `You're invited to ${orgName || "join a team"} on Cadence`, html }),
+      body: JSON.stringify({ from, to: [to], subject: `You're invited to ${orgName || "join a team"} on Huddle`, html }),
     });
     if (r.ok) return { sent: true };
     const b = await r.json().catch(() => ({}));
@@ -63,10 +63,10 @@ export default async function handler(req, res) {
 
   const appUrl = process.env.APP_URL || `https://${req.headers.host}`;
   const link = `${appUrl}/?invite=${invite.token}`;
-  const host = (() => { try { return new URL(appUrl).hostname; } catch (_) { return "cadence.app"; } })();
+  const host = (() => { try { return new URL(appUrl).hostname; } catch (_) { return "huddle.app"; } })();
 
   // 1) Preferred: Resend (reliable, not rate-limited, branded).
-  const resend = await sendViaResend({ to: email, link, orgName: org.name, fromDefault: `Cadence <onboarding@${host}>` });
+  const resend = await sendViaResend({ to: email, link, orgName: org.name, fromDefault: `Huddle <onboarding@${host}>` });
   if (resend.sent) return res.status(200).json({ ok: true, emailed: true, via: "resend", link });
 
   // 2) Fallback: Supabase built-in invite email (rate-limited to a couple/hour).

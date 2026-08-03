@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { sb, CONFIGURED } from "./lib/supabase.js";
 import { loadOrgData } from "./lib/api.js";
 import { can } from "./lib/permissions.js";
@@ -20,7 +20,7 @@ import { lsGet, fmtClock } from "./studio/core.jsx";
 import { makeTerms } from "./lib/terms.js";
 import { CalendarDays, Table2, LayoutGrid, Landmark, Users, Settings as Cog, Clock, FolderKanban, Shield, ChevronDown } from "lucide-react";
 
-const PRODUCT = "Cadence";
+const PRODUCT = "Huddle";
 
 export default function App() {
   const [session, setSession] = useState(undefined);
@@ -92,6 +92,24 @@ export default function App() {
   const me = active;
   const suspended = org.status === "suspended" || org.status === "cancelled";
   const terms = makeTerms(org.settings?.usage);
+
+  // Mirror admin-controlled desktop warning prefs to localStorage so the desktop app can read them.
+  useEffect(() => {
+    const dw = org?.settings?.desktopWarnings || {};
+    try {
+      localStorage.setItem("huddle_warn_close", dw.closeWarn === false ? "0" : "1");
+      localStorage.setItem("huddle_warn_minimize", dw.minimizeWarn === false ? "0" : "1");
+    } catch (_) {}
+  }, [org]);
+
+  // On first load, open on the page that suits the person's role.
+  const didInitTab = useRef(false);
+  useEffect(() => {
+    if (didInitTab.current || !me) return;
+    didInitTab.current = true;
+    const senior = ["owner", "admin", "manager", "finance"].includes(me.role) || can(me, "billing.view") || can(me, "team.manage") || can(me, "schedule.edit");
+    setTab(senior ? "schedule" : (can(me, "time.track") ? "tracker" : "schedule"));
+  }, [me]);
 
   const NAV = [
     { key: "schedule", label: "Schedule", icon: CalendarDays, perm: "schedule.view" },
@@ -194,7 +212,7 @@ function HeaderTracker({ me, active, onOpen }) {
   const [run, setRun] = useState(() => lsGet("tracker_run_" + me.id));
   const [, tick] = useState(0);
   useEffect(() => {
-    const iv = setInterval(() => { setRun(lsGet("tracker_run_" + me.id)); tick(t => t + 1); }, 1000);
+    const iv = setInterval(() => { const r = lsGet("tracker_run_" + me.id); setRun(r); tick(t => t + 1); try { localStorage.setItem("huddle_tracking", r ? "1" : "0"); } catch (_) {} }, 1000);
     return () => clearInterval(iv);
   }, [me.id]);
   const elapsed = run ? fmtClock((Date.now() - run.startedAt) / 1000) : null;

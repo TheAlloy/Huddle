@@ -1,7 +1,7 @@
 {
-  "name": "cadence-desktop",
+  "name": "huddle-desktop",
   "version": "1.0.0",
-  "description": "Cadence desktop app (Alloy)",
+  "description": "Huddle desktop app (Alloy)",
   "author": "Alloy Ltd",
   "license": "UNLICENSED",
   "private": true,
@@ -15,10 +15,12 @@
     "dist:linux": "electron-builder --linux"
   },
   "build": {
-    "appId": "com.cadenceapp.desktop",
-    "productName": "Cadence", "publish": null,
+    "appId": "com.huddleapp.desktop",
+    "productName": "Huddle",
+    "publish": null,
+    "artifactName": "Huddle-${version}.${ext}",
     "directories": { "output": "dist", "buildResources": "build" },
-    "files": ["main.js", "package.json"],
+    "files": ["main.js", "preload.js", "confirm.html", "offline.html", "package.json"],
     "win": { "target": "nsis" },
     "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "perMachine": false },
     "mac": { "target": [{ "target": "dmg", "arch": ["universal"] }], "category": "public.app-category.productivity" },

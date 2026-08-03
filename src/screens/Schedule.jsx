@@ -751,7 +751,7 @@ function ProposalForm({ clients, members, anchor, onCreate, onClose }) {
     <button onClick={confirm} className="ml-auto text-sm bg-violet-600 text-white px-4 py-2 rounded-lg hover:bg-violet-700">Create project &amp; schedule</button>
   </div></ModalShell>);
 }
-/* ============================ Cadence adapter + wired glue ======================= */
+/* ============================ Huddle adapter + wired glue ======================= */
 function mapData(cad) {
   return {
     members: (cad.members || []).filter(m => m.status !== "suspended").map(m => ({ id:m.id, name:m.display_name||m.email||"—", role:m.job_title||(m.role||""), email:m.email||"", teams:m.teams||[], daily:m.daily_hours||8, holidayAllowance:m.holiday_allowance??30, hourlyRate:m.hourly_rate })),

@@ -11,7 +11,7 @@ export default async function handler(req, res) {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: process.env.INVITE_FROM || `Cadence <feedback@cadence.app>`,
+        from: process.env.INVITE_FROM || `Huddle <feedback@huddle.app>`,
         to: [to],
         subject: `Feedback from ${orgName || "a studio"} (${email || "no email"})`,
         html: `<div style="font-family:system-ui,sans-serif"><h3>New feedback from ${orgName || "a studio"}</h3><table style="font-size:13px;border-collapse:collapse">${rows}</table></div>`,

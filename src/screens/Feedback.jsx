@@ -58,7 +58,7 @@ export default function FeedbackModal({ org, me, onClose }) {
     footer={<><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={submit} disabled={busy}>{busy ? "Sending…" : "Submit feedback"}</Btn></>}>
     <p className="text-xs text-slate-500 mb-4">Thoughtful, detailed answers give us the insights we need — and put you in line for a month on us. Starred questions {req} are the minimum.</p>
 
-    <Field label={<>What do you use Cadence for? {req}</>}>
+    <Field label={<>What do you use Huddle for? {req}</>}>
       <div className="flex flex-wrap gap-1.5">{USES.map(u => (
         <button key={u} type="button" onClick={() => toggleUse(u)} className={`text-xs px-2.5 py-1.5 rounded-lg border ${a.uses.includes(u) ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600"}`}>{u}</button>
       ))}</div>
@@ -88,7 +88,7 @@ export default function FeedbackModal({ org, me, onClose }) {
     <Field label="What almost stopped you signing up, or nearly made you stop using it?"><textarea className={inputCls} rows={2} value={a.almostLeft} onChange={e => set("almostLeft", e.target.value)} /></Field>
     <Field label="Walk us through how it fits your typical day."><textarea className={inputCls} rows={2} value={a.dailyUse} onChange={e => set("dailyUse", e.target.value)} /></Field>
 
-    <Field label="How likely are you to recommend Cadence to another studio? (0–10)"><Scale value={a.nps} onChange={v => set("nps", v)} max={11} low="Not at all" high="Absolutely" /></Field>
+    <Field label="How likely are you to recommend Huddle to another studio? (0–10)"><Scale value={a.nps} onChange={v => set("nps", v)} max={11} low="Not at all" high="Absolutely" /></Field>
 
     <Field label="Anything else you'd like us to know?"><textarea className={inputCls} rows={2} value={a.anythingElse} onChange={e => set("anythingElse", e.target.value)} /></Field>
     <Field label="Email for your free month"><input className={inputCls} value={a.email} onChange={e => set("email", e.target.value)} /></Field>

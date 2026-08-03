@@ -1,4 +1,4 @@
-// Terminology that adapts to how a studio uses Cadence.
+// Terminology that adapts to how a studio uses Huddle.
 // Stored in org.settings.usage: "consultancy" | "internal" | "both" | "other".
 export const USAGE_OPTIONS = [
   { key: "consultancy", label: "Consultancy / client work", blurb: "You track time and bill against external clients and their projects." },

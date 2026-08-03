@@ -123,7 +123,6 @@ export default function App() {
     if (!active || !org) return;
     const localOk = !!org.stripe_subscription_id && ["active", "trialing", "past_due"].includes(org.status);
     if (localOk) { setBillingOk(true); setBillingChecked(true); return; }
-    setBillingOk(false); setBillingChecked(false);
     let live = true;
     (async () => {
       try {
@@ -137,7 +136,7 @@ export default function App() {
       if (live) setBillingChecked(true);
     })();
     return () => { live = false; };
-  }, [active, org]);
+  }, [active?.org_id, org?.id, org?.status, org?.stripe_subscription_id]); // eslint-disable-line
 
   if (!CONFIGURED) return <Fatal title="Not configured" msg="Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then redeploy." />;
   if (session === undefined) return <Spinner label="Starting…" />;

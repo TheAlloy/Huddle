@@ -34,7 +34,9 @@ export default function App() {
   const [peopleFilter, setPeopleFilter] = useState("all");
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [err, setErr] = useState("");
-  const inviteToken = new URLSearchParams(window.location.search).get("invite");
+  const [pendingInvite, setPendingInvite] = useState(() => new URLSearchParams(window.location.search).get("invite"));
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteErr, setInviteErr] = useState("");
 
   /* session */
   useEffect(() => {
@@ -59,17 +61,27 @@ export default function App() {
   }, [session]);
   useEffect(() => { loadMe(); }, [loadMe]);
 
-  /* accept an invitation if one is in the URL */
+  /* accept an invitation once signed in — joins the existing team, skips onboarding */
   useEffect(() => {
-    if (!session || !inviteToken) return;
+    if (!session || !pendingInvite) return;
+    let alive = true;
     (async () => {
-      const { data, error } = await sb.rpc("accept_invite", { invite_token: inviteToken });
-      if (!error && data) { setOrgId(data); localStorage.setItem("cadence_org", data); }
-      else if (error) setErr(error.message);
+      setInviteBusy(true); setInviteErr("");
+      const { data, error } = await sb.rpc("accept_invite", { invite_token: pendingInvite });
+      if (!alive) return;
       window.history.replaceState({}, "", window.location.pathname);
-      loadMe();
+      if (!error && data) {
+        setOrgId(data); localStorage.setItem("cadence_org", data);
+        setPendingInvite(null);
+        await loadMe();
+      } else {
+        setInviteErr(error?.message || "This invitation link is invalid or has already been used. You can sign in normally instead.");
+        setPendingInvite(null);
+      }
+      setInviteBusy(false);
     })();
-  }, [session, inviteToken, loadMe]);
+    return () => { alive = false; };
+  }, [session, pendingInvite, loadMe]);
 
   /* pick an org */
   const active = (memberships || []).find(m => m.org_id === orgId) || (memberships || [])[0] || null;
@@ -129,9 +141,13 @@ export default function App() {
 
   if (!CONFIGURED) return <Fatal title="Not configured" msg="Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then redeploy." />;
   if (session === undefined) return <Spinner label="Starting…" />;
-  if (!session) return <Auth inviteToken={inviteToken} productName={PRODUCT} />;
+  if (!session) return <Auth inviteToken={pendingInvite} inviteError={inviteErr} productName={PRODUCT} />;
   if (memberships === null) return <Spinner label="Loading your account…" />;
-  if (memberships.length === 0) return <Onboarding user={session.user} onDone={(id) => { setOrgId(id); localStorage.setItem("cadence_org", id); loadMe(); }} />;
+  if (memberships.length === 0) {
+    if (pendingInvite || inviteBusy) return <Spinner label="Joining your team…" />;
+    if (inviteErr) return <Fatal title="Couldn't join the team" msg={inviteErr} />;
+    return <Onboarding user={session.user} onDone={(id) => { setOrgId(id); localStorage.setItem("cadence_org", id); loadMe(); }} />;
+  }
   if (!org || !data) return <Spinner label="Loading your studio…" />;
 
   const me = active;

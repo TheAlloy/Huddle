@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { sb } from "../lib/supabase.js";
 import { Btn, Field, inputCls, NAVY } from "../ui.jsx";
 
-export default function Auth({ inviteToken, productName }) {
+export default function Auth({ inviteToken, inviteError, productName }) {
   const [mode, setMode] = useState(inviteToken ? "signup" : "signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -63,8 +63,11 @@ export default function Auth({ inviteToken, productName }) {
         <div className="bg-white border border-slate-200 rounded-2xl p-5">
           {inviteToken && (
             <div className="mb-4 text-xs bg-blue-50 border border-blue-200 text-blue-800 rounded-lg px-3 py-2">
-              You've been invited to a team. Sign up (or sign in) with the email the invitation was sent to.
+              You've been invited to a team. Sign up (or sign in) with the email the invitation was sent to — you'll go straight to the team.
             </div>
+          )}
+          {inviteError && (
+            <div className="mb-4 text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2">{inviteError}</div>
           )}
 
           {mode === "signup" && (

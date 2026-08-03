@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
 import { Btn, Card, Field, inputCls, Pill } from "../ui.jsx";
 import { can } from "../lib/permissions.js";
+import { USAGE_OPTIONS } from "../lib/terms.js";
 
 export default function Settings({ org, me, reload }) {
   const [name, setName] = useState(org.name);
@@ -78,6 +79,16 @@ export default function Settings({ org, me, reload }) {
     await sb.from("organizations").update({ settings: { ...(org.settings || {}), invoice: inv } }).eq("id", org.id);
     setBusy(false); setInvSaved(true); reload();
     setTimeout(() => setInvSaved(false), 2500);
+  };
+
+  const [usage, setUsage] = useState(org.settings?.usage || "consultancy");
+  const [usageOther, setUsageOther] = useState(org.settings?.usageOther || "");
+  const [usageSaved, setUsageSaved] = useState(false);
+  const saveUsage = async () => {
+    setBusy(true);
+    await sb.from("organizations").update({ settings: { ...(org.settings || {}), usage, ...(usage === "other" ? { usageOther } : {}) } }).eq("id", org.id);
+    setBusy(false); setUsageSaved(true); reload();
+    setTimeout(() => setUsageSaved(false), 2500);
   };
 
   const save = async () => {
@@ -184,6 +195,17 @@ export default function Settings({ org, me, reload }) {
         </div>
 
         <div className="flex items-center gap-2"><Btn onClick={saveInvoice} disabled={busy}>Save invoice details</Btn>{invSaved && <span className="text-xs text-green-600">Saved.</span>}</div>
+      </Card>}
+
+      {admin && <Card title="How you use Cadence">
+        <p className="text-xs text-slate-500 mb-3">This tailors the wording across the app (for example “clients” vs “teams”).</p>
+        <div className="space-y-1.5">{USAGE_OPTIONS.map(o => (
+          <label key={o.key} className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer ${usage === o.key ? "border-blue-500 bg-blue-50" : "border-slate-200"}`}>
+            <input type="radio" name="usage-settings" checked={usage === o.key} onChange={() => setUsage(o.key)} className="mt-0.5" />
+            <span><span className="text-sm font-medium text-slate-800">{o.label}</span><span className="block text-xs text-slate-500">{o.blurb}</span></span>
+          </label>))}</div>
+        {usage === "other" && <input className={inputCls + " mt-2"} value={usageOther} onChange={e => setUsageOther(e.target.value)} placeholder="How would you describe it?" />}
+        <div className="flex items-center gap-2 mt-3"><Btn onClick={saveUsage} disabled={busy}>Save</Btn>{usageSaved && <span className="text-xs text-green-600">Saved.</span>}</div>
       </Card>}
 
       <Card title="Your account">

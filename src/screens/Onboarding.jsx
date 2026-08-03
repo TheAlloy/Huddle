@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
 import { Btn, Field, inputCls, NAVY, Pill } from "../ui.jsx";
 import { ROLES, ROLE_KEYS } from "../lib/permissions.js";
+import { USAGE_OPTIONS } from "../lib/terms.js";
 import { Check, Plus, Trash2 } from "lucide-react";
 
 /** First-run wizard. Creates the organization, invites the team, adds a first client/project, and picks a plan. */
@@ -12,6 +13,8 @@ export default function Onboarding({ user, onDone }) {
 
   const [studio, setStudio] = useState("");
   const [yourName, setYourName] = useState(user?.user_metadata?.full_name || "");
+  const [usage, setUsage] = useState("consultancy");
+  const [usageOther, setUsageOther] = useState("");
   const [orgId, setOrgId] = useState(null);
 
   const [rows, setRows] = useState([{ email: "", role: "member" }]);
@@ -29,6 +32,7 @@ export default function Onboarding({ user, onDone }) {
     try {
       const { data, error } = await sb.rpc("create_organization", { org_name: studio.trim(), person_name: yourName.trim() || null });
       if (error) throw error;
+      try { await sb.from("organizations").update({ settings: { usage, ...(usage === "other" && usageOther.trim() ? { usageOther: usageOther.trim() } : {}) } }).eq("id", data); } catch (_) {}
       setOrgId(data); setStep(2);
     } catch (e) { setErr(e.message || "Could not create your studio."); }
     setBusy(false);
@@ -126,6 +130,15 @@ export default function Onboarding({ user, onDone }) {
             <p className="text-sm text-slate-500 mb-5">This is the workspace your whole team will share.</p>
             <Field label="Studio name"><input className={inputCls} value={studio} onChange={e => setStudio(e.target.value)} placeholder="e.g. Alloy" autoFocus /></Field>
             <Field label="Your name"><input className={inputCls} value={yourName} onChange={e => setYourName(e.target.value)} placeholder="Alex Dangerfield" /></Field>
+            <Field label="What will you use it for?">
+              <div className="space-y-1.5">{USAGE_OPTIONS.map(o => (
+                <label key={o.key} className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer ${usage === o.key ? "border-blue-500 bg-blue-50" : "border-slate-200"}`}>
+                  <input type="radio" name="usage" checked={usage === o.key} onChange={() => setUsage(o.key)} className="mt-0.5" />
+                  <span><span className="text-sm font-medium text-slate-800">{o.label}</span><span className="block text-xs text-slate-500">{o.blurb}</span></span>
+                </label>))}</div>
+              {usage === "other" && <input className={inputCls + " mt-2"} value={usageOther} onChange={e => setUsageOther(e.target.value)} placeholder="How would you describe it?" />}
+              <p className="text-[11px] text-slate-400 mt-1.5">This tailors the wording (e.g. “clients” vs “teams”). You can change it any time in Settings.</p>
+            </Field>
             {err && <div className="text-xs text-red-600 mb-3">{err}</div>}
             <Btn variant="dark" className="w-full" onClick={createOrg} disabled={busy}>{busy ? "Creating…" : "Continue"}</Btn>
           </>)}

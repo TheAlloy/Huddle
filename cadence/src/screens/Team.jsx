@@ -87,7 +87,7 @@ export default function Team({ org, me, members, reload }) {
         </Card>
       )}
 
-      {inviteOpen && <InviteModal org={org} onClose={() => setInviteOpen(false)} onSent={(email) => { setInviteOpen(false); setNote("Invitation sent to " + email); loadInvites(); }} />}
+      {inviteOpen && <InviteModal org={org} onClose={() => setInviteOpen(false)} onSent={(email, altNote) => { setInviteOpen(false); setNote(altNote || ("Invitation sent to " + email)); loadInvites(); }} />}
       {editing && <AccessModal m={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />}
     </div>
   );
@@ -104,7 +104,12 @@ function InviteModal({ org, onClose, onSent }) {
       const res = await fetch("/api/invite", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: org.id, email: email.trim(), role, accessToken: token }) });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || "Could not send the invitation.");
-      onSent(email.trim());
+      if (body.emailed === false && body.link) {
+        try { await navigator.clipboard?.writeText(body.link); } catch (_) {}
+        onSent(email.trim(), "We couldn't email it (" + (body.note || "email not configured") + ") — the invite link has been copied to your clipboard; paste it to them.");
+      } else {
+        onSent(email.trim());
+      }
     } catch (e) { setErr(e.message); }
     setBusy(false);
   };

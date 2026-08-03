@@ -1,4 +1,4 @@
-// Cadence — permission model.
+// Huddle — permission model.
 // These names match the checks in schema.sql, so the UI and the database agree.
 
 export const PERMISSIONS = [

@@ -154,6 +154,8 @@ function Bar({ a, ctx, baseLeft, baseWidth, top, height, dayW, onCommit, onOpen,
           {lab.sub && <div className="leading-tight truncate" style={{fontSize:10,opacity:.92}}>{lab.sub}</div>}
         </div>
       </div>
+      {ctx.canEdit && <span className="absolute left-1 top-1/2 opacity-0 group-hover:opacity-80" style={{transform:"translateY(-50%)",width:3,height:"40%",background:"#fff",borderRadius:2,pointerEvents:"none",zIndex:6}}/>}
+      {ctx.canEdit && <span className="absolute right-1 top-1/2 opacity-0 group-hover:opacity-80" style={{transform:"translateY(-50%)",width:3,height:"40%",background:"#fff",borderRadius:2,pointerEvents:"none",zIndex:6}}/>}
     </div>
   );
 }
@@ -749,7 +751,7 @@ function ProposalForm({ clients, members, anchor, onCreate, onClose }) {
     <button onClick={confirm} className="ml-auto text-sm bg-violet-600 text-white px-4 py-2 rounded-lg hover:bg-violet-700">Create project &amp; schedule</button>
   </div></ModalShell>);
 }
-/* ============================ Cadence adapter + wired glue ======================= */
+/* ============================ Huddle adapter + wired glue ======================= */
 function mapData(cad) {
   return {
     members: (cad.members || []).filter(m => m.status !== "suspended").map(m => ({ id:m.id, name:m.display_name||m.email||"—", role:m.job_title||(m.role||""), email:m.email||"", teams:m.teams||[], daily:m.daily_hours||8, holidayAllowance:m.holiday_allowance??30, hourlyRate:m.hourly_rate })),
@@ -775,6 +777,9 @@ export default function Schedule({ org, me, data: cadData, reload, onNavigate, p
   const boardScroll=useRef(null);
 
   const data=useMemo(()=>mapData(cadData),[cadData]);
+  const [optim,setOptim]=useState({});
+  const dataView=useMemo(()=>{ if(!Object.keys(optim).length) return data; return {...data, assignments:data.assignments.map(a=> optim[a.id]?{...a,...optim[a.id]}:a)}; },[data,optim]);
+  useEffect(()=>{ setOptim(o=>{ if(!Object.keys(o).length) return o; let changed=false; const n={...o}; for(const id of Object.keys(o)){ const row=(cadData.assignments||[]).find(a=>a.id===id); if(row && row.start_date===o[id].start && row.end_date===o[id].end && (o[id].lane===undefined || (row.lane??null)===(o[id].lane??null))){ delete n[id]; changed=true; } } return changed?n:o; }); },[cadData]); // eslint-disable-line
   const clientById=useCallback((id)=>data.clients.find(c=>c.id===id),[data.clients]);
   const projectById=useCallback((id)=>data.projects.find(p=>p.id===id),[data.projects]);
   const teams=useMemo(()=>[...new Set(data.members.flatMap(m=>m.teams||[]))].sort(),[data.members]);
@@ -782,7 +787,7 @@ export default function Schedule({ org, me, data: cadData, reload, onNavigate, p
   const colorOf=useCallback((a)=>{ if(a.kind==="leave") return (LEAVE_TYPES[a.leaveType]||LEAVE_TYPES.vacation).color; if(a.kind==="internal") return NAVY; const p=projectById(a.projectId); const c=p&&clientById(p.clientId); return c?c.color:"#94a3b8"; },[projectById,clientById]);
   const matches=useCallback((a)=>{ if(clientFilter!=="all"){ if(a.kind==="leave") return false; const pr=projectById(a.projectId); if(!pr||!cfIncludes(clientFilter,pr.clientId)) return false; } if(q.trim()){ const s=q.toLowerCase(); const m=data.members.find(x=>x.id===a.memberId); const pr=a.kind==="work"?projectById(a.projectId):null; const cl=pr&&clientById(pr.clientId); const tk=a.kind==="internal"?((data.internalTasks||[]).find(t=>t.id===a.taskId)||{}).title:""; const hay=[m&&m.name,pr&&pr.name,pr&&pr.index,cl&&cl.name,tk,a.kind==="leave"?(LEAVE_TYPES[a.leaveType]||{}).label:""].join(" ").toLowerCase(); if(!hay.includes(s)) return false; } return true; },[clientFilter,q,data,projectById,clientById]);
 
-  const moveAssign=async(a,start,end,lane)=>{ if(!canEdit) return; await sb.from("assignments").update({start_date:start,end_date:end,...(lane===undefined?{}:{lane})}).eq("id",a.id); reload(); };
+  const moveAssign=async(a,start,end,lane)=>{ if(!canEdit) return; setOptim(o=>({...o,[a.id]:{start,end,...(lane===undefined?{}:{lane})}})); await sb.from("assignments").update({start_date:start,end_date:end,...(lane===undefined?{}:{lane})}).eq("id",a.id); reload(); };
   const asgRow=(a)=>({ org_id:org.id, kind:a.kind==="internal"?"task":a.kind, membership_id:a.memberId, project_id:a.projectId||null, phase_id:a.phaseId||null, leave_type:a.leaveType||null, start_date:a.start, end_date:a.end, mode:a.mode||null, value:(a.value??null), note:a.note||null, start_time:a.startTime||null, end_time:a.endTime||null, lane:Number.isFinite(a.lane)?a.lane:null, task_id:a.taskId||null });
   const saveAssignment=async(a,ph)=>{ const row=asgRow(a); if(a.id) await sb.from("assignments").update(row).eq("id",a.id); else await sb.from("assignments").insert(row); if(ph&&ph.hours!=null){ const proj=(cadData.projects||[]).find(p=>p.id===ph.projectId); if(proj){ const phases=(proj.phases||[]).map(x=>x.id===ph.phaseId?{...x,hours:ph.hours}:x); await sb.from("projects").update({phases}).eq("id",proj.id); } } reload(); };
   const delAssign=async(id)=>{ await sb.from("assignments").delete().eq("id",id); reload(); };
@@ -793,7 +798,7 @@ export default function Schedule({ org, me, data: cadData, reload, onNavigate, p
   const delTimeLogs=async(ids)=>{ if(!ids||!ids.length) return; await sb.from("time_logs").delete().in("id",ids); reload(); };
   const createFromProposal=async({newClient,project,assignments})=>{ let clientId=project.clientId; if(newClient){ const {data:c}=await sb.from("clients").insert({org_id:org.id,name:newClient.name,color:newClient.color,payment_terms:30}).select().single(); clientId=c&&c.id; } const {data:p}=await sb.from("projects").insert({org_id:org.id,code:project.index,name:project.name,client_id:clientId,cost:project.cost,phases:project.phases}).select().single(); const projId=p&&p.id; if(projId&&assignments.length){ const rows=assignments.map(a=>({org_id:org.id,kind:"work",membership_id:a.memberId,project_id:projId,phase_id:a.phaseId||null,start_date:a.start,end_date:a.end})); await sb.from("assignments").insert(rows); } setModal(null); reload(); };
 
-  const ctx={ data, anchor, matches, setModal, moveAssign, peopleFilter, zoomT, holidayFilter, boardScroll, phaseLogged, projectById, clientById, colorOf, canEdit, myMemberId:me.id, addTimeLog, updateTimeLog, editTimeLog, delTimeLogs, openTrackerPage:()=>onNavigate&&onNavigate("tracker") };
+  const ctx={ data:dataView, anchor, matches, setModal, moveAssign, peopleFilter, zoomT, holidayFilter, boardScroll, phaseLogged, projectById, clientById, colorOf, canEdit, myMemberId:me.id, addTimeLog, updateTimeLog, editTimeLog, delTimeLogs, openTrackerPage:()=>onNavigate&&onNavigate("tracker") };
 
   if(!can(me,"schedule.view")) return <NoAccess what="the schedule" />;
   const step=(dir)=>setAnchor(a=>addMonths(a,dir));

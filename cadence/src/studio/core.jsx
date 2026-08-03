@@ -134,7 +134,7 @@ export function PeoplePicker({ members, teams, value, onChange, me }){
   </div>);
 }
 
-/* Cadence <-> studio-shape adapter */
+/* Huddle <-> studio-shape adapter */
 export function mapData(cad){
   return {
     members: (cad.members||[]).filter(m=>m.status!=="suspended").map(m=>({ id:m.id, name:m.display_name||m.email||"—", role:m.job_title||(m.role||""), email:m.email||"", teams:m.teams||[], daily:m.daily_hours||8, holidayAllowance:m.holiday_allowance??30, hourlyRate:m.hourly_rate })),
@@ -148,7 +148,7 @@ export function mapData(cad){
   };
 }
 
-/* Cadence-wired handlers (write to DB with org_id, then reload) */
+/* Huddle-wired handlers (write to DB with org_id, then reload) */
 export function makeHandlers(org, reload, cadData){
   const R = () => reload();
   return {

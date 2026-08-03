@@ -10,7 +10,8 @@ import { Plus, Trash2, Pencil, Layers } from "lucide-react";
 const CLIENT_COLORS = ["#2f80ed", "#9b51e0", "#16a0a0", "#eb5757", "#27ae60", "#f2994a", "#2d9cdb", "#eb5757", "#6b7a99", "#b5179e"];
 const uid = () => Math.random().toString(36).slice(2, 9);
 
-export default function Projects({ org, me, data, reload }) {
+export default function Projects({ org, me, data, reload, terms }) {
+  const T = terms || { client: "Client", clients: "Clients", clientLower: "client", project: "Project", projects: "Projects" };
   const [modal, setModal] = useState(null);
   const mayProjects = can(me, "projects.manage");
   const mayClients = can(me, "clients.manage");
@@ -20,10 +21,10 @@ export default function Projects({ org, me, data, reload }) {
 
   return (
     <div className="p-4 space-y-4 overflow-y-auto h-full">
-      <h2 className="text-base font-bold text-slate-800">Clients &amp; projects</h2>
+      <h2 className="text-base font-bold text-slate-800">{T.clients} &amp; {T.projectsLower||"projects"}</h2>
 
-      <Card title="Clients" action={mayClients && <Btn onClick={() => setModal({ type: "client" })}><Plus size={14} /> Add client</Btn>}>
-        {data.clients.length === 0 && <Empty title="No clients yet">Add your first client to start booking work.</Empty>}
+      <Card title={T.clients} action={mayClients && <Btn onClick={() => setModal({ type: "client" })}><Plus size={14} /> Add {T.clientLower}</Btn>}>
+        {data.clients.length === 0 && <Empty title={"No "+T.clientsLower+" yet"}>Add your first {T.clientLower} to start booking work.</Empty>}
         <div className="divide-y divide-slate-100">
           {data.clients.map(c => (
             <div key={c.id} className="flex items-center gap-3 py-2 text-sm group">
@@ -36,8 +37,8 @@ export default function Projects({ org, me, data, reload }) {
         </div>
       </Card>
 
-      <Card title="Projects" action={mayProjects && <Btn onClick={() => setModal({ type: "project" })}><Plus size={14} /> Add project</Btn>}>
-        {data.projects.length === 0 && <Empty title="No projects yet">Projects hold the phases you schedule and bill against.</Empty>}
+      <Card title={T.projects} action={mayProjects && <Btn onClick={() => setModal({ type: "project" })}><Plus size={14} /> Add {T.projectLower||"project"}</Btn>}>
+        {data.projects.length === 0 && <Empty title={"No "+(T.projectsLower||"projects")+" yet"}>{T.projects} hold the phases you schedule and bill against.</Empty>}
         {(() => {
           const byClient = {};
           const groups = [];
@@ -49,7 +50,7 @@ export default function Projects({ org, me, data, reload }) {
             <div key={g.client ? g.client.id : "none"} className="mb-4 last:mb-0">
               <div className="flex items-center gap-2 mb-1">
                 <span className="w-3.5 h-3.5 rounded-sm shrink-0" style={{ background: g.client ? g.client.color : "#94a3b8" }} />
-                <span className="text-sm font-semibold text-slate-700">{g.client ? g.client.name : "No client"}</span>
+                <span className="text-sm font-semibold text-slate-700">{g.client ? g.client.name : ("No "+T.clientLower)}</span>
                 <span className="text-xs text-slate-400">· {g.projects.length} project{g.projects.length === 1 ? "" : "s"}</span>
               </div>
               <div className="divide-y divide-slate-100 pl-5 border-l-2" style={{ borderColor: (g.client ? g.client.color : "#e2e8f0") + "55" }}>
@@ -99,7 +100,7 @@ function ClientModal({ org, client, onClose, onSaved }) {
   </Modal>);
 }
 
-function ProjectModal({ org, project, clients, onClose, onSaved }) {
+export function ProjectModal({ org, project, clients, onClose, onSaved }) {
   const [name, setName] = useState(project?.name || "");
   const [code, setCode] = useState(project?.code || "");
   const [clientId, setClientId] = useState(project?.client_id || "");

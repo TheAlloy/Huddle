@@ -1,66 +1,79 @@
-// Cadence — desktop wrapper (Electron)
-// This is a thin native window around your existing web app hosted on Vercel.
-// You update the app the same way you do now (deploy to Vercel); the desktop app
-// always shows the latest version.
+// Huddle — desktop wrapper (Electron)
+// A thin native window around your live web app on Vercel. You update the app by
+// deploying to Vercel as usual; the desktop app always shows the latest version.
 
-const { app, BrowserWindow, shell, dialog, Menu } = require("electron");
+const { app, BrowserWindow, shell, dialog, Menu, ipcMain } = require("electron");
+const path = require("path");
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  ⚠️  EDIT THIS ONE LINE: put your live app address here (the Vercel URL).
-//  Example: "https://studio-schedule.vercel.app"
-const APP_URL = process.env.CADENCE_URL || "https://REPLACE-WITH-YOUR-CADENCE-APP.vercel.app";
-// ─────────────────────────────────────────────────────────────────────────────
+// ⚠️ Your live app address (the Vercel URL).
+const APP_URL = process.env.HUDDLE_URL || process.env.CADENCE_URL || "https://huddle-orpin.vercel.app";
 
 let win;
+let confirmWin = null;
+let confirmedClose = false;
+
+// Read a localStorage value from the web app (returns string | null).
+async function readLS(key) {
+  try { return await win.webContents.executeJavaScript(`window.localStorage.getItem(${JSON.stringify(key)})`, true); }
+  catch (_) { return null; }
+}
+
+// Styled "have you logged your time?" window (native dialogs can't colour buttons, so we use our own).
+function openCloseConfirm() {
+  if (confirmWin) { confirmWin.focus(); return; }
+  confirmWin = new BrowserWindow({
+    width: 430, height: 250, parent: win, modal: true, resizable: false,
+    minimizable: false, maximizable: false, frame: false, backgroundColor: "#ffffff", title: "Huddle",
+    webPreferences: { preload: path.join(__dirname, "dialog-preload.js"), contextIsolation: true, nodeIntegration: false },
+  });
+  confirmWin.loadFile(path.join(__dirname, "confirm.html"));
+  confirmWin.on("closed", () => { confirmWin = null; });
+}
+
+ipcMain.on("huddle-close-choice", (_e, choice) => {
+  if (confirmWin) { confirmWin.close(); confirmWin = null; }
+  if (choice === "yes") { confirmedClose = true; if (win) win.close(); }
+});
 
 function createWindow() {
   win = new BrowserWindow({
-    width: 1280,
-    height: 860,
-    minWidth: 900,
-    minHeight: 600,
-    title: "Cadence",
-    backgroundColor: "#f1f5f9",
-    autoHideMenuBar: true, // hide the default File/Edit menu bar (Windows/Linux)
+    width: 1280, height: 860, minWidth: 900, minHeight: 600,
+    title: "Huddle", backgroundColor: "#f1f5f9", autoHideMenuBar: true,
     webPreferences: { contextIsolation: true, nodeIntegration: false },
   });
 
   win.loadURL(APP_URL);
 
-  // Open target=_blank / external http links in the user's normal browser,
-  // but keep the tracker window (/tracker) inside the app.
+  // External links open in the normal browser; same-site links stay in the app.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    try {
-      const u = new URL(url);
-      const base = new URL(APP_URL);
-      if (u.host === base.host) { win.loadURL(url); return { action: "deny" }; }
-    } catch (_) {}
-    shell.openExternal(url);
-    return { action: "deny" };
+    try { const u = new URL(url); const base = new URL(APP_URL); if (u.host === base.host) { win.loadURL(url); return { action: "deny" }; } } catch (_) {}
+    shell.openExternal(url); return { action: "deny" };
   });
 
-  // Native "have you logged your hours?" confirmation when closing the app.
-  let confirmedClose = false;
-  win.on("close", (e) => {
+  // Close confirmation (admin can turn off in Settings → sets huddle_warn_close = "0").
+  win.on("close", async (e) => {
     if (confirmedClose) return;
     e.preventDefault();
-    const choice = dialog.showMessageBoxSync(win, {
-      type: "question",
-      buttons: ["No – Cancel", "Yes"],
-      defaultId: 0,
-      cancelId: 0,
-      noLink: true,
-      title: "Cadence",
-      message: "Are you sure you want to leave?",
-      detail: "Have you logged all of your hours for today?",
-    });
-    if (choice === 1) { confirmedClose = true; win.close(); }
+    const pref = await readLS("huddle_warn_close");
+    if (pref === "0") { confirmedClose = true; win.close(); return; }
+    openCloseConfirm();
+  });
+
+  // Minimize reminder when the tracker isn't running (admin can turn off → huddle_warn_minimize = "0").
+  let lastReminder = 0;
+  win.on("minimize", async () => {
+    const pref = await readLS("huddle_warn_minimize");
+    if (pref === "0") return;
+    const tracking = await readLS("huddle_tracking");
+    if (tracking === "1") return;
+    const now = Date.now(); if (now - lastReminder < 4000) return; lastReminder = now;
+    dialog.showMessageBox({ type: "info", buttons: ["Dismiss"], defaultId: 0, noLink: true, title: "Huddle",
+      message: "Remember to start recording your activity", detail: "Your time tracker isn't running." });
   });
 
   win.on("closed", () => { win = null; });
 }
 
-// Only allow one copy of the app to run at a time.
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
@@ -68,7 +81,9 @@ if (!gotLock) {
   app.on("second-instance", () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
 
   app.whenReady().then(() => {
-    Menu.setApplicationMenu(null); // no default menu
+    // Launch Huddle automatically when the computer starts.
+    try { app.setLoginItemSettings({ openAtLogin: true, openAsHidden: false }); } catch (_) {}
+    Menu.setApplicationMenu(null);
     createWindow();
     app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
   });

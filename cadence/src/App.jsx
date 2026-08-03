@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { sb, CONFIGURED } from "./lib/supabase.js";
 import { loadOrgData } from "./lib/api.js";
 import { can } from "./lib/permissions.js";
 import { NAVY, Avatar, Spinner, Btn } from "./ui.jsx";
 import Auth from "./screens/Auth.jsx";
 import Onboarding from "./screens/Onboarding.jsx";
+import FeedbackModal from "./screens/Feedback.jsx";
 import Team from "./screens/Team.jsx";
 import Settings from "./screens/Settings.jsx";
 import Admin from "./screens/Admin.jsx";
@@ -16,9 +17,10 @@ import Projects from "./screens/Projects.jsx";
 import Tracker from "./screens/Tracker.jsx";
 import Billing from "./screens/Billing.jsx";
 import { lsGet, fmtClock } from "./studio/core.jsx";
+import { makeTerms } from "./lib/terms.js";
 import { CalendarDays, Table2, LayoutGrid, Landmark, Users, Settings as Cog, Clock, FolderKanban, Shield, ChevronDown } from "lucide-react";
 
-const PRODUCT = "Cadence";
+const PRODUCT = "Huddle";
 
 export default function App() {
   const [session, setSession] = useState(undefined);
@@ -29,6 +31,7 @@ export default function App() {
   const [data, setData] = useState(null);
   const [tab, setTab] = useState("schedule");
   const [peopleFilter, setPeopleFilter] = useState("all");
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [err, setErr] = useState("");
   const inviteToken = new URLSearchParams(window.location.search).get("invite");
 
@@ -88,13 +91,32 @@ export default function App() {
 
   const me = active;
   const suspended = org.status === "suspended" || org.status === "cancelled";
+  const terms = makeTerms(org.settings?.usage);
+
+  // Mirror admin-controlled desktop warning prefs to localStorage so the desktop app can read them.
+  useEffect(() => {
+    const dw = org?.settings?.desktopWarnings || {};
+    try {
+      localStorage.setItem("huddle_warn_close", dw.closeWarn === false ? "0" : "1");
+      localStorage.setItem("huddle_warn_minimize", dw.minimizeWarn === false ? "0" : "1");
+    } catch (_) {}
+  }, [org]);
+
+  // On first load, open on the page that suits the person's role.
+  const didInitTab = useRef(false);
+  useEffect(() => {
+    if (didInitTab.current || !me) return;
+    didInitTab.current = true;
+    const senior = ["owner", "admin", "manager", "finance"].includes(me.role) || can(me, "billing.view") || can(me, "team.manage") || can(me, "schedule.edit");
+    setTab(senior ? "schedule" : (can(me, "time.track") ? "tracker" : "schedule"));
+  }, [me]);
 
   const NAV = [
     { key: "schedule", label: "Schedule", icon: CalendarDays, perm: "schedule.view" },
     { key: "summary", label: "Summary", icon: Table2, perm: "summary.view" },
     { key: "tasks", label: "Tasks", icon: LayoutGrid, perm: "tasks.view" },
     { key: "tracker", label: "Tracker", icon: Clock, perm: "time.track" },
-    { key: "projects", label: "Projects", icon: FolderKanban, perm: "schedule.view" },
+    { key: "projects", label: terms.navProjects, icon: FolderKanban, perm: "schedule.view" },
     { key: "billing", label: "Billing", icon: Landmark, perm: "billing.view" },
     { key: "people", label: "People", icon: Users, perm: "team.view" },
     { key: "settings", label: "Settings", icon: Cog, perm: null },
@@ -126,14 +148,22 @@ export default function App() {
 
       <div className="flex-1 min-h-0 flex">
         {/* sidebar */}
-        <nav className="w-44 shrink-0 border-r border-slate-200 p-2 space-y-0.5 overflow-y-auto">
-          {visible.map(n => {
-            const Icon = n.icon; const on = current === n.key && tab !== "admin";
-            return (<button key={n.key} onClick={() => setTab(n.key)}
-              className={`w-full flex items-center gap-2 text-sm px-2.5 py-2 rounded-lg text-left ${on ? "bg-slate-100 text-slate-900 font-semibold" : "text-slate-600 hover:bg-slate-50"}`}>
-              <Icon size={15} className={on ? "" : "text-slate-400"} />{n.label}
-            </button>);
-          })}
+        <nav className="w-44 shrink-0 border-r border-slate-200 flex flex-col">
+          <div className="p-2 space-y-0.5 overflow-y-auto flex-1">
+            {visible.map(n => {
+              const Icon = n.icon; const on = current === n.key && tab !== "admin";
+              return (<button key={n.key} onClick={() => setTab(n.key)}
+                className={`w-full flex items-center gap-2 text-sm px-2.5 py-2 rounded-lg text-left ${on ? "bg-slate-100 text-slate-900 font-semibold" : "text-slate-600 hover:bg-slate-50"}`}>
+                <Icon size={15} className={on ? "" : "text-slate-400"} />{n.label}
+              </button>);
+            })}
+          </div>
+          <div className="p-2 border-t border-slate-100">
+            <div className="rounded-lg p-2.5 text-center" style={{ background: "#eef2fb" }}>
+              <div className="text-[11px] font-semibold text-slate-700 leading-snug">Want the chance to receive 1 month free?</div>
+              <button onClick={() => setFeedbackOpen(true)} className="mt-2 w-full text-xs font-semibold text-white rounded-lg py-1.5 hover:brightness-110" style={{ background: NAVY }}>Leave feedback</button>
+            </div>
+          </div>
         </nav>
 
         {/* content */}
@@ -141,7 +171,7 @@ export default function App() {
           {tab === "admin" && profile?.platform_admin ? <Admin />
             : current === "people" ? (can(me, "team.manage") ? <Team org={org} me={me} members={data.members} reload={reload} /> : <TeamLite members={data.members} />)
             : current === "settings" ? <Settings org={org} me={me} reload={() => { loadMe(); reload(); }} />
-            : current === "projects" ? <Projects org={org} me={me} data={data} reload={reload} />
+            : current === "projects" ? <Projects org={org} me={me} data={data} reload={reload} terms={terms} />
             : current === "tracker" ? <Tracker org={org} me={me} data={data} reload={reload} />
             : current === "schedule" ? (can(me, "schedule.view") ? <Schedule org={org} me={me} data={data} reload={reload} onNavigate={setTab} peopleFilter={peopleFilter} onPeopleFilter={setPeopleFilter} /> : <NoAccess what="the schedule" />)
             : current === "summary" ? (can(me, "summary.view") ? <Summary org={org} me={me} data={data} reload={reload} peopleFilter={peopleFilter} onPeopleFilter={setPeopleFilter} /> : <NoAccess what="summaries" />)
@@ -152,6 +182,7 @@ export default function App() {
             : null}
         </main>
       </div>
+      {feedbackOpen && <FeedbackModal org={org} me={me} onClose={() => setFeedbackOpen(false)} />}
     </div>
   );
 }
@@ -181,7 +212,7 @@ function HeaderTracker({ me, active, onOpen }) {
   const [run, setRun] = useState(() => lsGet("tracker_run_" + me.id));
   const [, tick] = useState(0);
   useEffect(() => {
-    const iv = setInterval(() => { setRun(lsGet("tracker_run_" + me.id)); tick(t => t + 1); }, 1000);
+    const iv = setInterval(() => { const r = lsGet("tracker_run_" + me.id); setRun(r); tick(t => t + 1); try { localStorage.setItem("huddle_tracking", r ? "1" : "0"); } catch (_) {} }, 1000);
     return () => clearInterval(iv);
   }, [me.id]);
   const elapsed = run ? fmtClock((Date.now() - run.startedAt) / 1000) : null;

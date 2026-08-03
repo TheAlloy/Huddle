@@ -38,21 +38,36 @@ export default function Projects({ org, me, data, reload }) {
 
       <Card title="Projects" action={mayProjects && <Btn onClick={() => setModal({ type: "project" })}><Plus size={14} /> Add project</Btn>}>
         {data.projects.length === 0 && <Empty title="No projects yet">Projects hold the phases you schedule and bill against.</Empty>}
-        <div className="divide-y divide-slate-100">
-          {data.projects.map(p => {
-            const c = clientById(p.client_id);
-            const phaseDays = (p.phases || []).reduce((s, ph) => s + (Number(ph.days) || 0), 0);
-            return (<div key={p.id} className="flex items-center gap-3 py-2.5 text-sm">
-              {c && <span className="w-3 h-3 rounded-sm shrink-0" style={{ background: c.color }} />}
-              <div className="min-w-0">
-                <div className="text-slate-800 truncate">{p.code ? p.code + " · " : ""}{p.name}</div>
-                <div className="text-xs text-slate-400">{c ? c.name : "No client"} · {(p.phases || []).length} phase{(p.phases || []).length === 1 ? "" : "s"}{phaseDays ? ` · ${phaseDays} days` : ""}</div>
+        {(() => {
+          const byClient = {};
+          const groups = [];
+          data.clients.slice().sort((a, b) => a.name.localeCompare(b.name)).forEach(c => { byClient[c.id] = { client: c, projects: [] }; groups.push(byClient[c.id]); });
+          const noClient = { client: null, projects: [] };
+          data.projects.forEach(p => { (byClient[p.client_id] || noClient).projects.push(p); });
+          if (noClient.projects.length) groups.push(noClient);
+          return groups.filter(g => g.projects.length).map(g => (
+            <div key={g.client ? g.client.id : "none"} className="mb-4 last:mb-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="w-3.5 h-3.5 rounded-sm shrink-0" style={{ background: g.client ? g.client.color : "#94a3b8" }} />
+                <span className="text-sm font-semibold text-slate-700">{g.client ? g.client.name : "No client"}</span>
+                <span className="text-xs text-slate-400">· {g.projects.length} project{g.projects.length === 1 ? "" : "s"}</span>
               </div>
-              <span className="ml-auto text-xs text-slate-500 shrink-0">{money(p.cost)}</span>
-              {mayProjects && <button className="text-slate-300 hover:text-blue-600 shrink-0" onClick={() => setModal({ type: "project", p })}><Pencil size={14} /></button>}
-            </div>);
-          })}
-        </div>
+              <div className="divide-y divide-slate-100 pl-5 border-l-2" style={{ borderColor: (g.client ? g.client.color : "#e2e8f0") + "55" }}>
+                {g.projects.map(p => {
+                  const phaseDays = (p.phases || []).reduce((s, ph) => s + (Number(ph.days) || 0), 0);
+                  return (<div key={p.id} className="flex items-center gap-3 py-2 text-sm">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-slate-800 truncate">{p.code ? p.code + " · " : ""}{p.name}</div>
+                      <div className="text-xs text-slate-400">{(p.phases || []).length} phase{(p.phases || []).length === 1 ? "" : "s"}{phaseDays ? ` · ${phaseDays} days` : ""}</div>
+                    </div>
+                    <span className="text-xs text-slate-500 shrink-0">{money(p.cost)}</span>
+                    {mayProjects && <button className="text-slate-300 hover:text-blue-600 shrink-0" onClick={() => setModal({ type: "project", p })}><Pencil size={14} /></button>}
+                  </div>);
+                })}
+              </div>
+            </div>
+          ));
+        })()}
       </Card>
 
       {modal?.type === "client" && <ClientModal org={org} client={modal.c} onClose={() => setModal(null)} onSaved={() => { setModal(null); reload(); }} />}

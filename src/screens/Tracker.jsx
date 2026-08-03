@@ -75,40 +75,53 @@ export default function Tracker({ org, me, data: cadData, reload }){
   const dayTot=(d)=>(data.timeLogs||[]).filter(l=>l.memberId===meId&&l.date===toISO(d)).reduce((s,l)=>s+l.minutes,0);
   const weekTot=weekDays.reduce((s,d)=>s+dayTot(d),0);
 
-  const Bubble=({onClick,color,top,sub,mins,title})=>(
-    <button onClick={onClick} title={title} className="shrink-0 text-left rounded-xl px-3 py-2.5 text-white transition hover:brightness-110" style={{background:color,minWidth:170,maxWidth:240}}>
-      <div className="flex items-center gap-2"><span className="grid place-items-center w-7 h-7 rounded-full bg-white shrink-0" style={{color}}><Play size={13}/></span>
-        <div className="min-w-0"><div className="text-sm font-semibold leading-tight truncate">{top}</div><div className="opacity-90 leading-tight truncate" style={{fontSize:11}}>{sub||"—"}</div></div></div>
-      <div className="opacity-80 mt-1.5" style={{fontSize:11}}>Today {hm(mins)}</div>
+  const BigBubble=({onClick,color,top,sub,mins,title})=>(
+    <button onClick={onClick} title={title} className="w-full text-left rounded-2xl px-5 py-4 text-white transition hover:brightness-110 shadow-sm" style={{background:color}}>
+      <div className="flex items-center gap-3">
+        <span className="grid place-items-center w-11 h-11 rounded-full bg-white shrink-0" style={{color}}><Play size={20}/></span>
+        <div className="min-w-0 flex-1"><div className="text-base font-bold leading-tight truncate">{top}</div><div className="opacity-90 leading-tight truncate text-sm">{sub||"—"}</div></div>
+        <div className="text-right shrink-0"><div className="text-[11px] opacity-80">Today</div><div className="font-bold text-lg leading-tight">{hm(mins)}</div></div>
+      </div>
     </button>);
+  const projectBubbles=bubbles.filter(b=>!b.internal);
+  const taskItems=[
+    ...bubbles.filter(b=>b.internal).map(b=>({key:"ib:"+b.taskId,id:b.taskId,title:(taskById(b.taskId)||{}).title||"task"})),
+    ...myTasks.map(t=>({key:"task:"+t.id,id:t.id,title:t.title})),
+  ];
 
   return (
     <div className="h-full overflow-y-auto bg-slate-50/50 p-4">
       <div className="max-w-3xl mx-auto space-y-4">
         <div className="flex items-center gap-2"><Clock size={18} className="text-slate-500"/><h2 className="text-base font-bold text-slate-800">Time tracker</h2><span className="ml-auto text-xs text-slate-500">This week <b className="text-slate-700">{fmtH(weekTot/60)}h</b></span></div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className={`rounded-xl p-4 ${run ? "text-white shadow-sm" : "border border-slate-200 bg-white"}`} style={run ? { background: runColor() } : undefined}>
           {run ? (
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="w-2 h-2 rounded-full" style={{background:runColor(),animation:"pulse 1.5s infinite"}}/>
-              <div><div className="text-xs text-slate-500">{runTop()}{!run.taskId&&phName(run.projectId,run.phaseId)?" · "+phName(run.projectId,run.phaseId):""}</div><div className="text-3xl font-bold tabular-nums" style={{color:NAVY}}>{elapsed}</div></div>
+              <span className="w-2.5 h-2.5 rounded-full bg-white" style={{animation:"pulse 1.5s infinite"}}/>
+              <div><div className="text-xs opacity-90">{runTop()}{!run.taskId&&phName(run.projectId,run.phaseId)?" · "+phName(run.projectId,run.phaseId):""}</div><div className="text-3xl font-bold tabular-nums">{elapsed}</div></div>
               <div className="ml-auto flex items-center gap-2">
-                <button onClick={stop} className="flex items-center gap-1.5 bg-slate-800 text-white text-sm font-semibold px-3 py-2 rounded-lg hover:bg-slate-900"><Square size={14}/> Stop &amp; log</button>
-                <button onClick={openPip} title="Pop out floating timer" className="grid place-items-center w-10 h-10 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"><PictureInPicture2 size={17}/></button>
-                <button onClick={cancel} title="Discard" className="text-slate-400 hover:text-red-500"><X size={18}/></button>
+                <button onClick={stop} className="flex items-center gap-1.5 bg-white text-slate-800 text-sm font-semibold px-3 py-2 rounded-lg hover:bg-slate-100"><Square size={14}/> Stop &amp; log</button>
+                <button onClick={openPip} title="Pop out floating timer" className="grid place-items-center w-10 h-10 rounded-lg bg-white/20 text-white hover:bg-white/30"><PictureInPicture2 size={17}/></button>
+                <button onClick={cancel} title="Discard" className="text-white/80 hover:text-white"><X size={18}/></button>
               </div>
             </div>
           ) : <div className="text-sm text-slate-400">Not tracking — tap one of today's projects below, or start another.</div>}
         </div>
 
-        {!run && <div>
-          <div className="text-xs font-semibold text-slate-500 mb-2">Today's projects &amp; tasks</div>
-          <div className="flex items-stretch gap-2 overflow-x-auto pb-1">
-            {bubbles.length===0 && myTasks.length===0 && <span className="text-xs text-slate-400 py-2">Nothing assigned to you today — use Start another or Manual below.</span>}
-            {bubbles.map(b=> b.internal
-              ? <Bubble key={"ib:"+b.taskId} onClick={()=>startTask(b.taskId)} color={NAVY} top="Task" sub={(taskById(b.taskId)||{}).title||"task"} mins={minsForTask(b.taskId)} title="Start task"/>
-              : <Bubble key={b.projectId+"|"+b.phaseId} onClick={()=>start(b.projectId,b.phaseId)} color={colorOf(b.projectId)} top={labProj(b.projectId)} sub={phName(b.projectId,b.phaseId)} mins={minsFor(b.projectId,b.phaseId)} title={"Start "+labTop(b.projectId)}/>)}
-            {myTasks.map(t=><Bubble key={"task:"+t.id} onClick={()=>startTask(t.id)} color={NAVY} top="Task" sub={t.title} mins={minsForTask(t.id)} title="Start task"/>)}
+        {!run && <div className="space-y-4">
+          <div>
+            <div className="text-sm font-semibold text-slate-600 mb-2">Today's Projects</div>
+            <div className="space-y-2">
+              {projectBubbles.length===0 && <div className="text-xs text-slate-400">No projects assigned to you today — use Start another or Manual below.</div>}
+              {projectBubbles.map(b=><BigBubble key={b.projectId+"|"+b.phaseId} onClick={()=>start(b.projectId,b.phaseId)} color={colorOf(b.projectId)} top={labProj(b.projectId)} sub={phName(b.projectId,b.phaseId)} mins={minsFor(b.projectId,b.phaseId)} title={"Start "+labTop(b.projectId)}/>)}
+            </div>
+          </div>
+          <div>
+            <div className="text-sm font-semibold text-slate-600 mb-2">Tasks</div>
+            <div className="space-y-2">
+              {taskItems.length===0 && <div className="text-xs text-slate-400">No tasks assigned to you today.</div>}
+              {taskItems.map(t=><BigBubble key={t.key} onClick={()=>startTask(t.id)} color={NAVY} top="Task" sub={t.title} mins={minsForTask(t.id)} title="Start task"/>)}
+            </div>
           </div>
         </div>}
 

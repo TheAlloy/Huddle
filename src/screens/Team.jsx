@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
 import { Btn, Field, inputCls, Modal, Avatar, Pill, Card, Empty } from "../ui.jsx";
 import { PERMISSIONS, PERMISSION_GROUPS, ROLES, ROLE_KEYS, effectivePermissions, isFromRole, can } from "../lib/permissions.js";
-import { Plus, Mail, Trash2, Shield, RefreshCw, Link as LinkIcon } from "lucide-react";
+import { Plus, Mail, Trash2, Pencil, RefreshCw, Link as LinkIcon } from "lucide-react";
 
 export default function Team({ org, me, members, reload }) {
   const [invites, setInvites] = useState([]);
@@ -52,7 +52,7 @@ export default function Team({ org, me, members, reload }) {
                 {m.status === "suspended" && <Pill color="#eb5757">Suspended</Pill>}
                 <Pill color={m.role === "owner" ? "#9b51e0" : "#2f80ed"}>{role.label}</Pill>
                 {manage && (
-                  <button className="text-slate-400 hover:text-blue-600" title="Manage member" onClick={() => setEditing(m)}><Shield size={15} /></button>
+                  <button className="text-slate-400 hover:text-blue-600" title="Manage member" onClick={() => setEditing(m)}><Pencil size={15} /></button>
                 )}
               </div>
             </div>);

@@ -13,7 +13,21 @@ export default function Settings({ org, me, reload }) {
   const admin = can(me, "org.admin");
   const [plans, setPlans] = useState(null);
   const [plansMsg, setPlansMsg] = useState("");
-  const currentPriceId = org.settings?.stripe_price_id || null;
+  const [liveSub, setLiveSub] = useState(null);
+  const currentPriceId = (liveSub && liveSub.priceId) || org.settings?.stripe_price_id || null;
+
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const token = (await sb.auth.getSession()).data.session?.access_token;
+        const r = await fetch("/api/subscription", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: org.id, accessToken: token }) });
+        const b = await r.json();
+        if (live && b.hasSubscription) setLiveSub(b);
+      } catch (_) {}
+    })();
+    return () => { live = false; };
+  }, [org.id]);
 
   useEffect(() => {
     let live = true;
@@ -116,9 +130,11 @@ export default function Settings({ org, me, reload }) {
                 <div className="text-lg font-bold text-slate-800">{fmtPrice(p)}<span className="text-xs font-normal text-slate-400">{p.amount ? perInterval(p) : ""}</span></div>
                 {p.description && <div className="text-[11px] text-slate-500 mb-1 leading-snug">{p.description}</div>}
                 {p.seats != null && <div className="text-[10px] text-slate-400 mb-1.5">Up to {p.seats} seats</div>}
+                <div className="mt-4">
                 {current
-                  ? <span className="text-[11px] font-semibold text-blue-600">Current plan</span>
-                  : <Btn className="w-full justify-center" onClick={() => subscribe(p.priceId)} disabled={busy}>{currentPlan ? "Switch" : "Subscribe"}</Btn>}
+                  ? <span className="inline-flex items-center justify-center w-full gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 rounded-lg py-2">✓ Current plan</span>
+                  : <Btn className="w-full justify-center" onClick={() => subscribe(p.priceId)} disabled={busy}>{currentPlan ? "Switch to this" : "Subscribe"}</Btn>}
+                </div>
               </div>);
             })}
           </div>}

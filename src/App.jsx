@@ -85,17 +85,6 @@ export default function App() {
   }, [active]);
   useEffect(() => { reload(); }, [reload]);
 
-  if (!CONFIGURED) return <Fatal title="Not configured" msg="Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then redeploy." />;
-  if (session === undefined) return <Spinner label="Starting…" />;
-  if (!session) return <Auth inviteToken={inviteToken} productName={PRODUCT} />;
-  if (memberships === null) return <Spinner label="Loading your account…" />;
-  if (memberships.length === 0) return <Onboarding user={session.user} onDone={(id) => { setOrgId(id); localStorage.setItem("cadence_org", id); loadMe(); }} />;
-  if (!org || !data) return <Spinner label="Loading your studio…" />;
-
-  const me = active;
-  const suspended = org.status === "suspended" || org.status === "cancelled";
-  const terms = makeTerms(org.settings?.usage);
-
   // Mirror admin-controlled desktop warning prefs to localStorage so the desktop app can read them.
   useEffect(() => {
     const dw = org?.settings?.desktopWarnings || {};
@@ -108,11 +97,23 @@ export default function App() {
   // On first load, open on the page that suits the person's role.
   const didInitTab = useRef(false);
   useEffect(() => {
-    if (didInitTab.current || !me) return;
+    if (didInitTab.current || !active) return;
     didInitTab.current = true;
-    const senior = ["owner", "admin", "manager", "finance"].includes(me.role) || can(me, "billing.view") || can(me, "team.manage") || can(me, "schedule.edit");
-    setTab(senior ? "schedule" : (can(me, "time.track") ? "tracker" : "schedule"));
-  }, [me]);
+    const senior = ["owner", "admin", "manager", "finance"].includes(active.role) || can(active, "billing.view") || can(active, "team.manage") || can(active, "schedule.edit");
+    setTab(senior ? "schedule" : (can(active, "time.track") ? "tracker" : "schedule"));
+  }, [active]);
+
+  if (!CONFIGURED) return <Fatal title="Not configured" msg="Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then redeploy." />;
+  if (session === undefined) return <Spinner label="Starting…" />;
+  if (!session) return <Auth inviteToken={inviteToken} productName={PRODUCT} />;
+  if (memberships === null) return <Spinner label="Loading your account…" />;
+  if (memberships.length === 0) return <Onboarding user={session.user} onDone={(id) => { setOrgId(id); localStorage.setItem("cadence_org", id); loadMe(); }} />;
+  if (!org || !data) return <Spinner label="Loading your studio…" />;
+
+  const me = active;
+  const suspended = org.status === "suspended" || org.status === "cancelled";
+  const terms = makeTerms(org.settings?.usage);
+
 
   const NAV = [
     { key: "schedule", label: "Schedule", icon: CalendarDays, perm: "schedule.view" },

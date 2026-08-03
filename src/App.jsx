@@ -6,6 +6,7 @@ import { NAVY, Avatar, Spinner, Btn } from "./ui.jsx";
 import Auth from "./screens/Auth.jsx";
 import Onboarding from "./screens/Onboarding.jsx";
 import FeedbackModal from "./screens/Feedback.jsx";
+import Paywall from "./screens/Paywall.jsx";
 import Team from "./screens/Team.jsx";
 import Settings from "./screens/Settings.jsx";
 import Admin from "./screens/Admin.jsx";
@@ -103,6 +104,29 @@ export default function App() {
     setTab(senior ? "schedule" : (can(active, "time.track") ? "tracker" : "schedule"));
   }, [active]);
 
+  // Subscription gate: verify the active studio has a live subscription (checks Stripe if our record is stale).
+  const [billingChecked, setBillingChecked] = useState(false);
+  const [billingOk, setBillingOk] = useState(false);
+  useEffect(() => {
+    if (!active || !org) return;
+    const localOk = !!org.stripe_subscription_id && ["active", "trialing", "past_due"].includes(org.status);
+    if (localOk) { setBillingOk(true); setBillingChecked(true); return; }
+    setBillingOk(false); setBillingChecked(false);
+    let live = true;
+    (async () => {
+      try {
+        const token = (await sb.auth.getSession()).data.session?.access_token;
+        const r = await fetch("/api/subscription", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: active.org_id, accessToken: token }) });
+        const b = await r.json();
+        if (!live) return;
+        if (b.configured === false) setBillingOk(true); // billing not set up yet → don't lock anyone out
+        else setBillingOk(!!(b.hasSubscription && ["active", "trialing", "past_due"].includes(b.status)));
+      } catch (_) { if (live) setBillingOk(false); }
+      if (live) setBillingChecked(true);
+    })();
+    return () => { live = false; };
+  }, [active, org]);
+
   if (!CONFIGURED) return <Fatal title="Not configured" msg="Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then redeploy." />;
   if (session === undefined) return <Spinner label="Starting…" />;
   if (!session) return <Auth inviteToken={inviteToken} productName={PRODUCT} />;
@@ -113,6 +137,14 @@ export default function App() {
   const me = active;
   const suspended = org.status === "suspended" || org.status === "cancelled";
   const terms = makeTerms(org.settings?.usage);
+
+  // Hard subscription gate — no active subscription means no app access (owners can subscribe on the paywall).
+  if (!profile?.platform_admin && !billingOk) {
+    if (!billingChecked) return <Spinner label="Checking subscription…" />;
+    return <Paywall org={org} me={me} memberships={memberships}
+      onPickOrg={(id) => { setOrgId(id); localStorage.setItem("cadence_org", id); }}
+      onSignOut={async () => { await sb.auth.signOut(); window.location.reload(); }} />;
+  }
 
 
   const NAV = [

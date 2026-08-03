@@ -198,8 +198,10 @@ export default function Onboarding({ user, onDone }) {
               </div>
             )}
             {err && <div className="text-xs text-red-600 mb-3">{err}</div>}
-            <button onClick={finishFree} disabled={busy} className="w-full text-sm text-slate-500 hover:text-slate-700 py-2">Start now, decide later →</button>
-            <p className="text-[11px] text-slate-400 mt-1 text-center">You can subscribe or change plans any time in Settings.</p>
+            {plans !== null && plans.length === 0 && (
+              <button onClick={finishFree} disabled={busy} className="w-full text-sm text-slate-500 hover:text-slate-700 py-2">Continue →</button>
+            )}
+            <p className="text-[11px] text-slate-400 mt-1 text-center">A subscription is required to use Huddle. You can change plans any time in Settings.</p>
           </>)}
 
         </div>

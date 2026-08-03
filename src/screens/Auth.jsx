@@ -29,7 +29,12 @@ export default function Auth({ inviteToken, productName }) {
         const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password });
         if (error) throw error;
       }
-    } catch (e) { setErr(e.message || "Something went wrong."); }
+    } catch (e) {
+      console.error("Auth error:", e);
+      let m = e?.message || e?.error_description || e?.msg || "";
+      if (!m || m === "{}") m = `${mode === "signup" ? "Sign-up" : "Sign-in"} failed${e?.status ? ` (status ${e.status})` : ""}${e?.name ? ` — ${e.name}` : ""}. Please try again or contact support.`;
+      setErr(m);
+    }
     setBusy(false);
   };
 

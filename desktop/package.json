@@ -20,7 +20,7 @@
     "files": ["main.js", "package.json"],
     "win": { "target": "nsis" },
     "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "perMachine": false },
-    "mac": { "target": "dmg", "category": "public.app-category.productivity" },
+    "mac": { "target": [{ "target": "dmg", "arch": ["universal"] }], "category": "public.app-category.productivity" },
     "linux": { "target": "AppImage", "category": "Office" }
   },
   "devDependencies": {

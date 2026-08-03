@@ -8,7 +8,7 @@ const { app, BrowserWindow, shell, dialog, Menu } = require("electron");
 // ─────────────────────────────────────────────────────────────────────────────
 //  ⚠️  EDIT THIS ONE LINE: put your live app address here (the Vercel URL).
 //  Example: "https://studio-schedule.vercel.app"
-const APP_URL = process.env.CADENCE_URL || "https://REPLACE-WITH-YOUR-CADENCE-APP.vercel.app";
+const APP_URL = process.env.CADENCE_URL || "https://huddle-orpin.vercel.app";
 // ─────────────────────────────────────────────────────────────────────────────
 
 let win;

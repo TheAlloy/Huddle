@@ -22,8 +22,8 @@ async function readLS(key) {
 function openCloseConfirm() {
   if (confirmWin) { confirmWin.focus(); return; }
   confirmWin = new BrowserWindow({
-    width: 410, height: 176, parent: win, modal: true, resizable: false,
-    minimizable: false, maximizable: false, frame: false, transparent: true, hasShadow: false, backgroundColor: "#00000000", title: "Huddle",
+    width: 400, height: 168, parent: win, modal: true, resizable: false,
+    minimizable: false, maximizable: false, frame: false, backgroundColor: "#ffffff", title: "Huddle",
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false },
   });
   confirmWin.loadFile(path.join(__dirname, "confirm.html"));
@@ -84,17 +84,52 @@ function createWindow() {
   win.on("closed", () => { win = null; });
 }
 
+// Deep linking: register Huddle as the handler for huddle:// links so emails/links can open the app.
+try {
+  if (process.defaultApp && process.argv.length >= 2) app.setAsDefaultProtocolClient("huddle", process.execPath, [path.resolve(process.argv[1])]);
+  else app.setAsDefaultProtocolClient("huddle");
+} catch (_) {}
+
+// Turn a huddle:// link into the https page to load.
+//   huddle://open?url=<encoded https url>   -> that url (used for auth/reset links)
+//   huddle://<path>                          -> APP_URL/<path>
+function deepLinkToUrl(link) {
+  try {
+    const u = new URL(link);
+    const target = u.searchParams.get("url");
+    if (target) return target;
+    const rest = link.replace(/^huddle:\/\//i, "");
+    return APP_URL.replace(/\/$/, "") + "/" + rest;
+  } catch (_) { return null; }
+}
+function handleDeepLink(link) {
+  if (!link) return;
+  const target = deepLinkToUrl(link);
+  if (target && win) { win.loadURL(target); if (win.isMinimized()) win.restore(); win.focus(); }
+}
+
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 } else {
-  app.on("second-instance", () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+  // Windows/Linux: a deep link opens a second instance with the URL in argv.
+  app.on("second-instance", (_e, argv) => {
+    const link = (argv || []).find(a => typeof a === "string" && a.startsWith("huddle://"));
+    if (link) handleDeepLink(link);
+    if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
+  });
+
+  // macOS delivers deep links via this event.
+  app.on("open-url", (e, url) => { e.preventDefault(); handleDeepLink(url); });
 
   app.whenReady().then(() => {
     // Launch Huddle automatically when the computer starts.
     try { app.setLoginItemSettings({ openAtLogin: true, openAsHidden: false }); } catch (_) {}
     Menu.setApplicationMenu(null);
     createWindow();
+    // First launch via a deep link (Windows): the URL is in argv.
+    const firstLink = process.argv.find(a => typeof a === "string" && a.startsWith("huddle://"));
+    if (firstLink) setTimeout(() => handleDeepLink(firstLink), 800);
     app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
   });
 

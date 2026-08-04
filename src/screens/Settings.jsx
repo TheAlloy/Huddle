@@ -5,7 +5,7 @@ import { can } from "../lib/permissions.js";
 import { USAGE_OPTIONS } from "../lib/terms.js";
 import { PlanCard } from "./PlanCard.jsx";
 
-export default function Settings({ org, me, reload }) {
+export default function Settings({ org, me, members, reload }) {
   const [name, setName] = useState(org.name);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -239,7 +239,7 @@ export default function Settings({ org, me, reload }) {
 
       {accountModal === "email" && <ChangeEmailModal currentEmail={me.email} onClose={() => setAccountModal(null)} />}
       {accountModal === "password" && <ChangePasswordModal currentEmail={me.email} onClose={() => setAccountModal(null)} />}
-      {accountModal === "delete" && <DeleteAccountModal org={org} onClose={() => setAccountModal(null)} />}
+      {accountModal === "delete" && <DeleteAccountModal org={org} me={me} members={members} onClose={() => setAccountModal(null)} />}
     </div>
     </div>
   );
@@ -317,24 +317,58 @@ function ChangePasswordModal({ currentEmail, onClose }) {
   );
 }
 
-/** Delete account: confirm, email a deletion request to the vendor, then sign the owner out. */
-function DeleteAccountModal({ org, onClose }) {
+/** Delete account: owner chooses to delete the whole team, or transfer ownership and leave. */
+function DeleteAccountModal({ org, me, members, onClose }) {
+  const others = (members || []).filter(m => m.user_id !== me.user_id && m.status !== "suspended");
+  const [step, setStep] = useState("choose"); // choose | confirmDelete | transfer
+  const [newOwner, setNewOwner] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const submit = async () => {
+
+  const call = async (body) => {
     setBusy(true); setErr("");
     try {
       const token = (await sb.auth.getSession()).data.session?.access_token;
-      const res = await fetch("/api/delete-request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: org.id, accessToken: token }) });
-      if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error || "Couldn't submit the request."); }
+      const res = await fetch("/api/delete-request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: org.id, accessToken: token, ...body }) });
+      const b = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(b.error || "Something went wrong.");
       await sb.auth.signOut();
       window.location.href = window.location.origin;
-    } catch (e) { setErr(e.message || "Something went wrong."); setBusy(false); }
+    } catch (e) { setErr(e.message); setBusy(false); }
   };
+
+  if (step === "choose") return (
+    <Modal title="Delete account" onClose={onClose} footer={<Btn variant="ghost" onClick={onClose}>Cancel</Btn>}>
+      <p className="text-sm text-slate-600 mb-3">What would you like to do with <b>{org.name}</b>?</p>
+      <div className="space-y-2">
+        <button onClick={() => setStep("transfer")} disabled={others.length === 0} className={`w-full text-left border rounded-xl p-3 ${others.length === 0 ? "opacity-50 cursor-not-allowed border-slate-200" : "border-slate-200 hover:border-blue-400 hover:bg-blue-50"}`}>
+          <div className="text-sm font-semibold text-slate-800">Transfer ownership &amp; leave</div>
+          <div className="text-xs text-slate-500">Hand the studio to someone else. It keeps running; you're removed.{others.length === 0 ? " (No other members to transfer to.)" : ""}</div>
+        </button>
+        <button onClick={() => setStep("confirmDelete")} className="w-full text-left border border-red-200 rounded-xl p-3 hover:bg-red-50">
+          <div className="text-sm font-semibold text-red-600">Delete the whole team</div>
+          <div className="text-xs text-slate-500">Permanently removes the studio and everyone's data. This can't be undone.</div>
+        </button>
+      </div>
+    </Modal>
+  );
+
+  if (step === "transfer") return (
+    <Modal title="Transfer ownership" onClose={onClose}
+      footer={<><Btn variant="ghost" onClick={() => setStep("choose")} disabled={busy}>Back</Btn><Btn variant="dark" onClick={() => newOwner ? call({ action: "transfer", newOwnerId: newOwner }) : setErr("Choose a new owner.")} disabled={busy}>{busy ? "Transferring…" : "Transfer & leave"}</Btn></>}>
+      <p className="text-sm text-slate-600 mb-3">Choose who becomes the new owner of <b>{org.name}</b>. You'll be removed from the team and signed out.</p>
+      <select className={inputCls} value={newOwner} onChange={e => setNewOwner(e.target.value)}>
+        <option value="">Select a team member…</option>
+        {others.map(m => <option key={m.id} value={m.id}>{m.display_name || m.email}</option>)}
+      </select>
+      {err && <div className="text-xs text-red-600 mt-2">{err}</div>}
+    </Modal>
+  );
+
   return (
-    <Modal title="Delete account" onClose={onClose}
-      footer={<><Btn variant="ghost" onClick={onClose} disabled={busy}>Cancel</Btn><Btn variant="danger" onClick={submit} disabled={busy}>{busy ? "Submitting…" : "Yes, delete my account"}</Btn></>}>
-      <p className="text-sm text-slate-600">Are you sure you want to delete <b>{org.name}</b>? This sends a deletion request to the Huddle team and signs you out. Your data isn't removed instantly — we'll process the request and confirm.</p>
+    <Modal title="Delete the whole team" onClose={onClose}
+      footer={<><Btn variant="ghost" onClick={() => setStep("choose")} disabled={busy}>Back</Btn><Btn variant="danger" onClick={() => call({ action: "delete" })} disabled={busy}>{busy ? "Deleting…" : "Yes, delete everything"}</Btn></>}>
+      <p className="text-sm text-slate-600">This permanently deletes <b>{org.name}</b> and all of its schedules, time logs, projects and members, and cancels the subscription. <b>This cannot be undone.</b> You'll be signed out.</p>
       {err && <div className="text-xs text-red-600 mt-2">{err}</div>}
     </Modal>
   );

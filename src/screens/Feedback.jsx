@@ -31,10 +31,14 @@ export default function FeedbackModal({ org, me, onClose }) {
   const [done, setDone] = useState(false);
   const [err, setErr] = useState("");
 
-  const canSubmit = a.biggestChange.trim().length > 3 && a.uses.length > 0 && a.onboarding > 0 && a.fit > 0;
+  const filled = (s) => String(s ?? "").trim().length > 0;
+  const canSubmit = a.uses.length > 0 && filled(a.teamSize) && filled(a.frequency)
+    && a.onboarding > 0 && filled(a.onboardingText) && a.inviting > 0 && filled(a.invitingText)
+    && filled(a.biggestChange) && filled(a.features) && a.fit > 0 && filled(a.customise)
+    && filled(a.almostLeft) && filled(a.dailyUse) && a.nps != null && filled(a.anythingElse) && filled(a.email);
 
   const submit = async () => {
-    if (!canSubmit) { setErr("Please answer at least the starred questions — the free month is for proper, thoughtful feedback."); return; }
+    if (!canSubmit) { setErr("Please answer every question — the free month is for complete, thoughtful feedback."); return; }
     setBusy(true); setErr("");
     try {
       const { error } = await sb.from("feedback").insert({ org_id: org.id, user_id: me.user_id, email: a.email || me.email, answers: a });
@@ -56,7 +60,7 @@ export default function FeedbackModal({ org, me, onClose }) {
 
   return (<Modal wide title={<span className="flex items-center gap-2"><Gift size={16} /> Tell us what you think — earn a free month</span>} onClose={onClose}
     footer={<><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={submit} disabled={busy}>{busy ? "Sending…" : "Submit feedback"}</Btn></>}>
-    <p className="text-xs text-slate-500 mb-4">Thoughtful, detailed answers give us the insights we need — and put you in line for a month on us. Starred questions {req} are the minimum.</p>
+    <p className="text-xs text-slate-500 mb-4">Every question is required — complete, thoughtful answers give us the insights we need, and put you in line for a month on us.</p>
 
     <Field label={<>What do you use Huddle for? {req}</>}>
       <div className="flex flex-wrap gap-1.5">{USES.map(u => (

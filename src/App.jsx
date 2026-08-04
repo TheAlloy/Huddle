@@ -7,6 +7,7 @@ import Auth from "./screens/Auth.jsx";
 import Onboarding from "./screens/Onboarding.jsx";
 import FeedbackModal from "./screens/Feedback.jsx";
 import Paywall from "./screens/Paywall.jsx";
+import ResetPassword from "./screens/ResetPassword.jsx";
 import Team from "./screens/Team.jsx";
 import Settings from "./screens/Settings.jsx";
 import Admin from "./screens/Admin.jsx";
@@ -37,6 +38,7 @@ export default function App() {
   const [pendingInvite, setPendingInvite] = useState(() => new URLSearchParams(window.location.search).get("invite"));
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteErr, setInviteErr] = useState("");
+  const [recovery, setRecovery] = useState(() => /type=recovery/.test(window.location.hash));
 
   /* session */
   useEffect(() => {
@@ -45,7 +47,7 @@ export default function App() {
     sb.auth.getSession().then(({ data }) => { done = true; setSession(data.session || null); }).catch(() => { done = true; setSession(null); });
     // Safety net: if a corrupted token makes getSession hang, fall back to the sign-in screen.
     const t = setTimeout(() => { if (!done) setSession(s => (s === undefined ? null : s)); }, 8000);
-    const { data: sub } = sb.auth.onAuthStateChange((_e, s) => setSession(s || null));
+    const { data: sub } = sb.auth.onAuthStateChange((e, s) => { if (e === "PASSWORD_RECOVERY") setRecovery(true); setSession(s || null); });
     return () => { clearTimeout(t); sub.subscription.unsubscribe(); };
   }, []);
 
@@ -145,6 +147,7 @@ export default function App() {
   }, [active?.org_id, org?.id, org?.status, org?.stripe_subscription_id]); // eslint-disable-line
 
   if (!CONFIGURED) return <Fatal title="Not configured" msg="Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then redeploy." />;
+  if (recovery) return <ResetPassword />;
   if (session === undefined) return <Spinner label="Starting…" />;
   if (!session) return <Auth inviteToken={pendingInvite} inviteError={inviteErr} productName={PRODUCT} />;
   if (memberships === null) return <Spinner label="Loading your account…" />;
@@ -173,7 +176,7 @@ export default function App() {
     { key: "summary", label: "Summary", icon: Table2, perm: "summary.view" },
     { key: "tasks", label: "Tasks", icon: LayoutGrid, perm: "tasks.view" },
     { key: "tracker", label: "Tracker", icon: Clock, perm: "time.track" },
-    { key: "projects", label: terms.navProjects, icon: FolderKanban, perm: "schedule.view" },
+    { key: "projects", label: terms.navProjects, icon: FolderKanban, perm: "projects.manage" },
     { key: "billing", label: "Billing", icon: Landmark, perm: "billing.view" },
     { key: "people", label: "People", icon: Users, perm: "team.view" },
     { key: "settings", label: "Settings", icon: Cog, perm: null },

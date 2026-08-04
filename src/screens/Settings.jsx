@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
-import { Btn, Card, Field, inputCls, Pill } from "../ui.jsx";
+import { Btn, Card, Field, inputCls, Pill, Modal } from "../ui.jsx";
 import { can } from "../lib/permissions.js";
 import { USAGE_OPTIONS } from "../lib/terms.js";
 import { PlanCard } from "./PlanCard.jsx";
@@ -16,6 +16,7 @@ export default function Settings({ org, me, reload }) {
   const [plans, setPlans] = useState(null);
   const [plansMsg, setPlansMsg] = useState("");
   const [liveSub, setLiveSub] = useState(null);
+  const [accountModal, setAccountModal] = useState(null);
   const currentPriceId = (liveSub && liveSub.priceId) || org.settings?.stripe_price_id || null;
 
   useEffect(() => {
@@ -126,7 +127,7 @@ export default function Settings({ org, me, reload }) {
         {!admin && <p className="text-xs text-slate-400">Only owners and administrators can change these.</p>}
       </Card>
 
-      <Card title="Subscription">
+      {can(me, "billing.view") && <Card title="Subscription">
         <div className="flex items-center gap-3 flex-wrap">
           <div>
             <div className="text-lg font-bold text-slate-800">{currentPlan ? currentPlan.name : (org.plan && org.plan !== "trial" ? org.plan : "No plan")} {currentPlan && <span className="text-sm font-normal text-slate-400">{fmtPrice(currentPlan)}{perInterval(currentPlan)}</span>}</div>
@@ -155,7 +156,7 @@ export default function Settings({ org, me, reload }) {
           </div>}
           <p className="text-[11px] text-slate-400 mt-2">These come straight from your Stripe products. Subscribing opens Stripe Checkout. To change or cancel an existing subscription, use <button onClick={openBillingPortal} className="underline">Manage billing</button> so Stripe prorates it correctly.</p>
         </div>}
-      </Card>
+      </Card>}
 
       {admin && <Card title="Invoice details">
         <p className="text-xs text-slate-500 mb-3">These print on the PDF invoices you download from Billing. Leave anything blank to omit it.</p>
@@ -228,11 +229,88 @@ export default function Settings({ org, me, reload }) {
       <Card title="Your account">
         <div className="text-sm text-slate-600">{me.email}</div>
         <div className="text-xs text-slate-400 mt-1">Signed in · role: {me.role}</div>
-        <div className="mt-3 flex gap-2">
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Btn variant="outline" onClick={() => setAccountModal("email")}>Change email</Btn>
+          <Btn variant="outline" onClick={() => setAccountModal("password")}>Change password</Btn>
           <Btn variant="outline" onClick={async () => { await sb.auth.signOut(); window.location.reload(); }}>Sign out</Btn>
         </div>
       </Card>
+
+      {accountModal === "email" && <ChangeEmailModal currentEmail={me.email} onClose={() => setAccountModal(null)} />}
+      {accountModal === "password" && <ChangePasswordModal currentEmail={me.email} onClose={() => setAccountModal(null)} />}
     </div>
     </div>
+  );
+}
+
+/** Change email: requires the password entered twice, then Supabase sends a confirm link to the new address. */
+function ChangeEmailModal({ currentEmail, onClose }) {
+  const [email, setEmail] = useState("");
+  const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [done, setDone] = useState(false);
+
+  const submit = async () => {
+    if (!email.trim() || !/.+@.+\..+/.test(email.trim())) { setErr("Enter a valid new email address."); return; }
+    if (!pw || pw !== pw2) { setErr("Enter your current password in both boxes to confirm."); return; }
+    setBusy(true); setErr("");
+    // Verify identity by re-checking the current password.
+    const { error: authErr } = await sb.auth.signInWithPassword({ email: currentEmail, password: pw });
+    if (authErr) { setErr("That password isn't correct."); setBusy(false); return; }
+    const { error } = await sb.auth.updateUser({ email: email.trim() });
+    if (error) { setErr(error.message || "Couldn't change your email."); setBusy(false); return; }
+    setBusy(false); setDone(true);
+  };
+
+  return (
+    <Modal title="Change email" onClose={onClose}
+      footer={done ? <Btn variant="dark" onClick={onClose}>Done</Btn> : <><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn variant="dark" onClick={submit} disabled={busy}>{busy ? "Saving…" : "Change email"}</Btn></>}>
+      {done ? (
+        <p className="text-sm text-slate-600">Almost there — we've emailed a confirmation link to <b>{email}</b>. Click it to finish changing your address. Until then, keep signing in with your current email.</p>
+      ) : (
+        <>
+          <p className="text-xs text-slate-500 mb-3">Enter the new address and your current password (twice) to confirm it's you.</p>
+          <Field label="New email address"><input className={inputCls} value={email} onChange={e => setEmail(e.target.value)} placeholder="you@studio.com" autoFocus /></Field>
+          <Field label="Current password"><input type="password" className={inputCls} value={pw} onChange={e => setPw(e.target.value)} /></Field>
+          <Field label="Confirm current password"><input type="password" className={inputCls} value={pw2} onChange={e => setPw2(e.target.value)} /></Field>
+          {err && <div className="text-xs text-red-600 mt-1">{err}</div>}
+        </>
+      )}
+    </Modal>
+  );
+}
+
+/** Change password: verify current password, then email a reset link (handled by the recovery screen). */
+function ChangePasswordModal({ currentEmail, onClose }) {
+  const [pw, setPw] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [done, setDone] = useState(false);
+
+  const submit = async () => {
+    if (!pw) { setErr("Enter your current password."); return; }
+    setBusy(true); setErr("");
+    const { error: authErr } = await sb.auth.signInWithPassword({ email: currentEmail, password: pw });
+    if (authErr) { setErr("That password isn't correct."); setBusy(false); return; }
+    const { error } = await sb.auth.resetPasswordForEmail(currentEmail, { redirectTo: window.location.origin });
+    if (error) { setErr(error.message || "Couldn't send the reset link."); setBusy(false); return; }
+    setBusy(false); setDone(true);
+  };
+
+  return (
+    <Modal title="Change password" onClose={onClose}
+      footer={done ? <Btn variant="dark" onClick={onClose}>Done</Btn> : <><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn variant="dark" onClick={submit} disabled={busy}>{busy ? "Sending…" : "Send reset link"}</Btn></>}>
+      {done ? (
+        <p className="text-sm text-slate-600">We've emailed a reset link to <b>{currentEmail}</b>. Open it, set a new password, and you'll be signed out to sign back in with it.</p>
+      ) : (
+        <>
+          <p className="text-xs text-slate-500 mb-3">Confirm your current password. We'll email you a secure link to set a new one.</p>
+          <Field label="Current password"><input type="password" className={inputCls} value={pw} onChange={e => setPw(e.target.value)} autoFocus /></Field>
+          {err && <div className="text-xs text-red-600 mt-1">{err}</div>}
+        </>
+      )}
+    </Modal>
   );
 }

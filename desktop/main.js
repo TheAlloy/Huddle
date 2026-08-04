@@ -22,8 +22,8 @@ async function readLS(key) {
 function openCloseConfirm() {
   if (confirmWin) { confirmWin.focus(); return; }
   confirmWin = new BrowserWindow({
-    width: 420, height: 190, parent: win, modal: true, resizable: false,
-    minimizable: false, maximizable: false, frame: false, backgroundColor: "#ffffff", title: "Huddle",
+    width: 410, height: 210, parent: win, modal: true, resizable: false,
+    minimizable: false, maximizable: false, frame: false, transparent: true, hasShadow: false, backgroundColor: "#00000000", title: "Huddle",
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false },
   });
   confirmWin.loadFile(path.join(__dirname, "confirm.html"));

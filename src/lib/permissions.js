@@ -27,8 +27,8 @@ export const ROLES = {
   admin:   { label: "Administrator",blurb: "Full access to everything in the studio.", all: true },
   manager: { label: "Manager",      blurb: "Runs the schedule, projects and people's time.",
     perms: ["schedule.view","schedule.edit","summary.view","summary.edit","projects.manage","clients.manage","tasks.view","tasks.edit","time.track","time.manual","team.view"] },
-  finance: { label: "Finance",      blurb: "Billing, invoices and reporting.",
-    perms: ["billing.view","billing.edit","summary.view","schedule.view","team.view"] },
+  finance: { label: "Finance",      blurb: "Billing and invoices, plus tracking their own time and tasks.",
+    perms: ["billing.view","billing.edit","summary.view","schedule.view","team.view","time.track","time.manual","tasks.view","tasks.edit"] },
   member:  { label: "Team member",  blurb: "Sees the schedule, tracks their own time, uses tasks.",
     perms: ["schedule.view","summary.view","tasks.view","tasks.edit","time.track","time.manual","team.view"] },
   tracker: { label: "Time tracking only", blurb: "Can only start the timer and see their schedule.",
@@ -48,8 +48,12 @@ export function effectivePermissions(membership) {
   return [...new Set([...(role.perms || []), ...extra])];
 }
 
+// Some actions are owner-only and are NOT granted by an "all access" admin role.
+export const OWNER_ONLY = ["account.close"];
+
 export function can(membership, perm) {
   if (!membership || membership.status !== "active") return false;
+  if (OWNER_ONLY.includes(perm)) return membership.role === "owner";
   const role = ROLES[membership.role];
   if (role && role.all) return true;
   return effectivePermissions(membership).includes(perm);

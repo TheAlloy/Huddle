@@ -4,12 +4,12 @@
 <meta charset="utf-8" />
 <style>
   * { box-sizing: border-box; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
-  html, body { margin: 0; background: transparent; }
-  body { padding: 14px; }
-  .card { background: #fff; border-radius: 14px; box-shadow: 0 14px 40px rgba(15, 23, 42, 0.30); padding: 22px; color: #1f2d4e; user-select: none; -webkit-app-region: drag; }
+  html, body { margin: 0; height: 100%; background: transparent; }
+  body { padding: 12px; height: 100vh; }
+  .card { height: 100%; background: #fff; border-radius: 14px; box-shadow: 0 14px 40px rgba(15, 23, 42, 0.30); padding: 20px; color: #1f2d4e; user-select: none; -webkit-app-region: drag; display: flex; flex-direction: column; }
   h1 { font-size: 16px; margin: 0 0 8px; }
   p { font-size: 13px; color: #64748b; margin: 0; line-height: 1.45; }
-  .row { display: flex; gap: 12px; margin-top: 20px; -webkit-app-region: no-drag; }
+  .row { display: flex; gap: 12px; margin-top: auto; -webkit-app-region: no-drag; }
   .row button { flex: 1; border: none; border-radius: 9px; padding: 11px 0; font-size: 13px; font-weight: 600; cursor: pointer; }
   .cancel { background: #eb5757; color: #fff; }
   .cancel:hover { background: #d94545; }

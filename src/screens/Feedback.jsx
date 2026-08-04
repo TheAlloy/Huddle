@@ -69,8 +69,8 @@ export default function FeedbackModal({ org, me, onClose }) {
     </Field>
 
     <div className="grid sm:grid-cols-2 gap-3">
-      <Field label="How many people on your team use it?"><input className={inputCls} value={a.teamSize} onChange={e => set("teamSize", e.target.value)} placeholder="e.g. 6" /></Field>
-      <Field label="How often do you use it?">
+      <Field label={<>How many people on your team use it? {req}</>}><input className={inputCls} value={a.teamSize} onChange={e => set("teamSize", e.target.value)} placeholder="e.g. 6" /></Field>
+      <Field label={<>How often do you use it? {req}</>}>
         <select className={inputCls} value={a.frequency} onChange={e => set("frequency", e.target.value)}>
           <option value="">Choose…</option><option>Multiple times a day</option><option>Daily</option><option>A few times a week</option><option>Weekly</option><option>Rarely</option>
         </select>
@@ -78,24 +78,24 @@ export default function FeedbackModal({ org, me, onClose }) {
     </div>
 
     <Field label={<>How did setting up your studio (onboarding) go? {req}</>}><Scale value={a.onboarding} onChange={v => set("onboarding", v)} low="Painful" high="Effortless" /></Field>
-    <Field label="What (if anything) was confusing during setup?"><textarea className={inputCls} rows={2} value={a.onboardingText} onChange={e => set("onboardingText", e.target.value)} /></Field>
+    <Field label={<>What (if anything) was confusing during setup? {req}</>}><textarea className={inputCls} rows={2} value={a.onboardingText} onChange={e => set("onboardingText", e.target.value)} /></Field>
 
-    <Field label="How easy was inviting other people?"><Scale value={a.inviting} onChange={v => set("inviting", v)} low="Hard" high="Easy" /></Field>
-    <Field label="Anything that made inviting people harder than it should be?"><textarea className={inputCls} rows={2} value={a.invitingText} onChange={e => set("invitingText", e.target.value)} /></Field>
+    <Field label={<>How easy was inviting other people? {req}</>}><Scale value={a.inviting} onChange={v => set("inviting", v)} low="Hard" high="Easy" /></Field>
+    <Field label={<>Anything that made inviting people harder than it should be? {req}</>}><textarea className={inputCls} rows={2} value={a.invitingText} onChange={e => set("invitingText", e.target.value)} /></Field>
 
     <Field label={<>If you could change one thing, what would it be? {req}</>}><textarea className={inputCls} rows={3} value={a.biggestChange} onChange={e => set("biggestChange", e.target.value)} placeholder="Be specific — this is the most useful answer for us." /></Field>
-    <Field label="What features would most benefit your team?"><textarea className={inputCls} rows={3} value={a.features} onChange={e => set("features", e.target.value)} /></Field>
+    <Field label={<>What features would most benefit your team? {req}</>}><textarea className={inputCls} rows={3} value={a.features} onChange={e => set("features", e.target.value)} /></Field>
 
     <Field label={<>How well does it fit the way your studio actually works? {req}</>}><Scale value={a.fit} onChange={v => set("fit", v)} low="Poorly" high="Perfectly" /></Field>
-    <Field label="What would you want to be able to customise or rename to fit your workflow?"><textarea className={inputCls} rows={2} value={a.customise} onChange={e => set("customise", e.target.value)} /></Field>
+    <Field label={<>What would you want to be able to customise or rename to fit your workflow? {req}</>}><textarea className={inputCls} rows={2} value={a.customise} onChange={e => set("customise", e.target.value)} /></Field>
 
-    <Field label="What almost stopped you signing up, or nearly made you stop using it?"><textarea className={inputCls} rows={2} value={a.almostLeft} onChange={e => set("almostLeft", e.target.value)} /></Field>
-    <Field label="Walk us through how it fits your typical day."><textarea className={inputCls} rows={2} value={a.dailyUse} onChange={e => set("dailyUse", e.target.value)} /></Field>
+    <Field label={<>What almost stopped you signing up, or nearly made you stop using it? {req}</>}><textarea className={inputCls} rows={2} value={a.almostLeft} onChange={e => set("almostLeft", e.target.value)} /></Field>
+    <Field label={<>Walk us through how it fits your typical day. {req}</>}><textarea className={inputCls} rows={2} value={a.dailyUse} onChange={e => set("dailyUse", e.target.value)} /></Field>
 
-    <Field label="How likely are you to recommend Huddle to another studio? (0–10)"><Scale value={a.nps} onChange={v => set("nps", v)} max={11} low="Not at all" high="Absolutely" /></Field>
+    <Field label={<>How likely are you to recommend Huddle to another studio? (0–10) {req}</>}><Scale value={a.nps} onChange={v => set("nps", v)} max={11} low="Not at all" high="Absolutely" /></Field>
 
-    <Field label="Anything else you'd like us to know?"><textarea className={inputCls} rows={2} value={a.anythingElse} onChange={e => set("anythingElse", e.target.value)} /></Field>
-    <Field label="Email for your free month"><input className={inputCls} value={a.email} onChange={e => set("email", e.target.value)} /></Field>
+    <Field label={<>Anything else you'd like us to know? {req}</>}><textarea className={inputCls} rows={2} value={a.anythingElse} onChange={e => set("anythingElse", e.target.value)} /></Field>
+    <Field label={<>Email for your free month {req}</>}><input className={inputCls} value={a.email} onChange={e => set("email", e.target.value)} /></Field>
 
     {err && <div className="text-xs text-red-600 mb-2">{err}</div>}
   </Modal>);

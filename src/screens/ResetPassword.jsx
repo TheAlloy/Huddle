@@ -34,8 +34,8 @@ export default function ResetPassword() {
           <>
             <h1 className="text-lg font-bold text-slate-800 text-center mb-1">Set a new password</h1>
             <p className="text-sm text-slate-500 text-center mb-4">Choose a new password for your account. You'll sign in again afterwards.</p>
-            <Field label="New password"><input type="password" className={inputCls} value={pw} onChange={e => setPw(e.target.value)} autoFocus /></Field>
-            <Field label="Confirm new password"><input type="password" className={inputCls} value={pw2} onChange={e => setPw2(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} /></Field>
+            <Field label="New password"><input type="password" autoComplete="new-password" className={inputCls} value={pw} onChange={e => setPw(e.target.value)} autoFocus /></Field>
+            <Field label="Confirm new password"><input type="password" autoComplete="new-password" className={inputCls} value={pw2} onChange={e => setPw2(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} /></Field>
             {err && <div className="text-xs text-red-600 my-2">{err}</div>}
             <Btn variant="dark" className="w-full justify-center mt-3" onClick={submit} disabled={busy}>{busy ? "Saving…" : "Update password"}</Btn>
           </>

@@ -234,10 +234,12 @@ export default function Settings({ org, me, reload }) {
           <Btn variant="outline" onClick={() => setAccountModal("password")}>Change password</Btn>
           <Btn variant="outline" onClick={async () => { await sb.auth.signOut(); window.location.reload(); }}>Sign out</Btn>
         </div>
+        {can(me, "account.close") && <button onClick={() => setAccountModal("delete")} className="mt-3 text-xs text-red-500 hover:text-red-600 hover:underline">Delete account</button>}
       </Card>
 
       {accountModal === "email" && <ChangeEmailModal currentEmail={me.email} onClose={() => setAccountModal(null)} />}
       {accountModal === "password" && <ChangePasswordModal currentEmail={me.email} onClose={() => setAccountModal(null)} />}
+      {accountModal === "delete" && <DeleteAccountModal org={org} onClose={() => setAccountModal(null)} />}
     </div>
     </div>
   );
@@ -272,9 +274,9 @@ function ChangeEmailModal({ currentEmail, onClose }) {
       ) : (
         <>
           <p className="text-xs text-slate-500 mb-3">Enter the new address and your current password (twice) to confirm it's you.</p>
-          <Field label="New email address"><input className={inputCls} value={email} onChange={e => setEmail(e.target.value)} placeholder="you@studio.com" autoFocus /></Field>
-          <Field label="Current password"><input type="password" className={inputCls} value={pw} onChange={e => setPw(e.target.value)} /></Field>
-          <Field label="Confirm current password"><input type="password" className={inputCls} value={pw2} onChange={e => setPw2(e.target.value)} /></Field>
+          <Field label="New email address"><input autoComplete="off" className={inputCls} value={email} onChange={e => setEmail(e.target.value)} placeholder="you@studio.com" autoFocus /></Field>
+          <Field label="Current password"><input type="password" autoComplete="new-password" className={inputCls} value={pw} onChange={e => setPw(e.target.value)} /></Field>
+          <Field label="Confirm current password"><input type="password" autoComplete="new-password" className={inputCls} value={pw2} onChange={e => setPw2(e.target.value)} /></Field>
           {err && <div className="text-xs text-red-600 mt-1">{err}</div>}
         </>
       )}
@@ -307,10 +309,33 @@ function ChangePasswordModal({ currentEmail, onClose }) {
       ) : (
         <>
           <p className="text-xs text-slate-500 mb-3">Confirm your current password. We'll email you a secure link to set a new one.</p>
-          <Field label="Current password"><input type="password" className={inputCls} value={pw} onChange={e => setPw(e.target.value)} autoFocus /></Field>
+          <Field label="Current password"><input type="password" autoComplete="new-password" className={inputCls} value={pw} onChange={e => setPw(e.target.value)} autoFocus /></Field>
           {err && <div className="text-xs text-red-600 mt-1">{err}</div>}
         </>
       )}
+    </Modal>
+  );
+}
+
+/** Delete account: confirm, email a deletion request to the vendor, then sign the owner out. */
+function DeleteAccountModal({ org, onClose }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const submit = async () => {
+    setBusy(true); setErr("");
+    try {
+      const token = (await sb.auth.getSession()).data.session?.access_token;
+      const res = await fetch("/api/delete-request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: org.id, accessToken: token }) });
+      if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.error || "Couldn't submit the request."); }
+      await sb.auth.signOut();
+      window.location.href = window.location.origin;
+    } catch (e) { setErr(e.message || "Something went wrong."); setBusy(false); }
+  };
+  return (
+    <Modal title="Delete account" onClose={onClose}
+      footer={<><Btn variant="ghost" onClick={onClose} disabled={busy}>Cancel</Btn><Btn variant="danger" onClick={submit} disabled={busy}>{busy ? "Submitting…" : "Yes, delete my account"}</Btn></>}>
+      <p className="text-sm text-slate-600">Are you sure you want to delete <b>{org.name}</b>? This sends a deletion request to the Huddle team and signs you out. Your data isn't removed instantly — we'll process the request and confirm.</p>
+      {err && <div className="text-xs text-red-600 mt-2">{err}</div>}
     </Modal>
   );
 }

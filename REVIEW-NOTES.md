@@ -29,6 +29,27 @@ any of them can be dropped before merging.
    migrations the duplicate lacked. It was the biggest risk in the repo — someone
    editing the wrong copy — and remains recoverable from git history.
 
+## Security fixes (from the follow-up audit)
+
+6. **Membership privilege escalation closed.** The old `mem_write` RLS policy let
+   any user write their own membership row unrestricted — including setting their own
+   `role` to owner, or inserting themselves into another studio by id. Now: inserts
+   require `team.manage`; a trigger blocks role/permission/status changes by anyone
+   without `team.manage` (and always on their own row); only owners can grant the
+   owner role. Ships as `migrations/2026-08-membership-write-guard.sql` — **run it in
+   the Supabase SQL editor** — and is folded into `schema.sql`.
+
+7. **Stripe webhook signature verification.** `api/stripe-webhook.js` previously
+   trusted any POSTed event (forgeable subscriptions/cancellations). It now verifies
+   the `stripe-signature` header against the raw body and fails closed. **Add
+   `STRIPE_WEBHOOK_SECRET` to Vercel** (the endpoint's signing secret from the
+   Stripe dashboard) when Stripe goes live.
+
+8. **Open endpoints authenticated.** `api/extract.js` (spent Anthropic credits,
+   no auth) and `api/feedback.js` (spent Resend credits, no auth + HTML injection
+   into the notification email) now verify the caller's token and membership,
+   mirroring `api/invite.js`.
+
 ## Observations (no action taken)
 
 - **No secrets are committed.** Supabase/Stripe keys all come from environment

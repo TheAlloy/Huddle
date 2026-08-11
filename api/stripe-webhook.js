@@ -1,10 +1,41 @@
 // Keeps each studio's plan/status in step with Stripe.
 // Point a Stripe webhook at /api/stripe-webhook for:
 //   checkout.session.completed, customer.subscription.updated, customer.subscription.deleted
-// Requires: STRIPE_SECRET_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+// Requires: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET (the endpoint's signing
+// secret from the Stripe dashboard), SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 import { createClient } from "@supabase/supabase-js";
+import crypto from "crypto";
 
-export const config = { api: { bodyParser: true } };
+// Signature verification needs the exact bytes Stripe signed, so body
+// parsing is off and we read the raw request stream ourselves.
+export const config = { api: { bodyParser: false } };
+
+async function readRawBody(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  return Buffer.concat(chunks);
+}
+
+// Verify Stripe's "stripe-signature: t=...,v1=..." header (HMAC-SHA256 of
+// "<timestamp>.<raw body>" with the endpoint's signing secret).
+function verifyStripeSignature(rawBody, header, secret, toleranceSec = 300) {
+  if (!header) return false;
+  let timestamp = null; const signatures = [];
+  for (const part of header.split(",")) {
+    const [k, v] = part.split("=", 2);
+    if (k === "t") timestamp = v;
+    else if (k === "v1" && v) signatures.push(v);
+  }
+  if (!timestamp || signatures.length === 0) return false;
+  if (Math.abs(Date.now() / 1000 - Number(timestamp)) > toleranceSec) return false;
+  const expected = crypto.createHmac("sha256", secret)
+    .update(`${timestamp}.${rawBody.toString("utf8")}`).digest("hex");
+  const expectedBuf = Buffer.from(expected);
+  return signatures.some((sig) => {
+    const sigBuf = Buffer.from(sig);
+    return sigBuf.length === expectedBuf.length && crypto.timingSafeEqual(sigBuf, expectedBuf);
+  });
+}
 
 const UNLIMITED = 999999;
 const seatsFor = (raw) => { const n = parseInt(raw, 10); return Number.isFinite(n) && n > 0 ? n : UNLIMITED; };
@@ -23,8 +54,19 @@ async function priceInfo(priceId) {
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
+
+  // Never act on an event we can't prove came from Stripe.
+  const signingSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!signingSecret) return res.status(500).json({ error: "STRIPE_WEBHOOK_SECRET is not set — refusing to process webhooks." });
+  const rawBody = await readRawBody(req);
+  if (!verifyStripeSignature(rawBody, req.headers["stripe-signature"], signingSecret)) {
+    return res.status(400).json({ error: "Invalid webhook signature." });
+  }
+  let event;
+  try { event = JSON.parse(rawBody.toString("utf8")); }
+  catch (_) { return res.status(400).json({ error: "Invalid JSON." }); }
+
   const admin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
-  const event = req.body;
   try {
     const obj = event?.data?.object || {};
     const orgId = obj.metadata?.org_id || obj.client_reference_id;

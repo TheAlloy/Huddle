@@ -110,7 +110,9 @@ Refresh — the **Admin** button appears in the header.
 2. Add a webhook endpoint pointing at `https://your-app.vercel.app/api/stripe-webhook`
    for `checkout.session.completed`, `customer.subscription.updated`,
    `customer.subscription.deleted`.
-3. Add `STRIPE_SECRET_KEY` to Vercel. Pass `org_id` as `client_reference_id` when
+3. Add `STRIPE_SECRET_KEY` **and** `STRIPE_WEBHOOK_SECRET` (the endpoint's signing
+   secret, shown when you create the webhook) to Vercel. The webhook refuses all
+   events until the signing secret is set. Pass `org_id` as `client_reference_id` when
    creating a Checkout session so the webhook knows which studio paid.
 
 ### 6. Desktop installers

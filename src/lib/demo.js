@@ -63,35 +63,57 @@ function seed() {
       expires_at: new Date(Date.now() + 7 * 86400000).toISOString(), created_at: nowISO(),
     }],
     clients: [
-      { id: "cl-meridian", org_id: ORG, name: "Meridian Health", color: "#2f80ed", payment_terms: 30, billing_address: null, created_at: nowISO() },
-      { id: "cl-kestrel",  org_id: ORG, name: "Kestrel Coffee",  color: "#27ae60", payment_terms: 14, billing_address: null, created_at: nowISO() },
-      { id: "cl-voltaic",  org_id: ORG, name: "Voltaic EV",      color: "#9b51e0", payment_terms: 30, billing_address: null, created_at: nowISO() },
-      { id: "cl-bloom",    org_id: ORG, name: "Bloom & Wilder",  color: "#f2994a", payment_terms: 30, billing_address: null, created_at: nowISO() },
+      { id: "cl-meridian", org_id: ORG, name: "Meridian Health",  color: "#2f80ed", payment_terms: 30, billing_address: null, created_at: nowISO() },
+      { id: "cl-kestrel",  org_id: ORG, name: "Kestrel Coffee",   color: "#27ae60", payment_terms: 14, billing_address: null, created_at: nowISO() },
+      { id: "cl-voltaic",  org_id: ORG, name: "Voltaic EV",       color: "#9b51e0", payment_terms: 30, billing_address: null, created_at: nowISO() },
+      { id: "cl-bloom",    org_id: ORG, name: "Bloom & Wilder",   color: "#f2994a", payment_terms: 30, billing_address: null, created_at: nowISO() },
+      { id: "cl-harbor",   org_id: ORG, name: "Harbor & Byrne",   color: "#6b7a99", payment_terms: 30, billing_address: null, created_at: nowISO() },
+      { id: "cl-pixel",    org_id: ORG, name: "Pixelforge Games", color: "#e84393", payment_terms: 14, billing_address: null, created_at: nowISO() },
     ],
     projects: [
       { id: "pr-mer", org_id: ORG, client_id: "cl-meridian", code: "MER014", name: "Brand refresh", billing: "perday", cost: 42000, archived: false, created_at: nowISO(),
         phases: [{ id: "ph-mer-1", name: "Discovery", days: 10 }, { id: "ph-mer-2", name: "Concept", days: 15, hours: 60 }, { id: "ph-mer-3", name: "Delivery", days: 10 }] },
+      { id: "pr-mer2", org_id: ORG, client_id: "cl-meridian", code: "MER015", name: "Annual report", billing: "perday", cost: 15000, archived: false, created_at: nowISO(),
+        phases: [{ id: "ph-mer2-1", name: "Design", days: 10 }, { id: "ph-mer2-2", name: "Artwork", days: 5 }] },
       { id: "pr-kes", org_id: ORG, client_id: "cl-kestrel", code: "KES003", name: "Packaging range", billing: "perday", cost: 18500, archived: false, created_at: nowISO(),
         phases: [{ id: "ph-kes-1", name: "Design", days: 15, hours: 80 }, { id: "ph-kes-2", name: "Artwork", days: 10 }] },
       { id: "pr-vol", org_id: ORG, client_id: "cl-voltaic", code: "VOL007", name: "Launch site", billing: "perday", cost: 56000, archived: false, created_at: nowISO(),
         phases: [{ id: "ph-vol-1", name: "UX", days: 10 }, { id: "ph-vol-2", name: "Design", days: 15 }, { id: "ph-vol-3", name: "Build", days: 20 }] },
-      { id: "pr-blm", org_id: ORG, client_id: "cl-bloom", code: "BLM001", name: "Spring campaign", billing: "perday", cost: 12000, archived: false, created_at: nowISO(), phases: [] },
+      { id: "pr-vol2", org_id: ORG, client_id: "cl-voltaic", code: "VOL008", name: "Motion package", billing: "perday", cost: 21000, archived: false, created_at: nowISO(),
+        phases: [{ id: "ph-vol2-1", name: "Storyboard", days: 5 }, { id: "ph-vol2-2", name: "Animation", days: 15, hours: 100 }] },
+      { id: "pr-blm", org_id: ORG, client_id: "cl-bloom", code: "BLM001", name: "Spring campaign", billing: "perday", cost: 12000, archived: false, created_at: nowISO(),
+        phases: [{ id: "ph-blm-1", name: "Concept", days: 10 }, { id: "ph-blm-2", name: "Production", days: 15 }] },
+      { id: "pr-har", org_id: ORG, client_id: "cl-harbor", code: "HAR002", name: "Website refresh", billing: "perday", cost: 28000, archived: false, created_at: nowISO(),
+        phases: [{ id: "ph-har-1", name: "UX", days: 5 }, { id: "ph-har-2", name: "Build", days: 15 }] },
+      { id: "pr-pxg", org_id: ORG, client_id: "cl-pixel", code: "PXG001", name: "Key art & store assets", billing: "perday", cost: 16500, archived: false, created_at: nowISO(),
+        phases: [{ id: "ph-pxg-1", name: "Exploration", days: 10 }, { id: "ph-pxg-2", name: "Final art", days: 10 }] },
+      { id: "pr-int", org_id: ORG, client_id: null, code: "NS-INT", name: "Studio website", billing: "perday", cost: 0, archived: false, created_at: nowISO(), phases: [] },
     ],
     assignments: [],
     time_logs: [],
     tasks: [
       { id: "t-1", org_id: ORG, title: "Collect moodboard references", notes: null, assignee_id: mid("dev"), project_id: "pr-mer", phase_id: "ph-mer-2", team: "Design", priority: "high", status: "doing", ord: 1, created_at: nowISO() },
       { id: "t-2", org_id: ORG, title: "Print supplier quotes", notes: null, assignee_id: mid("cora"), project_id: "pr-kes", phase_id: null, team: null, priority: "med", status: "todo", ord: 2, created_at: nowISO() },
-      { id: "t-3", org_id: ORG, title: "Improve studio SEO", notes: null, assignee_id: null, project_id: null, phase_id: null, team: "Web", priority: "low", status: "todo", ord: 3, created_at: nowISO() },
+      { id: "t-3", org_id: ORG, title: "Improve studio SEO", notes: null, assignee_id: null, project_id: "pr-int", phase_id: null, team: "Web", priority: "low", status: "todo", ord: 3, created_at: nowISO() },
       { id: "t-4", org_id: ORG, title: "Book photographer for Bloom shoot", notes: null, assignee_id: mid("ben"), project_id: "pr-blm", phase_id: null, team: null, priority: "high", status: "todo", ord: 4, created_at: nowISO() },
       { id: "t-5", org_id: ORG, title: "Archive last year's project files", notes: null, assignee_id: mid("dev"), project_id: null, phase_id: null, team: "Design", priority: "low", status: "done", ord: 5, created_at: nowISO() },
+      { id: "t-6", org_id: ORG, title: "Chase Meridian sign-off on concept 2", notes: null, assignee_id: mid("cora"), project_id: "pr-mer", phase_id: "ph-mer-2", team: null, priority: "high", status: "doing", ord: 6, created_at: nowISO() },
+      { id: "t-7", org_id: ORG, title: "Voltaic font licensing", notes: null, assignee_id: mid("troy"), project_id: "pr-vol", phase_id: null, team: null, priority: "med", status: "todo", ord: 7, created_at: nowISO() },
+      { id: "t-8", org_id: ORG, title: "Render test for Pixelforge trailer", notes: null, assignee_id: mid("tia"), project_id: "pr-pxg", phase_id: null, team: "Design", priority: "med", status: "todo", ord: 8, created_at: nowISO() },
+      { id: "t-9", org_id: ORG, title: "Update studio portfolio with KES002", notes: null, assignee_id: mid("dev"), project_id: "pr-int", phase_id: null, team: "Web", priority: "low", status: "doing", ord: 9, created_at: nowISO() },
+      { id: "t-10", org_id: ORG, title: "Send Harbor & Byrne kickoff agenda", notes: null, assignee_id: mid("ben"), project_id: "pr-har", phase_id: null, team: null, priority: "high", status: "done", ord: 10, created_at: nowISO() },
     ],
     billing_entries: [
       { id: "b-1", org_id: ORG, kind: "invoice", title: "MER014 — Discovery", client: "Meridian Health", amount: 14000, status: "paid", entry_date: dISO(-24), project_id: "pr-mer", membership_id: null, meta: {}, created_at: nowISO() },
       { id: "b-2", org_id: ORG, kind: "invoice", title: "KES003 — Design 50%", client: "Kestrel Coffee", amount: 9250, status: "sent", entry_date: dISO(-6), project_id: "pr-kes", membership_id: null, meta: {}, created_at: nowISO() },
-      { id: "b-3", org_id: ORG, kind: "pipeline", title: "Voltaic — retained motion", client: "Voltaic EV", amount: 24000, status: "likely", entry_date: dISO(40), project_id: null, membership_id: null, meta: {}, created_at: nowISO() },
-      { id: "b-4", org_id: ORG, kind: "overhead", title: "Studio rent", client: "", amount: 2600, status: null, entry_date: null, project_id: null, membership_id: null, meta: { month: dISO(0).slice(0, 7) }, created_at: nowISO() },
-      { id: "b-5", org_id: ORG, kind: "expense", title: "Client travel — train", client: "", amount: 84, status: null, entry_date: null, project_id: "pr-mer", membership_id: mid("cora"), meta: { month: dISO(0).slice(0, 7), miles: 0 }, created_at: nowISO() },
+      { id: "b-3", org_id: ORG, kind: "invoice", title: "VOL008 — Storyboard", client: "Voltaic EV", amount: 5250, status: "paid", entry_date: dISO(-12), project_id: "pr-vol2", membership_id: null, meta: {}, created_at: nowISO() },
+      { id: "b-4", org_id: ORG, kind: "invoice", title: "BLM001 — Concept", client: "Bloom & Wilder", amount: 4800, status: "overdue", entry_date: dISO(-38), project_id: "pr-blm", membership_id: null, meta: {}, created_at: nowISO() },
+      { id: "b-5", org_id: ORG, kind: "pipeline", title: "Voltaic — retained motion", client: "Voltaic EV", amount: 24000, status: null, entry_date: dISO(40), project_id: null, membership_id: null, meta: { likelihood: "high", start: dISO(40), end: dISO(130) }, created_at: nowISO() },
+      { id: "b-6", org_id: ORG, kind: "pipeline", title: "Meridian — patient app UI", client: "Meridian Health", amount: 38000, status: null, entry_date: dISO(60), project_id: null, membership_id: null, meta: { likelihood: "low", start: dISO(60), end: dISO(150) }, created_at: nowISO() },
+      { id: "b-7", org_id: ORG, kind: "overhead", title: "Studio rent", client: "", amount: 2600, status: null, entry_date: null, project_id: null, membership_id: null, meta: { month: dISO(0).slice(0, 7) }, created_at: nowISO() },
+      { id: "b-8", org_id: ORG, kind: "overhead", title: "Software & subscriptions", client: "", amount: 640, status: null, entry_date: null, project_id: null, membership_id: null, meta: { month: dISO(0).slice(0, 7) }, created_at: nowISO() },
+      { id: "b-9", org_id: ORG, kind: "expense", title: "Client travel — train", client: "", amount: 84, status: null, entry_date: null, project_id: "pr-mer", membership_id: mid("cora"), meta: { month: dISO(0).slice(0, 7), miles: 0 }, created_at: nowISO() },
+      { id: "b-10", org_id: ORG, kind: "expense", title: "Packaging print proofs", client: "", amount: 240, status: null, entry_date: null, project_id: "pr-kes", membership_id: mid("dev"), meta: { month: dISO(-30).slice(0, 7), miles: 0 }, created_at: nowISO() },
     ],
     public_holidays: [{ id: "h-1", org_id: ORG, day: monday(28), name: "Bank holiday" }],
     audit_log: [],
@@ -106,28 +128,59 @@ function seed() {
     end_date: shift(startISO, Math.round(workDays * 7 / 5) - 1), start_time: null, end_time: null,
     lane: null, mode: "hours_per_day", value: 0, note: null, created_at: nowISO(), ...extra,
   });
-  bar("troy", "pr-vol", "ph-vol-1", shift(wk, 0), 10);
-  bar("troy", "pr-mer", "ph-mer-3", shift(wk, 14), 10);
-  bar("dev",  "pr-mer", "ph-mer-2", shift(wk, -14), 15);
-  bar("dev",  "pr-kes", "ph-kes-1", shift(wk, 7), 10);
-  bar("cora", "pr-mer", "ph-mer-1", shift(wk, -21), 10);
-  bar("cora", "pr-vol", "ph-vol-1", shift(wk, 0), 10);
-  bar("tia",  "pr-vol", "ph-vol-2", shift(wk, 7), 15);
-  bar("ben",  "pr-blm", null, shift(wk, 0), 5);
-  bar("finn", "pr-kes", "ph-kes-2", shift(wk, 14), 5);
-  // Leave + a task on the timeline.
-  db.assignments.push({ id: uid(), org_id: ORG, kind: "leave", membership_id: mid("dev"), project_id: null, phase_id: null, task_id: null, leave_type: "vacation", start_date: shift(wk, 21), end_date: shift(wk, 25), start_time: null, end_time: null, lane: null, mode: null, value: null, note: null, created_at: nowISO() });
-  db.assignments.push({ id: uid(), org_id: ORG, kind: "task", membership_id: mid("ben"), project_id: null, phase_id: null, task_id: "t-4", leave_type: null, start_date: shift(wk, 7), end_date: shift(wk, 9), start_time: null, end_time: null, lane: null, mode: null, value: null, note: null, created_at: nowISO() });
+  // Troy — running two projects, then pitching.
+  bar("troy", "pr-vol", "ph-vol-1", shift(wk, -7), 10);
+  bar("troy", "pr-mer", "ph-mer-3", shift(wk, 7), 10);
+  bar("troy", "pr-har", "ph-har-1", shift(wk, 28), 5);
+  // Ben — Bloom campaign back-to-back, then Pixelforge.
+  bar("ben", "pr-blm", "ph-blm-1", shift(wk, -14), 10);
+  bar("ben", "pr-blm", "ph-blm-2", shift(wk, 0), 15);
+  bar("ben", "pr-pxg", "ph-pxg-2", shift(wk, 35), 10);
+  // Cora — producing Meridian, then Voltaic design and Kestrel artwork.
+  bar("cora", "pr-mer", "ph-mer-1", shift(wk, -28), 10);
+  bar("cora", "pr-mer", "ph-mer-2", shift(wk, -14), 10);
+  bar("cora", "pr-vol", "ph-vol-2", shift(wk, 7), 15);
+  bar("cora", "pr-kes", "ph-kes-2", shift(wk, 35), 10);
+  // Devon — busiest designer: overlapping work on purpose (multi-lane).
+  bar("dev", "pr-mer", "ph-mer-2", shift(wk, -14), 15);
+  bar("dev", "pr-kes", "ph-kes-1", shift(wk, 0), 15);
+  bar("dev", "pr-mer2", "ph-mer2-1", shift(wk, 7), 10);
+  bar("dev", "pr-har", "ph-har-2", shift(wk, 35), 15);
+  // Finn — finance, light project load.
+  bar("finn", "pr-mer2", "ph-mer2-2", shift(wk, 21), 5);
+  bar("finn", "pr-kes", "ph-kes-2", shift(wk, 42), 5);
+  // Tia — motion: Voltaic now, Pixelforge later.
+  bar("tia", "pr-vol2", "ph-vol2-1", shift(wk, -7), 5);
+  bar("tia", "pr-vol2", "ph-vol2-2", shift(wk, 0), 15);
+  bar("tia", "pr-pxg", "ph-pxg-1", shift(wk, 21), 10);
+  bar("tia", "pr-vol", "ph-vol-3", shift(wk, 42), 15);
+  // Time off: Devon's holiday, Cora off sick a couple of days last week.
+  const leave = (memberKey, type, startISO, endISO) => db.assignments.push({ id: uid(), org_id: ORG, kind: "leave", membership_id: mid(memberKey), project_id: null, phase_id: null, task_id: null, leave_type: type, start_date: startISO, end_date: endISO, start_time: null, end_time: null, lane: null, mode: null, value: null, note: null, created_at: nowISO() });
+  leave("dev", "vacation", shift(wk, 21), shift(wk, 25));
+  leave("cora", "sick", shift(wk, -7), shift(wk, -6));
+  leave("ben", "vacation", shift(wk, 49), shift(wk, 60));
+  // Tasks pinned on the timeline.
+  const taskBar = (memberKey, taskId, startISO, endISO) => db.assignments.push({ id: uid(), org_id: ORG, kind: "task", membership_id: mid(memberKey), project_id: null, phase_id: null, task_id: taskId, leave_type: null, start_date: startISO, end_date: endISO, start_time: null, end_time: null, lane: null, mode: null, value: null, note: null, created_at: nowISO() });
+  taskBar("ben", "t-4", shift(wk, 7), shift(wk, 9));
+  taskBar("dev", "t-9", shift(wk, 28), shift(wk, 30));
 
   // Logged time (fills the phase-progress bars on the schedule).
   const log = (memberKey, projectId, phaseId, dateISO, minutes) => db.time_logs.push({
     id: uid(), org_id: ORG, membership_id: mid(memberKey), project_id: projectId, phase_id: phaseId,
     task_id: null, log_date: dateISO, minutes, source: "timer", note: null, created_at: nowISO(),
   });
-  for (let i = 1; i <= 9; i++) log("dev", "pr-mer", "ph-mer-2", dISO(-i - 2), 150 + (i % 3) * 60);
-  for (let i = 1; i <= 4; i++) log("cora", "pr-vol", "ph-vol-1", dISO(-i), 120);
-  for (let i = 1; i <= 3; i++) log("troy", "pr-vol", "ph-vol-1", dISO(-i), 90);
-  log("tia", "pr-vol", "ph-vol-2", dISO(-1), 90);
+  // Roughly four weeks of history for the Summary heat-map (weekdays only).
+  for (let i = 1; i <= 28; i++) {
+    const day = new Date(); day.setDate(day.getDate() - i);
+    const dow = day.getDay(); if (dow === 0 || dow === 6) continue;
+    const date = dISO(-i);
+    if (i <= 14) log("dev", "pr-mer", "ph-mer-2", date, 300 + (i % 4) * 45); // ~54h of the 60h Concept budget
+    else log("dev", "pr-kes", "ph-kes-1", date, 300);
+    if (i <= 12) log("tia", "pr-vol2", "ph-vol2-2", date, 270 + (i % 3) * 60);
+    if (i <= 14) log("cora", "pr-mer", "ph-mer-2", date, 210 + (i % 3) * 30);
+    if (i <= 10) log("troy", "pr-vol", "ph-vol-1", date, 120 + (i % 2) * 60);
+    if (i % 3 === 0) log("ben", "pr-blm", "ph-blm-1", date, 240);
+  }
   return db;
 }
 

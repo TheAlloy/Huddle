@@ -223,13 +223,23 @@ create policy org_update on organizations for update using (app_has(id,'org.admi
 drop policy if exists org_insert on organizations;
 create policy org_insert on organizations for insert with check (auth.uid() is not null);
 
--- memberships: read within your org; manage requires team.manage
+-- memberships: read within your org; manage requires team.manage.
+-- Writes are deliberately split per operation, and a trigger (below) stops
+-- role/permission/status changes by anyone without team.manage — otherwise a
+-- member could edit their OWN row and make themselves an owner.
 drop policy if exists mem_read on memberships;
 create policy mem_read on memberships for select using (app_is_member(org_id) or user_id = auth.uid());
 drop policy if exists mem_write on memberships;
-create policy mem_write on memberships for all
+drop policy if exists mem_ins on memberships;
+create policy mem_ins on memberships for insert
+  with check (app_has(org_id,'team.manage'));
+drop policy if exists mem_upd on memberships;
+create policy mem_upd on memberships for update
   using (app_has(org_id,'team.manage') or user_id = auth.uid())
   with check (app_has(org_id,'team.manage') or user_id = auth.uid());
+drop policy if exists mem_del on memberships;
+create policy mem_del on memberships for delete
+  using (app_has(org_id,'team.manage') or user_id = auth.uid());
 
 -- invites: manageable by team managers; readable by the invitee via token lookup (server-side)
 drop policy if exists inv_rw on invites;
@@ -294,6 +304,56 @@ drop policy if exists audit_read on audit_log;
 create policy audit_read on audit_log for select using (app_has(org_id,'org.admin'));
 drop policy if exists audit_write on audit_log;
 create policy audit_write on audit_log for insert with check (app_is_member(org_id));
+
+-- Column-level guard for memberships. RLS decides which ROWS may be written;
+-- this trigger decides which COLUMNS a permitted write may touch, so that
+-- self-service updates (display name, hours, teams…) work but privilege
+-- fields (role, permissions, status) need team.manage — and never on your
+-- own row. Security-definer functions and the service role bypass it.
+create or replace function huddle_guard_membership_write()
+returns trigger language plpgsql as $$
+declare
+  actor_is_manager boolean;
+  actor_is_owner boolean;
+begin
+  if current_user not in ('authenticated','anon') then
+    return new;
+  end if;
+
+  actor_is_manager := app_has(new.org_id,'team.manage');
+  actor_is_owner := app_is_platform_admin() or exists (
+    select 1 from memberships m
+    where m.org_id = new.org_id and m.user_id = auth.uid()
+      and m.role = 'owner' and m.status = 'active');
+
+  if tg_op = 'UPDATE' then
+    if new.org_id is distinct from old.org_id
+       or new.user_id is distinct from old.user_id then
+      raise exception 'A membership cannot be moved to another person or studio.';
+    end if;
+    if new.role is distinct from old.role
+       or new.permissions is distinct from old.permissions
+       or new.status is distinct from old.status then
+      if not actor_is_manager or old.user_id = auth.uid() then
+        raise exception 'Only team managers can change roles, permissions or status — and not their own.';
+      end if;
+      if new.role = 'owner' and old.role is distinct from 'owner'
+         and not actor_is_owner then
+        raise exception 'Only an owner can make someone an owner.';
+      end if;
+    end if;
+  elsif tg_op = 'INSERT' then
+    if new.role = 'owner' and not actor_is_owner then
+      raise exception 'Only an owner can make someone an owner.';
+    end if;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists trg_huddle_guard_membership_write on memberships;
+create trigger trg_huddle_guard_membership_write
+before insert or update on memberships
+for each row execute function huddle_guard_membership_write();
 
 -- ============================================================================
 --  Sign-up plumbing

@@ -621,7 +621,7 @@ async function extractPdfText(buf){
   }catch(_){ return ""; }
 }
 
-function ProposalForm({ clients, members, anchor, onCreate, onClose }) {
+function ProposalForm({ org, clients, members, anchor, onCreate, onClose }) {
   const [step,setStep]=useState("input");
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
@@ -656,6 +656,8 @@ function ProposalForm({ clients, members, anchor, onCreate, onClose }) {
         } else { payload.text=new TextDecoder().decode(buf); }
       } else if(paste.trim()){ payload.text=paste.trim(); }
       if(!payload.text && !payload.pdfBase64){ setBusy(false); setError("Add a PDF, a text file, or paste the proposal text first."); return; }
+      payload.orgId=org.id;
+      payload.accessToken=(await sb.auth.getSession()).data.session?.access_token;
       const res=await fetch("/api/extract",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload)});
       const bodyText=await res.text();
       let j=null; try{ j=JSON.parse(bodyText); }catch(_){}
@@ -853,7 +855,7 @@ export default function Schedule({ org, me, data: cadData, reload, onNavigate, p
         onInternalAssign={(x)=>{ saveInternalAssign(x); setModal(null); }} onSave={(a,ph)=>{ saveAssignment(a,ph); setModal(null); }} onDelete={modal.payload&&modal.payload.id?id=>{ delAssign(id); setModal(null); }:null} onClose={()=>setModal(null)} />}
       {modal?.type==="member" && <MemberForm org={org} member={modal.payload} teams={teams} canEdit={canEdit} onClose={()=>setModal(null)} onSaved={()=>{ setModal(null); reload(); }} />}
       {modal?.type==="client" && <ClientForm org={org} client={modal.payload} canEdit={canEdit} onClose={()=>setModal(null)} onSaved={()=>{ setModal(null); reload(); }} />}
-      {modal?.type==="proposal" && <ProposalForm clients={data.clients} members={data.members} anchor={anchor} onCreate={createFromProposal} onClose={()=>setModal(null)} />}
+      {modal?.type==="proposal" && <ProposalForm org={org} clients={data.clients} members={data.members} anchor={anchor} onCreate={createFromProposal} onClose={()=>setModal(null)} />}
       {quickModal==="invite" && <InviteModal org={org} onClose={()=>setQuickModal(null)} onSent={()=>{ setQuickModal(null); reload(); }} />}
       {quickModal==="newproject" && <ProjectModal org={org} project={null} clients={cadData.clients} onClose={()=>setQuickModal(null)} onSaved={()=>{ setQuickModal(null); reload(); }} />}
     </div>

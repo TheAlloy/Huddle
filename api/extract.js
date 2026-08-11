@@ -4,6 +4,8 @@
 //   ANTHROPIC_API_KEY = sk-ant-...   (from console.anthropic.com)
 // then redeploy. You can change the model below if you like.
 
+import { createClient } from "@supabase/supabase-js";
+
 const MODEL = "claude-sonnet-4-6";
 
 const INSTRUCTIONS = `You are extracting structured data from a creative-studio project proposal.
@@ -32,8 +34,23 @@ export default async function handler(req, res) {
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
-    const { text, pdfBase64 } = body;
+    const { text, pdfBase64, orgId, accessToken } = body;
     if (!text && !pdfBase64) { res.status(400).json({ error: "Provide a proposal: send 'text' or 'pdfBase64'." }); return; }
+
+    // This endpoint spends our AI credits — only signed-in members who can
+    // create projects/schedule work may use it (same pattern as api/invite.js).
+    if (!orgId || !accessToken) { res.status(401).json({ error: "Not signed in." }); return; }
+    const url = process.env.SUPABASE_URL, service = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !service) { res.status(500).json({ error: "Server is not configured." }); return; }
+    const admin = createClient(url, service, { auth: { persistSession: false } });
+    const { data: userInfo, error: authErr } = await admin.auth.getUser(accessToken);
+    if (authErr || !userInfo?.user) { res.status(401).json({ error: "Not signed in." }); return; }
+    const { data: mem } = await admin.from("memberships").select("role,permissions,status")
+      .eq("org_id", orgId).eq("user_id", userInfo.user.id).maybeSingle();
+    const perms = mem?.permissions || [];
+    const allowed = mem && mem.status === "active" &&
+      (["owner", "admin", "manager"].includes(mem.role) || perms.includes("schedule.edit") || perms.includes("projects.manage"));
+    if (!allowed) { res.status(403).json({ error: "You don't have permission to use the proposal reader." }); return; }
 
     const content = [];
     if (pdfBase64) content.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfBase64 } });

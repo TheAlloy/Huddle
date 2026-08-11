@@ -43,7 +43,8 @@ export default function FeedbackModal({ org, me, onClose }) {
     try {
       const { error } = await sb.from("feedback").insert({ org_id: org.id, user_id: me.user_id, email: a.email || me.email, answers: a });
       if (error) throw error;
-      fetch("/api/feedback", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgName: org.name, email: a.email || me.email, answers: a }) }).catch(() => {});
+      const accessToken = (await sb.auth.getSession()).data.session?.access_token;
+      fetch("/api/feedback", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: org.id, accessToken, orgName: org.name, email: a.email || me.email, answers: a }) }).catch(() => {});
       setDone(true);
     } catch (e) { setErr(e.message || "Couldn't send your feedback — please try again."); }
     setBusy(false);

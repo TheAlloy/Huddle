@@ -68,7 +68,5 @@ release. It has its own `package.json` and is built independently by CI.
 - `src/studio/core.jsx` holds shared constants (colors, leave types, working-day
   math) and date helpers used across screens; `src/ui.jsx` holds the shared UI
   primitives (`Btn`, `Avatar`, `Modal`, etc.). Reuse these rather than redefining.
-- `cadence/` (if still present) is a stale duplicate of the whole app slated for
-  removal — never edit anything under it.
 - Supabase query errors for permission-gated tables (e.g. `billing_entries`) are
   expected for users without access; treat a denial as "no data", not a failure.

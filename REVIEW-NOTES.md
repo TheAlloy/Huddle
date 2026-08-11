@@ -23,14 +23,11 @@ any of them can be dropped before merging.
    `desktop/package-lock.json`, switched the workflow to `npm ci`, and enabled npm
    caching.
 
-## Recommended but NOT done (needs a decision)
-
-- **Delete the `cadence/` folder.** It is a complete stale duplicate of the app
-  (~54 files: source, API functions, desktop wrapper, schema) left over from
-  uploading folders through the GitHub web UI. The root copy is newer and has screens
-  and migrations the duplicate lacks. Biggest risk in the repo: someone edits the
-  wrong copy. It stays recoverable from git history after deletion.
-  To remove: `git rm -r cadence` and commit.
+5. **Deleted the `cadence/` folder** (44 files). It was a complete stale duplicate of
+   the app (source, API functions, desktop wrapper, schema) left over from uploading
+   folders through the GitHub web UI. The root copy is newer and has screens and
+   migrations the duplicate lacked. It was the biggest risk in the repo — someone
+   editing the wrong copy — and remains recoverable from git history.
 
 ## Observations (no action taken)
 

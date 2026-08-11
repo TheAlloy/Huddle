@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { sb, CONFIGURED } from "./lib/supabase.js";
+import { sb, CONFIGURED, DEMO } from "./lib/supabase.js";
+import DemoSwitcher from "./lib/DemoSwitcher.jsx";
 import { loadOrgData, memberName } from "./lib/api.js";
 import { can } from "./lib/permissions.js";
 import { NAVY, Avatar, Spinner, Btn } from "./ui.jsx";
@@ -243,6 +244,7 @@ export default function App() {
         </main>
       </div>
       {feedbackOpen && <FeedbackModal org={org} me={me} onClose={() => setFeedbackOpen(false)} />}
+      {DEMO && <DemoSwitcher />}
     </div>
   );
 }

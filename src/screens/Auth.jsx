@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { sb } from "../lib/supabase.js";
+import { sb, DEMO } from "../lib/supabase.js";
 import { Btn, Field, inputCls, NAVY } from "../ui.jsx";
 
 export default function Auth({ inviteToken, inviteError, productName }) {
@@ -61,6 +61,13 @@ export default function Auth({ inviteToken, inviteError, productName }) {
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl p-5">
+          {DEMO && (
+            <div className="mb-4 text-xs bg-violet-50 border border-violet-200 text-violet-800 rounded-lg px-3 py-2">
+              <b>Demo mode</b> — no real emails or passwords. Sign in as <b>troy@demo.com</b> with any
+              password, then use the role switcher in the bottom-right corner to view the app as any
+              role. Or create a new account to see onboarding.
+            </div>
+          )}
           {inviteToken && (
             <div className="mb-4 text-xs bg-blue-50 border border-blue-200 text-blue-800 rounded-lg px-3 py-2">
               You've been invited to a team. Sign up (or sign in) with the email the invitation was sent to — you'll go straight to the team.

@@ -2,10 +2,12 @@ import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffe
 import { sb } from "../lib/supabase.js";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
-import { inputCls } from "../ui.jsx";
+import { inputCls, Field } from "../ui.jsx";
+import { toast } from "sonner";
 import { phaseRanges } from "../studio/core.jsx";
 import { InviteModal } from "./Team.jsx";
 import { ProjectModal } from "./Projects.jsx";
+import { useConfirm } from "../components/confirm.tsx";
 import {
   Plus, X, ChevronLeft, ChevronRight, Search, Trash2, AlertTriangle, Users,
   Pencil, ZoomIn, ZoomOut, Plane, Building2, Calendar, Play, Square,
@@ -74,7 +76,7 @@ function openFloatingTimer({ getTop, getElapsed, onStop }){
     return window.documentPictureInPicture.requestWindow({width:340,height:64}).then(wire).catch(()=>null);
   }
   const w=(typeof window!=="undefined") ? window.open("","studioTimer","width=340,height=120") : null;
-  if(!w){ alert("Pop-out was blocked — allow pop-ups for this site (or use Chrome/Edge for an always-on-top timer)."); return Promise.resolve(null); }
+  if(!w){ toast.error("Pop-out was blocked — allow pop-ups for this site (or use Chrome/Edge for an always-on-top timer)."); return Promise.resolve(null); }
   return Promise.resolve(wire(w));
 }
 
@@ -86,7 +88,6 @@ function ModalShell({ children, onClose }){
 }
 function ModalHead({ title, onClose }){ return <div className="flex items-center justify-between px-5 py-3.5 rounded-t-xl text-white" style={{background:NAVY}}><h3 className="font-semibold">{title}</h3><button onClick={onClose} className="opacity-80 hover:opacity-100"><X size={18}/></button></div>; }
 function ModalFoot({ onSave, onDelete, saveLabel="Save", disabled }){ return <div className="flex items-center gap-2 px-5 py-4 border-t border-slate-100">{onDelete&&<button onClick={onDelete} className="flex items-center gap-1 text-sm text-red-600 hover:bg-red-50 px-2.5 py-2 rounded-lg"><Trash2 size={15}/> Delete</button>}<button onClick={onSave} disabled={disabled} className="ml-auto text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">{saveLabel}</button></div>; }
-function Field({ label, children }){ return <label className="block mb-3"><span className="block text-xs font-medium text-slate-500 mb-1">{label}</span>{children}</label>; }
 
 /* ============================ board components (from studio tool) ================ */
 function PersonCell({ m, idx, width, onEdit, onAssign, canEdit }) {
@@ -359,7 +360,7 @@ function ClientPicker({ clients, value, onChange }){
       <div className="absolute z-40 mt-1 left-0 w-56 bg-white border border-slate-200 rounded-xl shadow-lg p-2 max-h-96 overflow-y-auto text-sm">
         <button onClick={()=>onChange("all")} className={`w-full text-xs py-1 rounded mb-1.5 ${isAll?"bg-slate-800 text-white":"bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>All clients</button>
         {clients.length===0 && <div className="text-xs text-slate-400 px-1.5 py-1">No clients yet.</div>}
-        {clients.map(c=><label key={c.id} className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-slate-50 cursor-pointer text-slate-600"><input type="checkbox" checked={sel.has(c.id)} onChange={()=>toggle(c.id)} className="w-3.5 h-3.5"/><span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{background:c.color}}/>{c.name}</label>)}
+        {clients.map(c=><label key={c.id} className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-slate-50 cursor-pointer text-slate-600"><input type="checkbox" checked={sel.has(c.id)} onChange={()=>toggle(c.id)} className="w-3.5 h-3.5"/><span className="w-2.5 h-2.5 rounded-xs shrink-0" style={{background:c.color}}/>{c.name}</label>)}
       </div></>}
   </div>);
 }
@@ -386,17 +387,28 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
   const [partDay,setPartDay]=useState(!!(assignment?.startTime||assignment?.endTime));
   const [sTime,setSTime]=useState(assignment?.startTime||"09:00");
   const [eTime,setETime]=useState(assignment?.endTime||"13:00");
+  // Validation messages keyed to the Field they render under. This replaced a run
+  // of alert() calls, which fired one at a time and lost the message on dismiss —
+  // see docs/foundations-plan.md, step 4.
+  const [errs,setErrs]=useState({});
   const save=()=>{
+    const e={};
     if(kind==="internal"){
-      if(!memberId){ alert("Choose who this is for."); return; }
-      if(!start||!end||end<start){ alert("Check the dates."); return; }
+      if(!memberId) e.memberId="Choose who this is for.";
+      if(!start||!end||end<start) e.dates="Check the dates.";
+      if(!assignment){
+        if(taskId==="__new__"){ if(!taskTitle.trim()) e.taskTitle="Give the task a name."; }
+        else if(!taskId) e.taskId="Pick a task, or create a new one.";
+      }
+      setErrs(e);
+      if(Object.keys(e).length) return;
       if(assignment){ onSave({...assignment,memberId,start,end,kind:"internal"}); return; }
-      if(taskId==="__new__"){ if(!taskTitle.trim()){ alert("Give the task a name."); return; } onInternalAssign&&onInternalAssign({newTask:{title:taskTitle.trim(),priority:taskPri,team:taskTeam||""},memberId,start,end}); return; }
-      if(!taskId){ alert("Pick a task, or create a new one."); return; }
+      if(taskId==="__new__"){ onInternalAssign&&onInternalAssign({newTask:{title:taskTitle.trim(),priority:taskPri,team:taskTeam||""},memberId,start,end}); return; }
       onInternalAssign&&onInternalAssign({taskId,memberId,start,end}); return;
     }
     if(!memberId||!start||!end) return;
-    if(end<start){ alert("End date can't be before the start date."); return; }
+    if(end<start){ setErrs({dates:"End date can't be before the start date."}); return; }
+    setErrs({});
     const base={...(assignment||{}),memberId,start,end,value:0,mode:"hours_per_day",note:null,startTime:null,endTime:null};
     if(kind==="leave") onSave({...base,kind:"leave",leaveType,projectId:null,phaseId:null,startTime:partDay?sTime:null,endTime:partDay?eTime:null});
     else onSave({...base,kind:"work",projectId,phaseId:phaseId||null,leaveType:null}, phaseId?{projectId,phaseId,hours:phaseHours===""?null:Number(phaseHours)}:null);
@@ -405,16 +417,16 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
     {!assignment
       ? <div className="flex gap-2 mb-4">{[["work","Project work"],["leave","Time off"],["internal","Tasks"]].map(([v,l])=><button key={v} onClick={()=>setKind(v)} className={`flex-1 text-sm py-2 rounded-lg border ${kind===v?"border-blue-500 bg-blue-50 text-blue-700":"border-slate-200 text-slate-600"}`}>{l}</button>)}</div>
       : <div className="mb-4 text-xs inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 text-slate-600">{kind==="leave"?"Time off":kind==="internal"?"Task":"Project work"}</div>}
-    <Field label={kind==="internal"?"Assign to":"Person"}><select className={inputCls} value={memberId} onChange={e=>{ if(e.target.value==="__invite__"){ onInvite&&onInvite(); return; } setMemberId(e.target.value); }}>{members.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}{onInvite && <option value="__invite__">➕ Invite someone…</option>}</select></Field>
+    <Field label={kind==="internal"?"Assign to":"Person"} error={errs.memberId}><select className={inputCls} value={memberId} onChange={e=>{ if(e.target.value==="__invite__"){ onInvite&&onInvite(); return; } setMemberId(e.target.value); }}>{members.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}{onInvite && <option value="__invite__">➕ Invite someone…</option>}</select></Field>
     {kind==="work" ? (<>
       <Field label="Project"><select className={inputCls} value={projectId} onChange={e=>{ if(e.target.value==="__new__"){ onNewProject&&onNewProject(); return; } setProjectId(e.target.value);setPhaseId(""); }}>{projectsByClient(projects,clients).map(g=>(<optgroup key={g.client?g.client.id:"none"} label={g.client?g.client.name:"No client"}>{g.projects.map(p=><option key={p.id} value={p.id}>{p.index} — {p.name}</option>)}</optgroup>))}{onNewProject && <option value="__new__">➕ New project / client…</option>}</select></Field>
-      {client && <div className="-mt-1 mb-3 flex items-center gap-2 text-xs text-slate-500"><span className="w-3 h-3 rounded-sm" style={{background:client.color}}/>Client: <span className="font-medium text-slate-700">{client.name} · {proj.index} {proj.name}</span></div>}
+      {client && <div className="-mt-1 mb-3 flex items-center gap-2 text-xs text-slate-500"><span className="w-3 h-3 rounded-xs" style={{background:client.color}}/>Client: <span className="font-medium text-slate-700">{client.name} · {proj.index} {proj.name}</span></div>}
       {proj?.phases?.length>0 && <Field label="Phase"><select className={inputCls} value={phaseId} onChange={e=>setPhaseId(e.target.value)}><option value="">— none —</option>{proj.phases.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
       {phaseId && <Field label="Monitor designer hours for this phase (optional)"><input type="number" min="0" className={inputCls} value={phaseHours} onChange={e=>setPhaseHours(e.target.value)} placeholder="e.g. 20"/><p className="text-xs text-slate-400 mt-1">Sets the hours budget for this phase across the whole project — the bar fills up as time is logged. Leave blank for no monitoring.</p></Field>}
     </>) : kind==="internal" ? (<>
-      <Field label="Task"><select className={inputCls} value={taskId} onChange={e=>setTaskId(e.target.value)}><option value="">Choose a task…</option>{tasks.filter(t=>t.status!=="done").map(t=><option key={t.id} value={t.id}>{t.title}</option>)}<option value="__new__">➕ New task…</option></select></Field>
+      <Field label="Task" error={errs.taskId}><select className={inputCls} value={taskId} onChange={e=>setTaskId(e.target.value)}><option value="">Choose a task…</option>{tasks.filter(t=>t.status!=="done").map(t=><option key={t.id} value={t.id}>{t.title}</option>)}<option value="__new__">➕ New task…</option></select></Field>
       {taskId==="__new__" ? (<>
-        <Field label="New task"><input className={inputCls} value={taskTitle} onChange={e=>setTaskTitle(e.target.value)} placeholder="e.g. Improve our SEO"/></Field>
+        <Field label="New task" error={errs.taskTitle}><input className={inputCls} value={taskTitle} onChange={e=>setTaskTitle(e.target.value)} placeholder="e.g. Improve our SEO"/></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Importance"><select className={inputCls} value={taskPri} onChange={e=>setTaskPri(e.target.value)}><option value="high">High</option><option value="med">Medium</option><option value="low">Low</option></select></Field>
           <Field label="Team (optional)"><input className={inputCls} value={taskTeam} list="assign-teams" onChange={e=>setTaskTeam(e.target.value)} placeholder="optional"/><datalist id="assign-teams">{teams.map(t=><option key={t} value={t}/>)}</datalist></Field>
@@ -427,7 +439,7 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
     <div className="grid grid-cols-3 gap-3">
       <Field label="Start date"><input type="date" className={inputCls} value={start} onChange={e=>onStartCh(e.target.value)}/></Field>
       <Field label="Duration (weeks)"><input type="number" min="0.2" step="0.5" className={inputCls} value={dur} onChange={e=>onDurCh(e.target.value)}/></Field>
-      <Field label="End date"><input type="date" className={inputCls} value={end} onChange={e=>onEndCh(e.target.value)}/></Field>
+      <Field label="End date" error={errs.dates}><input type="date" className={inputCls} value={end} onChange={e=>onEndCh(e.target.value)}/></Field>
     </div>
     <p className="text-xs text-slate-400 -mt-1">Set a start + duration and the end fills in (1 week = 5 working days), or pick the end date directly.</p>
     {kind==="leave" && <div className="mt-2 mb-1">
@@ -458,7 +470,7 @@ function DashTracker(ctx){
   useEffect(()=>{ setRun(meId? lsGet("tracker_run_"+meId): null); },[meId]);
   useEffect(()=>{ if(!run) closePip(); },[run]); // eslint-disable-line
   useEffect(()=>()=>closePip(),[]); // eslint-disable-line
-  if(!meId) return (<div className="shrink-0 mt-2.5 px-3 py-2.5 bg-white border border-slate-200 rounded-xl shadow-sm text-xs text-slate-400 flex items-center gap-2"><Clock size={14}/> We couldn't match your login to a person on this team yet.</div>);
+  if(!meId) return (<div className="shrink-0 mt-2.5 px-3 py-2.5 bg-white border border-slate-200 rounded-xl shadow-xs text-xs text-slate-400 flex items-center gap-2"><Clock size={14}/> We couldn't match your login to a person on this team yet.</div>);
   const me=data.members.find(m=>m.id===meId);
   const projById=(id)=>data.projects.find(p=>p.id===id);
   const clientOf=(pid)=>{ const pr=projById(pid); return pr && data.clients.find(c=>c.id===pr.clientId); };
@@ -504,7 +516,7 @@ function DashTracker(ctx){
     if(ctl) pip.current=ctl;
   };
   return (
-    <div className="shrink-0 mt-2.5 bg-white border border-slate-200 rounded-xl shadow-sm">
+    <div className="shrink-0 mt-2.5 bg-white border border-slate-200 rounded-xl shadow-xs">
       <div onClick={()=>setOpen(o=>!o)} className="flex items-center gap-3 px-3 py-2 cursor-pointer select-none">
         <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-600 shrink-0"><Clock size={15}/> Tracker <ChevronRight size={14} style={{transform:open?"rotate(90deg)":"none",transition:"transform .15s"}}/></span>
         {run ? (
@@ -577,7 +589,7 @@ function DashTracker(ctx){
             {todayEntries.length===0 && <span className="text-xs text-slate-400">Nothing logged yet today.</span>}
             {todayEntries.map(l=>{ const editing=editId===l.id; return (
               <div key={l.id} className="flex items-center gap-2 text-sm">
-                <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{background:l.taskId?NAVY:colorOf(l.projectId)}}/>
+                <span className="w-2.5 h-2.5 rounded-xs shrink-0" style={{background:l.taskId?NAVY:colorOf(l.projectId)}}/>
                 <span className="text-slate-700 truncate">{l.taskId?("Task · "+((taskById(l.taskId)||{}).title||"task")):(labProj(l.projectId)+(phName(l.projectId,l.phaseId)?" · "+phName(l.projectId,l.phaseId):""))}</span>
                 <span className="text-slate-300" style={{fontSize:11}}>{l.source}</span>
                 {editing ? (<span className="ml-auto flex items-center gap-1 flex-wrap justify-end">
@@ -834,8 +846,8 @@ export default function Schedule({ org, me, data: cadData, reload, onNavigate, p
 
       <div className="shrink-0 flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 bg-white border-x border-b border-slate-200 text-xs text-slate-500">
         <span className="font-medium text-slate-600">Clients:</span>
-        {data.clients.map(c=>(<button key={c.id} onClick={()=>canEdit&&setModal({type:"client",payload:c})} className="flex items-center gap-1.5 hover:text-slate-800 group"><span className="w-3 h-3 rounded-sm" style={{background:c.color}}/>{c.name}{canEdit&&<Pencil size={11} className="opacity-0 group-hover:opacity-60"/>}</button>))}
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{background:LEAVE_TYPES.vacation.color}}/>Time off</span>
+        {data.clients.map(c=>(<button key={c.id} onClick={()=>canEdit&&setModal({type:"client",payload:c})} className="flex items-center gap-1.5 hover:text-slate-800 group"><span className="w-3 h-3 rounded-xs" style={{background:c.color}}/>{c.name}{canEdit&&<Pencil size={11} className="opacity-0 group-hover:opacity-60"/>}</button>))}
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-xs" style={{background:LEAVE_TYPES.vacation.color}}/>Time off</span>
         <div className="mx-auto flex items-center gap-2">
           <button onClick={()=>boardScroll.current?.nudge(-1)} title="Move left" className="grid place-items-center w-8 h-8 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"><ChevronLeft size={18}/></button>
           <span className="text-slate-400 hidden md:inline">use mouse wheel or click empty area to move</span>
@@ -863,12 +875,13 @@ export default function Schedule({ org, me, data: cadData, reload, onNavigate, p
 }
 
 function ClientForm({ org, client, canEdit, onClose, onSaved }){
+  const confirm = useConfirm();
   const [name,setName]=useState(client?.name||"");
   const [color,setColor]=useState(client?.color||CLIENT_COLORS[0]);
   const [terms,setTerms]=useState(client?.paymentTerms??30);
   const [addr,setAddr]=useState(client?.billingAddress||"");
   const save=async()=>{ const row={org_id:org.id,name:name.trim(),color,payment_terms:Number(terms)||30,billing_address:addr.trim()||null}; if(client) await sb.from("clients").update(row).eq("id",client.id); else await sb.from("clients").insert(row); onSaved(); };
-  const del=async()=>{ if(!confirm("Delete this client?")) return; await sb.from("clients").delete().eq("id",client.id); onSaved(); };
+  const del=async()=>{ if(!(await confirm({title:"Delete this client?", confirmLabel:"Delete", destructive:true}))) return; await sb.from("clients").delete().eq("id",client.id); onSaved(); };
   return (<ModalShell onClose={onClose}><ModalHead title={client?"Edit client":"Add client"} onClose={onClose}/><div className="p-5">
     <Field label="Client name"><input className={inputCls} disabled={!canEdit} value={name} onChange={e=>setName(e.target.value)}/></Field>
     <Field label="Colour"><div className="flex flex-wrap gap-2">{CLIENT_COLORS.map(c=><button key={c} disabled={!canEdit} onClick={()=>setColor(c)} className="w-8 h-8 rounded-lg" style={{background:c,outline:color===c?"2px solid #1e293b":"none",outlineOffset:2}}/>)}</div></Field>

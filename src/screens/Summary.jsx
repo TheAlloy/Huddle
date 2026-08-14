@@ -7,8 +7,10 @@ import {
   PeoplePicker, mapData, makeHandlers,
 } from "../studio/core.jsx";
 import { Table2, ChevronLeft, ChevronRight, Calendar, Users, Building2, Plane, Clock, Plus, X, Pencil, Trash2 } from "lucide-react";
+import { useConfirm } from "../components/confirm.tsx";
 
 function SummaryView(ctx) {
+  const confirm = useConfirm();
   const { data, clientById, projectById, delTimeLogs, moveTimeLogs, setTimeLogTotal, addTimeLog, myMemberId, publicHolidays, addPublicHoliday, delPublicHoliday, patchMember, phaseLogged, peopleFilter, setPeople, teamList } = ctx;
   const [addFor,setAddFor]=useState(null);
   const [aProj,setAProj]=useState(""),[aPhase,setAPhase]=useState("");
@@ -209,10 +211,10 @@ function SummaryView(ctx) {
                 : <table className="w-full text-sm"><thead><tr className="text-xs text-slate-400 text-left"><th className="font-medium px-3 py-1.5">Client · Project</th><th className="font-medium px-2 py-1.5">Phase</th><th className="font-medium px-3 py-1.5 text-right">Logged</th>{ctx.canEdit&&<th className="w-16"></th>}</tr></thead>
                     <tbody>{rows.map(r=>{const editing=edit&&edit.mid===m.id&&edit.key===r.key;return (<tr key={r.key} className="border-t border-slate-100">
                       <td className="px-3 py-1.5">{r.leave
-                        ? <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{background:LEAVE_TYPES.vacation.color}}/><span className="text-slate-700">Holiday / time off</span></span>
+                        ? <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-xs shrink-0" style={{background:LEAVE_TYPES.vacation.color}}/><span className="text-slate-700">Holiday / time off</span></span>
                         : r.task
-                        ? <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{background:NAVY}}/><span className="text-slate-700">Task · {r.title}</span></span>
-                        : <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{background:r.cl?r.cl.color:"#94a3b8"}}/><span className="text-slate-700">{r.cl?r.cl.name+" · ":""}{r.pr?r.pr.index:"Unassigned"} {r.pr?r.pr.name:""}</span></span>}</td>
+                        ? <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-xs shrink-0" style={{background:NAVY}}/><span className="text-slate-700">Task · {r.title}</span></span>
+                        : <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-xs shrink-0" style={{background:r.cl?r.cl.color:"#94a3b8"}}/><span className="text-slate-700">{r.cl?r.cl.name+" · ":""}{r.pr?r.pr.index:"Unassigned"} {r.pr?r.pr.name:""}</span></span>}</td>
                       <td className="px-2 py-1.5 text-slate-500">{r.leave||r.task?"—":(r.phase?r.phase.name:"—")}</td>
                       {editing
                         ? <td className="px-3 py-1.5" colSpan={2}><div className="flex items-center justify-end gap-1 flex-wrap">
@@ -223,7 +225,7 @@ function SummaryView(ctx) {
                             <button onClick={()=>setEdit(null)} className="text-slate-400 hover:text-slate-700"><X size={15}/></button>
                           </div></td>
                         : <><td className="px-3 py-1.5 text-right font-medium text-slate-700">{fmtH(r.mins/60)}h</td>
-                           {ctx.canEdit&&<td className="px-2 py-1.5">{!r.leave && <div className="flex items-center gap-1.5 justify-end"><button onClick={()=>beginEdit(m.id,r)} className="text-slate-300 hover:text-blue-600" title="Edit total"><Pencil size={14}/></button><button onClick={()=>{ if(confirm("Remove this logged time for the period?")) delTimeLogs(r.ids); }} className="text-slate-300 hover:text-red-500" title="Delete"><Trash2 size={14}/></button></div>}</td>}</>}
+                           {ctx.canEdit&&<td className="px-2 py-1.5">{!r.leave && <div className="flex items-center gap-1.5 justify-end"><button onClick={()=>beginEdit(m.id,r)} className="text-slate-300 hover:text-blue-600" title="Edit total"><Pencil size={14}/></button><button onClick={async ()=>{ if(await confirm({title:"Remove this logged time for the period?", confirmLabel:"Remove", destructive:true})) delTimeLogs(r.ids); }} className="text-slate-300 hover:text-red-500" title="Delete"><Trash2 size={14}/></button></div>}</td>}</>}
                       </tr>);})}</tbody></table>}
               <div className="px-3 py-2 border-t border-slate-100">
                 {addFor===m.id ? (
@@ -258,7 +260,7 @@ function SummaryView(ctx) {
               const fee=Number(ph.fee)>0?ph.fee:null;
               return (<div key={key} className="border border-slate-200 rounded-lg px-3 py-2" onClick={()=>ctx.canSeeCost&&setShowContrib(v=>!v)} style={{cursor:ctx.canSeeCost?"pointer":"default"}}>
                 <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0 text-sm text-slate-700 truncate">{ctx.canSeeCost && <ChevronRight size={12} className="inline mr-1 text-slate-400" style={{transform:isOpen?"rotate(90deg)":"none"}}/>}<span className="inline-block w-2.5 h-2.5 rounded-sm mr-1.5 align-middle" style={{background:cl?cl.color:"#94a3b8"}}/>{pr.index} · {ph.name}</div>
+                  <div className="min-w-0 text-sm text-slate-700 truncate">{ctx.canSeeCost && <ChevronRight size={12} className="inline mr-1 text-slate-400" style={{transform:isOpen?"rotate(90deg)":"none"}}/>}<span className="inline-block w-2.5 h-2.5 rounded-xs mr-1.5 align-middle" style={{background:cl?cl.color:"#94a3b8"}}/>{pr.index} · {ph.name}</div>
                   <div className="text-xs font-medium shrink-0" style={{color:isOver?"#eb5757":"#475569"}}>{fmtH(loggedH)}h / {ph.hours}h</div>
                 </div>
                 <div className="mt-1.5 h-1.5 rounded-full bg-slate-100 overflow-hidden"><div className="h-full rounded-full" style={{width:`${frac*100}%`,background:isOver?"#eb5757":"#27ae60"}}/></div>

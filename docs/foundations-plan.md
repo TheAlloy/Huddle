@@ -1,0 +1,325 @@
+# Foundations plan — UI stack
+
+*August 2026. Inputs: [ux-brief.md](research/ux-brief.md),
+[technical-brief.md](technical-brief.md), and the current codebase. The two
+briefs decide **what** we're building and **why**; this plan decides **in what
+order**, and is the doc to check work against while the foundations land. It
+covers the technical brief's "before step 1" plus the dialog/toast half of
+step 1 — nothing beyond that. Status: draft, in progress.*
+
+## Why this doc is narrow
+
+The briefs are strategy and they hold. This plan exists because the foundations
+have a dependency order that isn't obvious from either brief, and getting it
+wrong means doing work twice. Two orderings in particular are load-bearing;
+both are recorded as decisions below.
+
+Anything about screen design, routing schema, or the data store belongs in the
+briefs, not here.
+
+## Current state (measured, August 2026)
+
+| | Count | Note |
+|---|---|---|
+| `.jsx` files in `src/` | 22 | ~4,950 lines total |
+| Native `<select>` | 56 | across 14 files; [Schedule](../src/screens/Schedule.jsx) 14, [Billing](../src/screens/Billing.jsx) 11 |
+| `alert()` | 19 | includes form validation, e.g. [Schedule.jsx:391](../src/screens/Schedule.jsx:391) |
+| `confirm()` | 9 | all destructive, e.g. [Billing.jsx:235](../src/screens/Billing.jsx:235) |
+| Hand-rolled modal components | 10+ | one per screen, no shared behaviour |
+| Files importing `lucide-react` | 16 | 33 distinct icons |
+| Inline `style={{}}` | 164 | across 20 files |
+| Hardcoded hex literals | 101 | across 20 files |
+| `aria-*`, `role=`, keyboard handlers | **0** | none anywhere in `src/` at the time of measurement |
+
+At the time of measurement, `AVATAR_BG` and `inputCls` were defined with
+**different values** in [src/ui.jsx](../src/ui.jsx) and
+[src/studio/core.jsx](../src/studio/core.jsx), so which palette a screen got
+depended on which file it imported from — the "triple-defined constants" the UX
+brief flags at §Structural changes. Step 3 found five such duplicates and
+resolved them; see that step for what was wrong and how.
+
+## Decisions
+
+### 1. TypeScript lands before shadcn/ui
+
+shadcn components are distributed as `.tsx` and its `init` writes a TS-shaped
+config. Installing into plain JSX means either fighting the generator or
+converting the same files twice.
+
+**Verified:** `shadcn init` refuses to run without both a Tailwind
+configuration and resolvable path aliases. This ordering is enforced by the
+tool, not just preferred.
+
+The technical brief already puts TS in "before step 1"
+([technical-brief.md §Sequencing](technical-brief.md)), so this isn't new
+scope — only a statement that it is a *prerequisite*, not a parallel track.
+
+TS migration here is scaffolding only: `tsconfig`, the Vite plugin, path
+aliases, and `allowJs` so existing `.jsx` keeps compiling untouched. Per-file
+conversion happens as screens get rebuilt. We are not converting 22 files up
+front.
+
+### 2. No big-bang component sweep
+
+The obvious plan — replace all 56 selects and 28 native dialogs now — is wrong,
+because the UX brief's rebuild order rewrites every screen in steps 2–6.
+Converting a select in [Schedule.jsx](../src/screens/Schedule.jsx) today means
+converting it again when Schedule is rebuilt onto the router and store.
+
+**Rule: components convert as their screen is rebuilt, not before.**
+
+**One deliberate exception: `alert()` and `confirm()`.** All 28 go early, even
+in screens due for rebuild. Reasons: demo mode is a customer-facing surface
+today ([technical-brief.md §Principles](technical-brief.md) 4), a system dialog
+with the URL in its title bar is the single most visible jank in the product,
+it's worse in the Electron wrapper, and the replacement is a small mechanical
+diff that carries into the rebuild unchanged. The 9 `confirm()` calls all guard
+destructive actions, which makes them the ones worth fixing first regardless.
+
+### 3. Theme preset `b7Uc5YiUE` (resolved)
+
+Decoded and dry-run in a scratch Vite project. The code is self-describing —
+no remote lookup, so there's no dependency on the ID resolving at build time.
+
+| Field | Value |
+|---|---|
+| style | `base-nova` |
+| baseColor / theme | `taupe` / `lime` |
+| iconLibrary | `remixicon` |
+| font | Inter (via `@fontsource-variable/inter`, self-hosted) |
+| radius | `0.45rem` |
+| menuAccent / menuColor | `subtle` / `default-translucent` |
+
+Primary is `oklch(0.841 0.238 128.85)` — a bright lime. **This replaces
+`bg-blue-600` as the action color across the whole app**, and is a brand
+change rather than a polish pass. The preset also ships a complete `.dark`
+palette; dark mode is additive and not required this cycle.
+
+### 4. Base UI, not Radix — React 18 stays
+
+The `nova` style installs **`@base-ui/react`**, not Radix. Its peer range is
+`^17 || ^18 || ^19`, so Huddle's React 18.3.1 is supported and **no React
+upgrade is needed**. (The scratch project showed React 19 only because the
+current Vite template defaults to it.)
+
+### 5. Tailwind v4, so there is no `tailwind.config.js`
+
+v4 moved theme config into CSS. `init` writes `"config": ""` in
+`components.json` and puts everything in `src/index.css` as `@theme inline`
+plus `:root` / `.dark` variable blocks. Install is `tailwindcss` +
+`@tailwindcss/vite` with `@import "tailwindcss"` — no PostCSS config, no
+config file.
+
+Note the generated CSS also does `@import "shadcn/tailwind.css"`, so the base
+style layer resolves from the `shadcn` package rather than our repo. Our
+*tokens* are local and reviewable; the base layer is not. `shadcn eject`
+inlines it if we later want that fully in-repo — not needed now.
+
+### 6. Icons stay on lucide
+
+The preset specifies remixicon, but `components.json` gets overridden to
+`lucide`. shadcn rewrites icon imports in the components it generates, so this
+keeps a single icon pack with zero churn across the 16 files / 33 icons already
+on `lucide-react`. Consistent with decision 2; revisit during the rebuild if
+the remixicon set is wanted.
+
+## Sequence
+
+Each step should leave the app running and demo mode working.
+
+**1. Tailwind v4 build — DONE** (pending a human visual pass). Added
+`tailwindcss` + `@tailwindcss/vite` as devDependencies, registered the plugin
+in [vite.config.js](../vite.config.js), created
+[src/index.css](../src/index.css) with `@import "tailwindcss"` and the globals
+moved out of `index.html`, imported it from [main.jsx](../src/main.jsx), and
+removed the CDN script.
+
+Result: one 34 kB stylesheet (7.1 kB gzip) replaces the CDN's in-browser
+engine. Build clean, demo mode signs in and Schedule renders with full data.
+
+*This was a v3→v4 major upgrade*, not just a build swap —
+`cdn.tailwindcss.com` served v3. Breaking surface was measured, and the two
+utilities whose scale shifted were renamed to preserve v3 appearance:
+
+| v3 | v4 equivalent | Count | Status |
+|---|---|---|---|
+| `rounded-sm` (2px) | `rounded-xs` | 14 | renamed |
+| `shadow-sm` | `shadow-xs` | 6 | renamed |
+| `outline-none` | `outline-hidden` | 65 | **left as-is** |
+| `ring-2` | unchanged | 2 | explicit width, unaffected |
+| bare `border` | would change color | 0 | none present |
+
+`outline-none` is deliberately not swept: in v4 it still hides the outline, so
+rendering is identical. The only loss is the transparent-outline behaviour
+under forced-colors mode, which this app never had (zero a11y attributes
+today). These 65 sites get proper focus rings from shadcn's form components at
+step 4 — sweeping them now would be the throwaway work decision 2 forbids.
+
+*Verified safe beforehand:* all 36 template-literal `className`s interpolate
+content (dates, hours, px), never class fragments like `` `bg-${x}-500` ``, so
+static extraction had nothing to miss.
+
+*Two gotchas worth keeping:*
+
+- The running dev server kept serving stale utility classes after the rename
+  until restarted. The production build was correct throughout — check
+  `dist/assets/*.css`, not the dev server, when verifying class output.
+- **v4 auto-detects sources across the entire project, `docs/*.md` included.**
+  This document's own class names were being compiled into the shipped CSS
+  (+0.5 kB). [src/index.css](../src/index.css) now pins detection with
+  `@import "tailwindcss" source(".")`, which scopes it to `src/`. Without that
+  line, writing a class name in prose anywhere in the repo adds it to the
+  bundle. `index.html` carries no classes, so `src/` is the complete set.
+
+**2. TypeScript scaffolding — DONE.** Added `typescript` and React **18**
+types (not 19 — matching the app's React), [tsconfig.json](../tsconfig.json)
+with `allowJs: true` / `checkJs: false` and `paths: { "@/*": ["./src/*"] }`,
+and the mirrored `resolve.alias` in [vite.config.js](../vite.config.js). Added
+an `npm run typecheck` script.
+
+`tsc --noEmit` exits 0 and the build is unchanged — every existing `.jsx`
+compiles without being type-checked, so files convert individually as screens
+are rebuilt.
+
+Confirmed step 3 will run: `npx shadcn@latest info` against this repo reports
+`typescript Yes`, `tailwindVersion v4`, `tailwindCss src/index.css`,
+`importAlias @`. Note `tsconfig.json` keeps `//` comments and both `tsc` and
+shadcn parse it fine.
+
+**3. shadcn init with the preset — DONE.** `init` merged into the existing
+[src/index.css](../src/index.css) rather than clobbering it: the `source(".")`
+pin and the globals survived, with `@theme inline`, `:root`, `.dark` and
+`@layer base` appended. Created `components.json` and
+[src/lib/utils.ts](../src/lib/utils.ts) (`cn` helper). `iconLibrary` was
+overridden to `lucide` per decision 6 and `@remixicon/react` uninstalled.
+React stayed on 18.3.1. CSS 34 kB → 41 kB; JS unchanged.
+
+**What the preset actually changed on screen — less than expected.** The lime
+primary did *not* repaint anything: the app styles actions with literal
+utilities and inline styles (`bg-blue-600`, `NAVY`), and tokens don't reach
+those. Verified live — the primary action button still computes to
+`rgb(47,111,237)`. Lime will appear on shadcn components added at step 4, and
+anywhere we deliberately move to `bg-primary`. What *did* change app-wide:
+
+- **Typography:** system fonts → Inter Variable (self-hosted).
+- **Radius:** `--radius: 0.45rem` redefines Tailwind's whole radius scale, so
+  `rounded-lg` went 8px → 7.2px and buttons to 5.76px. `rounded-xs` is
+  unaffected (the preset doesn't define `--radius-xs`), so the step 1 renames
+  still hold.
+- `*{@apply border-border}` has no effect here — every border in `src/` already
+  carries an explicit color.
+
+**Duplicate constants consolidated.** The audit found **five** exports defined
+in both [ui.jsx](../src/ui.jsx) and [studio/core.jsx](../src/studio/core.jsx),
+not three: `NAVY`, `AVATAR_BG`, `inputCls`, `initials`, `Field`. In every case
+ui.jsx's copy served 13 screens and core.jsx's served exactly one (Tasks.jsx,
+plus Billing.jsx for `Field`).
+
+Two were genuine bugs, not just redundancy:
+
+- **`AVATAR_BG` was a live inconsistency.** Both palettes are keyed by member
+  index, but they had different colors *and* different lengths (8 vs 6), so the
+  same person rendered one color as an avatar and a different one as a Tasks
+  column header, wrapping differently past index 6. Reconciled onto the 8-colour
+  set — Tasks column colors now match avatars everywhere.
+- **`initials` differed in behaviour.** core.jsx's version dropped a letter on
+  names with repeated spaces ("Ben  Achebe" → "B"). Unified on the
+  `filter(Boolean)` version.
+
+Direction follows CLAUDE.md: constants are canonical in `studio/core.jsx` and
+re-exported from `ui.jsx` so all existing imports keep working; `Field` is a UI
+primitive so it stays canonical in `ui.jsx`, with Tasks.jsx and Billing.jsx
+repointed at it. Imports stay one-directional (`ui.jsx → core.jsx`), so no
+cycle. The duplicate *modal kits* (`Modal` vs `ModalShell`/`ModalHead`/
+`ModalFoot`) are untouched — the UX brief lists those for the rebuild.
+
+*Verified:* typecheck 0, build clean, and Tasks/Billing render from a cold
+server with an empty console. A live palette probe confirms only the reconciled
+colors are in use.
+
+**4. Dialog + toast system — DONE.** Added `alert-dialog`, `sonner` and their
+`button` dependency. Zero `alert(` / `confirm(` remain in `src/`. Split by
+intent as planned:
+
+| Was | Now | Count |
+|---|---|---|
+| `confirm()` | `AlertDialog` via `useConfirm()` | 9 |
+| `alert()` — failures | `toast.error()` | 13 |
+| `alert()` — form validation | inline field errors | 6 |
+
+[components/confirm.tsx](../src/components/confirm.tsx) wraps the dialog in a
+promise-based `useConfirm()` so replacing a call site stayed a one-line change
+that keeps its original shape:
+
+```js
+if (await confirm({ title: "Delete this entry?", destructive: true })) delBilling(b.id)
+```
+
+One dialog instance is rendered app-wide from `main.jsx` rather than one per
+call site. `open` is deliberately separate from the options object — clearing
+the options on close would blank the title mid-fade-out.
+
+`Field` in [ui.jsx](../src/ui.jsx) gained an `error` slot (it supersedes
+`hint`), which is what the 6 Schedule validations now render into. Those used
+to fire one alert at a time, so you fixed one problem, pressed Save, and got
+the next one.
+
+**A third `Field` turned up.** [Schedule.jsx](../src/screens/Schedule.jsx) had
+its own local copy on top of the two found in step 3 — it now imports the
+shared one, which is also what let it use the `error` slot.
+
+**Dropped `next-themes`.** `sonner.tsx` ships reading the theme from it; with
+no provider in this app that lookup always fell through to its default, so the
+dependency was removed and the theme pinned. Restore it if dark mode lands.
+
+*Verified in the browser:* dialog renders with `role="alertdialog"`,
+`aria-labelledby`, a backdrop and body scroll lock; Escape resolves false and
+deletes nothing; the action button resolves true and the row goes; validation
+renders inline with the modal staying open; toasts render with the right
+`data-type` and icon. That's the first keyboard-dismissable, labelled dialog in
+the app — see the accessibility note under Current state.
+
+> **Verification gotcha, cost an hour.** Under the automated browser the
+> dialog's DOM node appears to stay mounted and blocking after dismissal. It is
+> **not** a bug. The Browser pane isn't displayed, so the page is `hidden` and
+> composites **zero** frames; Base UI gates unmounting behind
+> `requestAnimationFrame`, which never fires. Proven by shimming rAF onto
+> `setTimeout`, after which content and backdrop unmount cleanly. Neither
+> forcing `animationend` nor zeroing `animation-duration` discriminates, since
+> with no frames no animation events dispatch at all. **Any future check of
+> animated enter/exit in this harness needs the rAF shim, or a real browser.**
+
+**5. Hand off to the rebuild** — from here the UX brief's step 1 continues
+(router, app shell, store). Component conversion rides along per screen.
+
+## Risks
+
+- **Rendering drift at step 1.** *Mostly retired* — the breaking surface was
+  measured and handled (table above), and Schedule renders correctly with demo
+  data. Still outstanding: a human visual pass over each screen, since
+  automated verification could confirm computed styles but not appearance.
+- ~~**The lime accent is a large visible change.**~~ *Retired — this was wrong.*
+  Tokens don't reach literal utilities or inline styles, so step 3 repainted
+  nothing. The accent question returns at step 4 (shadcn components arrive
+  lime) and properly during the rebuild, when screens move onto token classes.
+  That's when to decide whether lime is the action color everywhere.
+- **Icon library conflict.** The preset specifies remixicon; the app uses
+  lucide across 16 files / 33 icons. Settled by decision 6 — staying on lucide.
+- ~~**Reconciling the two avatar palettes changes existing users' avatar
+  colors.**~~ *Resolved in step 3* — kept the 8-colour set used by the shared
+  `Avatar`, so avatars are unchanged everywhere and only the Tasks board's
+  column colors moved (onto the palette the rest of the app already used).
+- **Scope creep into the rebuild.** Decision 2 is the guard. If a step starts
+  restructuring a screen, it belongs in the rebuild, not here.
+
+## Open questions
+
+- None blocking. Step 3 is ready to run.
+
+## Not covered here
+
+Router and URL schema, the normalized store and query layer, realtime,
+responsive frame, test harness, and every screen-level change — all in the
+briefs. [CLAUDE.md](../CLAUDE.md) describes the current stack ("no tests, no
+linter, and no TypeScript — plain JSX") and needs updating once these steps
+land; that's the last task of this plan, not the first.

@@ -4,6 +4,7 @@ import { Btn, Card, Field, inputCls, Pill, Modal } from "../ui.jsx";
 import { can } from "../lib/permissions.js";
 import { USAGE_OPTIONS } from "../lib/terms.js";
 import { PlanCard } from "./PlanCard.jsx";
+import { toast } from "sonner";
 
 export default function Settings({ org, me, members, reload }) {
   const [name, setName] = useState(org.name);
@@ -60,8 +61,8 @@ export default function Settings({ org, me, members, reload }) {
       const res = await fetch("/api/billing-portal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: org.id, accessToken: token }) });
       const body = await res.json();
       if (body.url) window.location.href = body.url;
-      else alert(body.error || "Billing portal isn't available yet.");
-    } catch (_) { alert("Couldn't reach the billing portal (only works on the live site)."); }
+      else toast.error(body.error || "Billing portal isn't available yet.");
+    } catch (_) { toast.error("Couldn't reach the billing portal (only works on the live site)."); }
     setBusy(false);
   };
 
@@ -71,8 +72,8 @@ export default function Settings({ org, me, members, reload }) {
       const token = (await sb.auth.getSession()).data.session?.access_token;
       const res = await fetch("/api/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: org.id, priceId, accessToken: token }) });
       const body = await res.json();
-      if (body.url) window.location.href = body.url; else alert(body.error || "Couldn't start checkout.");
-    } catch (_) { alert("Couldn't reach the checkout — it only runs on the live site with Stripe connected."); }
+      if (body.url) window.location.href = body.url; else toast.error(body.error || "Couldn't start checkout.");
+    } catch (_) { toast.error("Couldn't reach the checkout — it only runs on the live site with Stripe connected."); }
     setBusy(false);
   };
 
@@ -189,7 +190,7 @@ export default function Settings({ org, me, members, reload }) {
               {inv.letterhead ? "Replace image" : "Upload image"}
               <input type="file" accept="image/png,image/jpeg" className="hidden" onChange={e => {
                 const f = e.target.files && e.target.files[0]; if (!f) return;
-                if (f.size > 900000) { alert("That image is a bit large — please use one under ~600–900 KB so invoices stay quick to generate."); return; }
+                if (f.size > 900000) { toast.error("That image is a bit large — please use one under ~600–900 KB so invoices stay quick to generate."); return; }
                 const r = new FileReader(); r.onload = () => setF("letterhead", r.result); r.readAsDataURL(f);
               }} />
             </label>

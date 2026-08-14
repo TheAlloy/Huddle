@@ -6,6 +6,7 @@ import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
 import { money } from "../lib/dates.js";
 import { Plus, Trash2, Pencil, Layers } from "lucide-react";
+import { useConfirm } from "../components/confirm.tsx";
 
 const CLIENT_COLORS = ["#2f80ed", "#9b51e0", "#16a0a0", "#eb5757", "#27ae60", "#f2994a", "#2d9cdb", "#eb5757", "#6b7a99", "#b5179e"];
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -28,7 +29,7 @@ export default function Projects({ org, me, data, reload, terms }) {
         <div className="divide-y divide-slate-100">
           {data.clients.map(c => (
             <div key={c.id} className="flex items-center gap-3 py-2 text-sm group">
-              <span className="w-3.5 h-3.5 rounded-sm" style={{ background: c.color || "#94a3b8" }} />
+              <span className="w-3.5 h-3.5 rounded-xs" style={{ background: c.color || "#94a3b8" }} />
               <span className="text-slate-800">{c.name}</span>
               <span className="ml-auto text-xs text-slate-400">{c.payment_terms || 30} day terms</span>
               {mayClients && <button className="text-slate-300 hover:text-blue-600" onClick={() => setModal({ type: "client", c })}><Pencil size={14} /></button>}
@@ -49,7 +50,7 @@ export default function Projects({ org, me, data, reload, terms }) {
           return groups.filter(g => g.projects.length).map(g => (
             <div key={g.client ? g.client.id : "none"} className="mb-4 last:mb-0">
               <div className="flex items-center gap-2 mb-1">
-                <span className="w-3.5 h-3.5 rounded-sm shrink-0" style={{ background: g.client ? g.client.color : "#94a3b8" }} />
+                <span className="w-3.5 h-3.5 rounded-xs shrink-0" style={{ background: g.client ? g.client.color : "#94a3b8" }} />
                 <span className="text-sm font-semibold text-slate-700">{g.client ? g.client.name : ("No "+T.clientLower)}</span>
                 <span className="text-xs text-slate-400">· {g.projects.length} project{g.projects.length === 1 ? "" : "s"}</span>
               </div>
@@ -78,6 +79,7 @@ export default function Projects({ org, me, data, reload, terms }) {
 }
 
 function ClientModal({ org, client, onClose, onSaved }) {
+  const confirm = useConfirm();
   const [name, setName] = useState(client?.name || "");
   const [color, setColor] = useState(client?.color || CLIENT_COLORS[0]);
   const [terms, setTerms] = useState(client?.payment_terms ?? 30);
@@ -90,7 +92,7 @@ function ClientModal({ org, client, onClose, onSaved }) {
     else await sb.from("clients").insert(row);
     setBusy(false); onSaved();
   };
-  const del = async () => { if (!confirm("Delete this client? Projects keep working but lose the link.")) return; await sb.from("clients").delete().eq("id", client.id); onSaved(); };
+  const del = async () => { if (!(await confirm({ title: "Delete this client?", description: "Projects keep working but lose the link.", confirmLabel: "Delete", destructive: true }))) return; await sb.from("clients").delete().eq("id", client.id); onSaved(); };
   return (<Modal title={client ? "Edit client" : "Add client"} onClose={onClose}
     footer={<>{client && <Btn variant="danger" className="mr-auto" onClick={del}><Trash2 size={14} /> Delete</Btn>}<Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !name.trim()}>Save</Btn></>}>
     <Field label="Client name"><input className={inputCls} value={name} onChange={e => setName(e.target.value)} autoFocus /></Field>
@@ -101,6 +103,7 @@ function ClientModal({ org, client, onClose, onSaved }) {
 }
 
 export function ProjectModal({ org, project, clients, onClose, onSaved }) {
+  const confirm = useConfirm();
   const [name, setName] = useState(project?.name || "");
   const [code, setCode] = useState(project?.code || "");
   const [clientId, setClientId] = useState(project?.client_id || "");
@@ -125,7 +128,7 @@ export function ProjectModal({ org, project, clients, onClose, onSaved }) {
     else { const { data: ins } = await sb.from("projects").insert(row).select().single(); logAudit(org.id, "project.created", "project", { id: ins?.id }); }
     setBusy(false); onSaved();
   };
-  const del = async () => { if (!confirm("Delete this project and its bookings?")) return; await sb.from("projects").delete().eq("id", project.id); onSaved(); };
+  const del = async () => { if (!(await confirm({ title: "Delete this project and its bookings?", confirmLabel: "Delete", destructive: true }))) return; await sb.from("projects").delete().eq("id", project.id); onSaved(); };
 
   return (<Modal wide title={project ? "Edit project" : "Add project"} onClose={onClose}
     footer={<>{project && <Btn variant="danger" className="mr-auto" onClick={del}><Trash2 size={14} /> Delete</Btn>}<Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !name.trim()}>Save project</Btn></>}>

@@ -4,6 +4,7 @@ import { Btn, NAVY } from "../ui.jsx";
 import { can } from "../lib/permissions.js";
 import { PlanCard } from "./PlanCard.jsx";
 import { ChevronDown } from "lucide-react";
+import { toast } from "sonner";
 
 /** Shown when the active studio has no active subscription. Owners/admins can subscribe here; others are told to ask an owner. */
 export default function Paywall({ org, me, memberships, onPickOrg, onSignOut }) {
@@ -37,8 +38,8 @@ export default function Paywall({ org, me, memberships, onPickOrg, onSignOut }) 
       const res = await fetch("/api/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: org.id, priceId, accessToken: token }) });
       const body = await res.json();
       if (body.url) { window.location.href = body.url; return; }
-      alert(body.error || "Couldn't start checkout.");
-    } catch (_) { alert("Couldn't reach checkout."); }
+      toast.error(body.error || "Couldn't start checkout.");
+    } catch (_) { toast.error("Couldn't reach checkout."); }
     setBusy(false);
   };
 
@@ -49,8 +50,8 @@ export default function Paywall({ org, me, memberships, onPickOrg, onSignOut }) 
       const res = await fetch("/api/billing-portal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: org.id, accessToken: token }) });
       const body = await res.json();
       if (body.url) { window.location.href = body.url; return; }
-      alert(body.error || "Billing portal isn't available yet.");
-    } catch (_) { alert("Couldn't reach the billing portal."); }
+      toast.error(body.error || "Billing portal isn't available yet.");
+    } catch (_) { toast.error("Couldn't reach the billing portal."); }
     setBusy(false);
   };
 

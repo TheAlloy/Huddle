@@ -76,7 +76,7 @@ export default function Tracker({ org, me, data: cadData, reload }){
   const weekTot=weekDays.reduce((s,d)=>s+dayTot(d),0);
 
   const BigBubble=({onClick,color,top,sub,mins,title})=>(
-    <button onClick={onClick} title={title} className="w-full text-left rounded-2xl px-5 py-4 text-white transition hover:brightness-110 shadow-sm" style={{background:color}}>
+    <button onClick={onClick} title={title} className="w-full text-left rounded-2xl px-5 py-4 text-white transition hover:brightness-110 shadow-xs" style={{background:color}}>
       <div className="flex items-center gap-3">
         <span className="grid place-items-center w-11 h-11 rounded-full bg-white shrink-0" style={{color}}><Play size={20}/></span>
         <div className="min-w-0 flex-1"><div className="text-base font-bold leading-tight truncate">{top}</div><div className="opacity-90 leading-tight truncate text-sm">{sub||"—"}</div></div>
@@ -94,7 +94,7 @@ export default function Tracker({ org, me, data: cadData, reload }){
       <div className="max-w-3xl mx-auto space-y-4">
         <div className="flex items-center gap-2"><Clock size={18} className="text-slate-500"/><h2 className="text-base font-bold text-slate-800">Time tracker</h2><span className="ml-auto text-xs text-slate-500">This week <b className="text-slate-700">{fmtH(weekTot/60)}h</b></span></div>
 
-        <div className={`rounded-xl p-4 ${run ? "text-white shadow-sm" : "border border-slate-200 bg-white"}`} style={run ? { background: runColor() } : undefined}>
+        <div className={`rounded-xl p-4 ${run ? "text-white shadow-xs" : "border border-slate-200 bg-white"}`} style={run ? { background: runColor() } : undefined}>
           {run ? (
             <div className="flex items-center gap-3 flex-wrap">
               <span className="w-2.5 h-2.5 rounded-full bg-white" style={{animation:"pulse 1.5s infinite"}}/>
@@ -148,7 +148,7 @@ export default function Tracker({ org, me, data: cadData, reload }){
             {todayEntries.length===0 && <span className="text-xs text-slate-400">Nothing logged yet today.</span>}
             {todayEntries.map(l=>{ const editing=editId===l.id; return (
               <div key={l.id} className="flex items-center gap-2 text-sm">
-                <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{background:l.taskId?NAVY:colorOf(l.projectId)}}/>
+                <span className="w-2.5 h-2.5 rounded-xs shrink-0" style={{background:l.taskId?NAVY:colorOf(l.projectId)}}/>
                 <span className="text-slate-700 truncate">{l.taskId?("Task · "+((taskById(l.taskId)||{}).title||"task")):(labProj(l.projectId)+(phName(l.projectId,l.phaseId)?" · "+phName(l.projectId,l.phaseId):""))}</span>
                 <span className="text-slate-300" style={{fontSize:11}}>{l.source}</span>
                 {editing ? (<span className="ml-auto flex items-center gap-1 flex-wrap justify-end">

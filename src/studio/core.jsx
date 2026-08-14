@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { sb } from "../lib/supabase.js";
 import { Users, ChevronRight, X, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 /* constants */
 export const MS = 86400000;
@@ -10,7 +11,10 @@ export const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 export const WORK_START = 9, WORK_END = 17, WORKDAY_H = WORK_END - WORK_START;
 export const NAVY = "#1f2d4e";
 export const CLIENT_COLORS = ["#2f80ed","#9b51e0","#16a0a0","#eb5757","#27ae60","#f2994a","#2d9cdb","#6b7a99","#e84393","#8e44ad"];
-export const AVATAR_BG = ["#5b8def","#9b6dd6","#3aa99f","#e0884b","#d65f6e","#4caf8f"];
+// Single source of truth — ui.jsx re-exports this. Both the Avatar component and
+// the Tasks board key colors by member index, so a second palette meant the same
+// person rendered in two different colors (and wrapped at a different length).
+export const AVATAR_BG = ["#2f80ed","#9b51e0","#16a0a0","#eb5757","#27ae60","#f2994a","#2d9cdb","#6b7a99"];
 export const LEAVE_TYPES = { vacation:{label:"Holiday",color:"#f2994a"}, parental:{label:"Parental Leave",color:"#e67e22"}, sick:{label:"Sick Leave",color:"#c0563f"}, holiday:{label:"Public Holiday",color:"#7f8fa6"} };
 export const TASK_PRI = { high:{label:"High",color:"#eb5757"}, med:{label:"Medium",color:"#f59e0b"}, low:{label:"Low",color:"#94a3b8"} };
 export const inputCls = "w-full text-sm rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-400";
@@ -30,7 +34,8 @@ export const nextWeekday = (d) => { let x=new Date(d); while(!isWeekday(x)) x=ad
 export const addWorkingDays = (start,n) => { let d=new Date(start),c=0; while(true){ if(isWeekday(d)) c++; if(c>=n) return new Date(d); d=addDays(d,1); } };
 export const workdaysBetween = (s,e) => { let c=0; for(let d=new Date(s); d<=e; d=addDays(d,1)) if(isWeekday(d)) c++; return c; };
 export const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
-export const initials = (name) => (name||"?").split(" ").map(p=>p[0]).slice(0,2).join("").toUpperCase();
+// filter(Boolean) guards against repeated spaces — "Ben  Achebe" gave "B", not "BA".
+export const initials = (name) => (name||"?").split(" ").filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join("");
 export const minsOf = (t) => { const [h,m]=String(t).split(":").map(Number); return h*60+(m||0); };
 export const fmtH = (n) => { const r=Math.round(n*10)/10; return Number.isInteger(r)?String(r):r.toFixed(1); };
 export const money = (n) => "£"+(Number(n)||0).toLocaleString(undefined,{maximumFractionDigits:0});
@@ -90,7 +95,7 @@ export function openFloatingTimer({ getTop, getElapsed, onStop }){
     return window.documentPictureInPicture.requestWindow({width:340,height:64}).then(wire).catch(()=>null);
   }
   const w=(typeof window!=="undefined") ? window.open("","studioTimer","width=340,height=120") : null;
-  if(!w){ alert("Pop-out was blocked — allow pop-ups for this site (or use Chrome/Edge for an always-on-top timer)."); return Promise.resolve(null); }
+  if(!w){ toast.error("Pop-out was blocked — allow pop-ups for this site (or use Chrome/Edge for an always-on-top timer)."); return Promise.resolve(null); }
   return Promise.resolve(wire(w));
 }
 
@@ -102,7 +107,6 @@ export function ModalShell({ children, onClose }){
 }
 export function ModalHead({ title, onClose }){ return <div className="flex items-center justify-between px-5 py-3.5 rounded-t-xl text-white" style={{background:NAVY}}><h3 className="font-semibold">{title}</h3><button onClick={onClose} className="opacity-80 hover:opacity-100"><X size={18}/></button></div>; }
 export function ModalFoot({ onSave, onDelete, saveLabel="Save" }){ return <div className="flex items-center gap-2 px-5 py-4 border-t border-slate-100">{onDelete&&<button onClick={onDelete} className="flex items-center gap-1 text-sm text-red-600 hover:bg-red-50 px-2.5 py-2 rounded-lg"><Trash2 size={15}/> Delete</button>}<button onClick={onSave} className="ml-auto text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">{saveLabel}</button></div>; }
-export function Field({ label, children }){ return <label className="block mb-3"><span className="block text-xs font-medium text-slate-500 mb-1">{label}</span>{children}</label>; }
 export function ToolBtn({ icon:Icon, label, onClick, primary }){ return <button onClick={onClick} className={`flex items-center gap-1.5 text-sm px-2.5 h-8 rounded-lg border transition ${primary?"bg-blue-600 text-white border-blue-600 hover:bg-blue-700":"border-slate-200 text-slate-600 hover:bg-slate-50"}`}><Icon size={15}/> <span className="hidden sm:inline">{label}</span></button>; }
 
 export function PeoplePicker({ members, teams, value, onChange, me }){

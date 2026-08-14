@@ -32,7 +32,7 @@ export function ProjectsScreen({ org, me, data, reload }) {
       <div className="divide-y divide-slate-100">
         {data.clients.map(c => (
           <div key={c.id} className="flex items-center gap-3 py-2 text-sm">
-            <span className="w-3 h-3 rounded-sm" style={{ background: c.color || "#94a3b8" }} />
+            <span className="w-3 h-3 rounded-xs" style={{ background: c.color || "#94a3b8" }} />
             <span className="text-slate-800">{c.name}</span>
             <span className="ml-auto text-xs text-slate-400">{c.payment_terms || 30} day terms</span>
           </div>

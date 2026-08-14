@@ -5,9 +5,12 @@ import { NoAccess } from "./Workspace.jsx";
 import { ProjectModal } from "./Projects.jsx";
 import {
   MS, MONTHS, MONTHS_LONG, NAVY, CLIENT_COLORS, uid, pad, toISO, parseISO, startOfDay, addDays, addMonths, startOfMonth, endOfMonth, nextWeekday,
-  money, phaseRanges, pfIncludes, PeoplePicker, ModalShell, ModalHead, ModalFoot, Field, inputCls, mapData, makeHandlers,
+  money, phaseRanges, pfIncludes, PeoplePicker, ModalShell, ModalHead, ModalFoot, inputCls, mapData, makeHandlers,
 } from "../studio/core.jsx";
+import { Field } from "../ui.jsx";
+import { toast } from "sonner";
 import { Plus, Minus, Pencil, Trash2, Download, Mail } from "lucide-react";
+import { useConfirm } from "../components/confirm.tsx";
 
 /* ---- fiscal-year (April → March) ---- */
 const FY_MONTHS = ["Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec","Jan","Feb","Mar"];
@@ -84,8 +87,8 @@ function buildInvoicePdf(JS, { inv, client, project, phase, profile }){
   return doc;
 }
 const invFilename = (inv, client) => `Invoice-${(inv.meta && inv.meta.number) || inv.id}-${String((client && client.name) || inv.client || "client").replace(/[^A-Za-z0-9]/g,"")}.pdf`;
-async function downloadInvoice(args){ const JS = await loadJsPdf(); if (!JS) { alert("Couldn't load the PDF engine — check your connection and try again."); return; } const doc = buildInvoicePdf(JS, args); doc.save(invFilename(args.inv, args.client)); }
-async function emailInvoice(args){ const JS = await loadJsPdf(); if (!JS) { alert("Couldn't load the PDF engine."); return; } const doc = buildInvoicePdf(JS, args); const fname = invFilename(args.inv, args.client);
+async function downloadInvoice(args){ const JS = await loadJsPdf(); if (!JS) { toast.error("Couldn't load the PDF engine — check your connection and try again."); return; } const doc = buildInvoicePdf(JS, args); doc.save(invFilename(args.inv, args.client)); }
+async function emailInvoice(args){ const JS = await loadJsPdf(); if (!JS) { toast.error("Couldn't load the PDF engine."); return; } const doc = buildInvoicePdf(JS, args); const fname = invFilename(args.inv, args.client);
   const num = (args.inv.meta && args.inv.meta.number) || args.inv.id; const subject = `Invoice ${num}`;
   const body = `Hi,\n\nPlease find attached invoice ${num}${args.inv.client ? (" for " + args.inv.client) : ""}.\n\nMany thanks`;
   try { const blob = doc.output("blob"); const file = new File([blob], fname, { type:"application/pdf" });
@@ -133,7 +136,7 @@ function MiniGantt({ items, empty, minHeight=110, rangeStart, rangeEnd, onBarMov
           if(ds){ if(ds.mode==="move") leftDays+=ds.delta; else if(ds.mode==="l"){ leftDays+=ds.delta; widthDays-=ds.delta; } else widthDays+=ds.delta; }
           widthDays=Math.max(1,widthDays); leftDays=Math.max(0,leftDays);
           return (<div key={idx} className="relative group" style={{height:30}} title={i.label}>
-            <div onPointerDown={(e)=>startDrag(i,"move",e)} className="absolute rounded-md text-white text-[11px] flex items-center px-2 overflow-hidden whitespace-nowrap shadow-sm select-none"
+            <div onPointerDown={(e)=>startDrag(i,"move",e)} className="absolute rounded-md text-white text-[11px] flex items-center px-2 overflow-hidden whitespace-nowrap shadow-xs select-none"
               style={{left:pct(leftDays)+"%", width:pct(widthDays)+"%", top:3, bottom:3, background:i.color, cursor:onBarMove?"grab":(onBarClick?"pointer":"default"), touchAction:"none", opacity:ds?0.9:1}}>
               {canResize && <span onPointerDown={(e)=>startDrag(i,"l",e)} className="absolute left-0 top-0 bottom-0" style={{width:9,cursor:"ew-resize",zIndex:5}}/>}
               {canResize && <span onPointerDown={(e)=>startDrag(i,"r",e)} className="absolute right-0 top-0 bottom-0" style={{width:9,cursor:"ew-resize",zIndex:5}}/>}
@@ -148,6 +151,7 @@ function MiniGantt({ items, empty, minHeight=110, rangeStart, rangeEnd, onBarMov
   );
 }
 function BillingPlan(ctx){
+  const confirm = useConfirm();
   const { data, clientById, isLeadership, delBilling, editBilling, addBilling, setModal, convertPipeline, teamList, myMemberId, shiftProjectDates, shiftProjectEdge } = ctx;
   const [expMonth,setExpMonth]=useState("");
   const [expPeople,setExpPeople]=useState("all");
@@ -232,7 +236,7 @@ function BillingPlan(ctx){
     {pMode==="custom" && <><input type="month" value={pFrom} onChange={e=>setPFrom(e.target.value)} className="text-xs rounded-lg border border-slate-200 px-2 py-1.5 outline-none"/><span className="text-xs text-slate-400">→</span><input type="month" value={pTo} onChange={e=>setPTo(e.target.value)} className="text-xs rounded-lg border border-slate-200 px-2 py-1.5 outline-none"/></>}
   </div>);
   const Stat=({label,value,tone})=>(<div className="rounded-xl border border-slate-200 px-4 py-3"><div className="text-xs text-slate-400">{label}</div><div className="text-lg font-bold" style={{color:tone||NAVY}}>{value}</div></div>);
-  const Actions=(b)=> canEditKind(b.kind) ? <div className="ml-auto flex items-center gap-2 shrink-0"><button onClick={()=>openForm(b.kind,b)} className="text-slate-300 hover:text-blue-600"><Pencil size={14}/></button><button onClick={()=>{ if(confirm("Delete this entry?")) delBilling(b.id); }} className="text-slate-300 hover:text-red-500"><Trash2 size={14}/></button></div> : null;
+  const Actions=(b)=> canEditKind(b.kind) ? <div className="ml-auto flex items-center gap-2 shrink-0"><button onClick={()=>openForm(b.kind,b)} className="text-slate-300 hover:text-blue-600"><Pencil size={14}/></button><button onClick={async ()=>{ if(await confirm({title:"Delete this entry?", confirmLabel:"Delete", destructive:true})) delBilling(b.id); }} className="text-slate-300 hover:text-red-500"><Trash2 size={14}/></button></div> : null;
   const Head=({title,onAdd,can=true})=>(<div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-slate-700">{title}</h3>{can&&onAdd&&<button onClick={onAdd} className="ml-auto flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700"><Plus size={13}/> Add</button>}</div>);
   const money0=(n)=> n?("£"+Math.round(n).toLocaleString()):"";
   return (
@@ -315,7 +319,7 @@ function BillingPlan(ctx){
               {byKind("pipeline").map(b=>{ const low=b.meta&&b.meta.likelihood==="low"; return (<div key={b.id} className="flex items-center gap-3 px-3 py-2 border-t border-slate-100 first:border-t-0 text-sm">
                 <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0" style={{background:(low?"#f59e0b":"#27ae60")+"22",color:low?"#b26b00":"#1e874b"}}>{low?"Less likely":"Highly likely"}</span>
                 <span className="text-slate-700 truncate">{b.client?b.client+" · ":""}{b.title}</span>
-                {b.status!=="won" && <button onClick={()=>{ if(confirm("Convert to a confirmed project? It'll be added to the schedule.")) convertPipeline(b); }} className="shrink-0 text-[11px] font-semibold text-blue-600 hover:underline">→ Confirm</button>}
+                {b.status!=="won" && <button onClick={async ()=>{ if(await confirm({title:"Convert to a confirmed project?", description:"It'll be added to the schedule.", confirmLabel:"Convert"})) convertPipeline(b); }} className="shrink-0 text-[11px] font-semibold text-blue-600 hover:underline">→ Confirm</button>}
                 <span className="ml-auto font-medium text-slate-700 shrink-0">{money(b.amount)}</span>{Actions(b)}
               </div>);})}
             </div>
@@ -350,7 +354,7 @@ function BillingPlan(ctx){
                   <td className={cell}><input type="number" value={b.amount||""} onChange={e=>setBase(b,e.target.value)} className="w-16 text-right bg-slate-50 rounded px-1 py-0.5 outline-none"/></td>
                   {FY_MONTHS.map((m,i)=>{ const ov=b.meta&&b.meta.months&&b.meta.months[i]; return <td key={i} className={cell}><input type="number" value={ov??""} placeholder={String(b.amount||0)} onChange={e=>setMonth(b,i,e.target.value)} className="w-14 text-right bg-white rounded px-1 py-0.5 outline-none border border-transparent hover:border-slate-200 focus:border-blue-300"/></td>; })}
                   <td className={cell+" font-medium text-slate-600"}>{money0(rowTotal(b))}</td>
-                  <td className="text-center"><button onClick={()=>{ if(confirm("Delete this overhead?")) delBilling(b.id); }} className="text-slate-300 hover:text-red-500"><Trash2 size={13}/></button></td>
+                  <td className="text-center"><button onClick={async ()=>{ if(await confirm({title:"Delete this overhead?", confirmLabel:"Delete", destructive:true})) delBilling(b.id); }} className="text-slate-300 hover:text-red-500"><Trash2 size={13}/></button></td>
                 </tr>))}
                 {byKind("overhead").length>0 && <tr className="border-t-2 border-slate-300 font-bold bg-slate-50"><td className={lab+" bg-slate-50"}>Total</td><td className={cell}></td>{ohRowFY.map((v,i)=><td key={i} className={cell}>{money0(v)}</td>)}<td className={cell}>{money0(sum(ohRowFY))}</td><td></td></tr>}
               </tbody>
@@ -364,7 +368,7 @@ function BillingPlan(ctx){
             <div className="rounded-xl border border-slate-200 overflow-hidden">
               {readyPhases.length===0 && <div className="px-3 py-3 text-sm text-slate-400">Nothing ready — a phase appears here once its end date passes.</div>}
               {readyPhases.map((rp,i)=>(<div key={i} className="flex items-center gap-3 px-3 py-2 border-t border-slate-100 first:border-t-0 text-sm">
-                <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{background:rp.cl?rp.cl.color:"#94a3b8"}}/>
+                <span className="w-2.5 h-2.5 rounded-xs shrink-0" style={{background:rp.cl?rp.cl.color:"#94a3b8"}}/>
                 <span className="text-slate-700 truncate">{rp.cl?rp.cl.name+" · ":""}{rp.p.name} <span className="text-slate-400">· {rp.ph.name}</span></span>
                 <span className="text-slate-400 shrink-0 hidden sm:inline">ended {rp.end}</span>
                 <span className="font-medium text-slate-700 shrink-0">{money(rp.amount)}</span>
@@ -449,14 +453,15 @@ function BillingForm({ kind, entry, preset, members, projects=[], me, onSave, on
   const [pEnd,setPEnd]=useState((p.meta&&p.meta.end)||"");
   const [likely,setLikely]=useState((p.meta&&p.meta.likelihood)||"high");
   const titleLabel=kind==="overhead"?"What is it?":kind==="expense"?"Description":"Title";
-  const save=()=>{ if(!title.trim()){ alert("Add a description."); return; } let amt=Number(amount)||0; let meta;
+  const [titleErr,setTitleErr]=useState("");
+  const save=()=>{ if(!title.trim()){ setTitleErr("Add a description."); return; } setTitleErr(""); let amt=Number(amount)||0; let meta;
     if(kind==="expense") meta={miles:Number(miles)||0,month:month||""};
     else if(kind==="pipeline") meta={start:pStart||"",end:pEnd||"",likelihood:likely};
     else if(kind==="overhead"){ if(month!==""){ const mi=Number(month); meta={...(entry?.meta||{}),months:{...((entry&&entry.meta&&entry.meta.months)||{}),[mi]:amt}}; amt=0; } else meta=(entry?.meta||{}); }
     else meta=(p.meta||entry?.meta||{});
     const b={...(entry||{}),id:entry?.id,kind,title:title.trim(),client:client||"",amount:amt,status:status||null,date:kind==="overhead"?"":(date||""),memberId:memberId||null,projectId:(kind==="expense"?projectId:(p.projectId||entry?.projectId))||null,meta}; onSave(b); };
   return (<><ModalHead title={(entry?"Edit ":"New ")+({pipeline:"pipeline job",overhead:"overhead",invoice:"invoice",expense:"expense"}[kind]||"entry")} onClose={onClose}/><div className="p-5">
-    <Field label={titleLabel}><input className={inputCls} value={title} onChange={e=>setTitle(e.target.value)} autoFocus/></Field>
+    <Field label={titleLabel} error={titleErr}><input className={inputCls} value={title} onChange={e=>setTitle(e.target.value)} autoFocus/></Field>
     {(kind==="pipeline"||kind==="invoice") && <Field label="Client"><input className={inputCls} value={client} onChange={e=>setClient(e.target.value)} placeholder="Client name"/></Field>}
     <div className="grid grid-cols-2 gap-3">
       <Field label={kind==="overhead"?"£ amount":"Amount (£)"}><input type="number" min="0" className={inputCls} value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0"/></Field>

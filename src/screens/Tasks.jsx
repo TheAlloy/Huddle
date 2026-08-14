@@ -1,7 +1,8 @@
 import React, { useState, useRef, useMemo, useCallback } from "react";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
-import { AVATAR_BG, TASK_PRI, initials, inputCls, projectsByClient, ModalShell, ModalHead, ModalFoot, Field, mapData, makeHandlers } from "../studio/core.jsx";
+import { AVATAR_BG, TASK_PRI, initials, inputCls, projectsByClient, ModalShell, ModalHead, ModalFoot, mapData, makeHandlers } from "../studio/core.jsx";
+import { Field } from "../ui.jsx";
 import { Plus } from "lucide-react";
 
 function InternalBoard(ctx){
@@ -39,7 +40,7 @@ function InternalBoard(ctx){
   };
   const Card=(t)=>{ const pr=TASK_PRI[t.priority]||TASK_PRI.med; return (
     <div key={t.id} onPointerDown={e=>startDrag(e,t)}
-      className="bg-white rounded-lg border border-slate-200 shadow-sm px-2.5 py-2 cursor-grab active:cursor-grabbing hover:shadow" style={{borderLeft:`3px solid ${pr.color}`,opacity:dragId===t.id?0.45:1,touchAction:"none"}}>
+      className="bg-white rounded-lg border border-slate-200 shadow-xs px-2.5 py-2 cursor-grab active:cursor-grabbing hover:shadow" style={{borderLeft:`3px solid ${pr.color}`,opacity:dragId===t.id?0.45:1,touchAction:"none"}}>
       <div className="text-sm font-medium text-slate-800">{t.title}</div>
       {t.notes && <div className="text-xs text-slate-400 mt-0.5" style={{display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{t.notes}</div>}
       <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">

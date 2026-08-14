@@ -3,8 +3,10 @@ import { sb } from "../lib/supabase.js";
 import { Btn, Field, inputCls, Modal, Avatar, Pill, Card, Empty } from "../ui.jsx";
 import { PERMISSIONS, PERMISSION_GROUPS, ROLES, ROLE_KEYS, effectivePermissions, isFromRole, can } from "../lib/permissions.js";
 import { Plus, Mail, Trash2, Pencil, RefreshCw, Link as LinkIcon } from "lucide-react";
+import { useConfirm } from "../components/confirm.tsx";
 
 export default function Team({ org, me, members, reload, onNavigate }) {
+  const confirm = useConfirm();
   const [invites, setInvites] = useState([]);
   const [editing, setEditing] = useState(null);   // membership being edited
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -98,7 +100,7 @@ export default function Team({ org, me, members, reload, onNavigate }) {
                       setBusy(false); setNote("Invitation resent to " + inv.email); loadInvites();
                     }}><RefreshCw size={14} /></button>
                   <button title="Revoke" className="text-slate-400 hover:text-red-500"
-                    onClick={async () => { if (confirm("Revoke this invitation?")) { await sb.from("invites").delete().eq("id", inv.id); loadInvites(); } }}><Trash2 size={14} /></button>
+                    onClick={async () => { if (await confirm({ title: "Revoke this invitation?", confirmLabel: "Revoke", destructive: true })) { await sb.from("invites").delete().eq("id", inv.id); loadInvites(); } }}><Trash2 size={14} /></button>
                 </div>
               </div>
             ))}
@@ -150,6 +152,7 @@ export function InviteModal({ org, onClose, onSent, onSeatsFull }) {
 }
 
 function AccessModal({ m, onClose, onSaved }) {
+  const confirm = useConfirm();
   const isOwner = m.role === "owner";
   const [role, setRole] = useState(m.role);
   const [extra, setExtra] = useState(Array.isArray(m.permissions) ? m.permissions : []);
@@ -179,7 +182,7 @@ function AccessModal({ m, onClose, onSaved }) {
     setBusy(false); onSaved();
   };
   const remove = async () => {
-    if (!confirm(`Remove ${m.display_name || m.email} from this studio? Their bookings and logged time stay, but they lose access.`)) return;
+    if (!(await confirm({ title: `Remove ${m.display_name || m.email} from this studio?`, description: "Their bookings and logged time stay, but they lose access.", confirmLabel: "Remove", destructive: true }))) return;
     setBusy(true);
     await sb.from("memberships").delete().eq("id", m.id);
     setBusy(false); onSaved();

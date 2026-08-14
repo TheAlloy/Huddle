@@ -1,17 +1,19 @@
 import React from "react";
 import { X } from "lucide-react";
+import { NAVY, AVATAR_BG, inputCls, initials } from "./studio/core.jsx";
 
-export const NAVY = "#1f2d4e";
-export const AVATAR_BG = ["#2f80ed","#9b51e0","#16a0a0","#eb5757","#27ae60","#f2994a","#2d9cdb","#6b7a99"];
-export const inputCls = "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400";
+// Shared constants live in studio/core.jsx (CLAUDE.md); re-exported here so the
+// screens that import them from ui.jsx keep working unchanged. They used to be
+// defined in both files and had drifted — see docs/foundations-plan.md, step 3.
+export { NAVY, AVATAR_BG, inputCls, initials };
 
-export const initials = (n)=> (n||"?").split(" ").filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join("");
-
-export function Field({label, hint, children}){
+export function Field({label, hint, error, children}){
   return (<label className="block mb-3">
     <span className="block text-xs font-medium text-slate-500 mb-1">{label}</span>
     {children}
-    {hint && <span className="block text-xs text-slate-400 mt-1">{hint}</span>}
+    {error
+      ? <span className="block text-xs text-red-600 mt-1">{error}</span>
+      : hint && <span className="block text-xs text-slate-400 mt-1">{hint}</span>}
   </label>);
 }
 

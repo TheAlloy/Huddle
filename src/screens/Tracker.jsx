@@ -200,8 +200,8 @@ export default function Tracker({ org, me, data: cadData, reload }){
                   <Button variant="ghost" size="icon" title="Cancel" onClick={()=>setEditId(null)}><X/></Button>
                 </span>) : (<span className="ml-auto flex items-center gap-1">
                   <span className="font-medium tabular-nums">{hm(l.minutes)}</span>
-                  <Button variant="ghost" size="icon-xs" title="Edit" onClick={()=>beginEdit(l)}><Pencil/></Button>
-                  <Button variant="ghost" size="icon-xs" title="Delete" onClick={()=>delTimeLogs([l.id])}><Trash2/></Button>
+                  <Button variant="ghost" size="icon-sm" title="Edit" onClick={()=>beginEdit(l)}><Pencil/></Button>
+                  <Button variant="ghost" size="icon-sm" title="Delete" onClick={()=>delTimeLogs([l.id])}><Trash2/></Button>
                 </span>)}
               </div>);})}
           </div>

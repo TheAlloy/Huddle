@@ -494,7 +494,9 @@ follows:
   (the green "invitation sent" banner and copy-link notices are toasts now).
 - Statuses → `Badge` variants (`destructive` for Suspended, `secondary` for
   roles) — no hand-colored pills for status.
-- Row actions → `Button variant="ghost" size="icon-sm"`, never raw buttons.
+- Row actions → `Button variant="ghost" size="icon-sm"`, never raw buttons and
+  never `icon-xs` — the sole `icon-xs` exception is a remove-✕ nested inside a
+  Badge/chip, where 28px doesn't fit.
 - Forms → `FieldGroup` > `Field`; sections → `FieldSet` + `FieldLegend`
   (`variant="label"` for sub-groups); validation `error` + `aria-invalid`;
   checkbox grids → stock `Checkbox`; selectable chips → `Button
@@ -534,10 +536,20 @@ popup Selects/InputGroups/date pickers; budget bars on `bg-primary`/
 `bg-destructive` semantic tokens; public-holiday chips → `Badge`; header
 uniform at 32px. *Deferred:* the calendar-cell micro editor inside colored
 day chips stays custom — too small for stock controls, redesign in rebuild)
-→ next: Billing (tab strip → `Tabs`, timeline → `Table`) →
-Projects/Workspace → Settings → Onboarding/Auth/Paywall/Admin → Schedule
-chrome (board timeline stays custom viz inside stock chrome;
-PeoplePicker/ClientPicker → stock Popover/DropdownMenu).
+→ **Billing ✓** (tab strip → stock `Tabs`; all row/section actions → stock
+Buttons; invoice status + generate-from-project + expense filters → popup
+Selects; likelihood/status chips → `Badge`; form → `FieldGroup` with popup
+Selects and date pickers; money-table financials → semantic tokens
+(`primary/10` + `text-primary-foreground` positive, `text-destructive`
+negative, amber kept as the less-likely *category* color); Stat tiles
+neutral + `tabular-nums`; both money tables sit on the stock `Table`
+(sticky label column, colgroup, band rows and dense sizing ride on top as
+className); expense Paid toggle → stock `Switch`. *Kept custom:* the
+MiniGantt drag bars — data-viz; the overheads grid micro-inputs — too small
+for stock controls, like Summary's cell editor) → next: Projects/Workspace →
+Settings → Onboarding/Auth/Paywall/Admin → Schedule chrome (board timeline
+stays custom viz inside stock chrome; ClientPicker → stock DropdownMenu;
+PeoplePicker already done).
 
 ## Risks
 

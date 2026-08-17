@@ -242,7 +242,7 @@ function SummaryView(ctx) {
                             <Button variant="ghost" size="icon" title="Cancel" onClick={()=>setEdit(null)}><X/></Button>
                           </div></td>
                         : <><td className="px-3 py-1.5 text-right font-medium text-foreground">{fmtH(r.mins/60)}h</td>
-                           {ctx.canEdit&&<td className="px-2 py-1.5">{!r.leave && <div className="flex items-center justify-end"><Button variant="ghost" size="icon-xs" title="Edit total" onClick={()=>beginEdit(m.id,r)}><Pencil/></Button><Button variant="ghost" size="icon-xs" title="Delete" onClick={async ()=>{ if(await confirm({title:"Remove this logged time for the period?", confirmLabel:"Remove", destructive:true})) delTimeLogs(r.ids); }}><Trash2/></Button></div>}</td>}</>}
+                           {ctx.canEdit&&<td className="px-2 py-1.5">{!r.leave && <div className="flex items-center justify-end"><Button variant="ghost" size="icon-sm" title="Edit total" onClick={()=>beginEdit(m.id,r)}><Pencil/></Button><Button variant="ghost" size="icon-sm" title="Delete" onClick={async ()=>{ if(await confirm({title:"Remove this logged time for the period?", confirmLabel:"Remove", destructive:true})) delTimeLogs(r.ids); }}><Trash2/></Button></div>}</td>}</>}
                       </tr>);})}</tbody></table>}
               <div className="px-3 py-2 border-t border-border/60">
                 {addFor===m.id ? (

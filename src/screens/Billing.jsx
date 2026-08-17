@@ -8,9 +8,17 @@ import { Field } from "../ui.jsx";
 import { toast } from "@/components/ui/toast";
 import { Plus, Minus, Pencil, Trash2, Download, Mail } from "lucide-react";
 import { useConfirm } from "../components/confirm.tsx";
-import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { FieldGroup } from "@/components/ui/field";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
+import { Calendar as CalendarIcon } from "lucide-react";
 
 /* ---- fiscal-year (April → March) ---- */
 const FY_MONTHS = ["Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec","Jan","Feb","Mar"];
@@ -105,7 +113,7 @@ function MiniGantt({ items, empty, minHeight=110, rangeStart, rangeEnd, onBarMov
   const withDates=(items||[]).filter(i=>i.s&&i.e&&i.e>=i.s);
   let minS=rangeStart, maxE=rangeEnd;
   if(!minS||!maxE){ if(withDates.length){ minS=minS||withDates[0].s; maxE=maxE||withDates[0].e; withDates.forEach(i=>{ if(i.s<minS)minS=i.s; if(i.e>maxE)maxE=i.e; }); } }
-  if(!minS||!maxE) return <div ref={dropRef} className={`px-3 text-sm text-muted-foreground/70 border rounded-xl flex items-center ${highlight?"border-primary bg-primary/10":"border-border"}`} style={{minHeight}}>{empty||"Nothing with dates yet."}</div>;
+  if(!minS||!maxE) return <div ref={dropRef} className={`px-3 text-sm text-muted-foreground border rounded-xl flex items-center ${highlight?"border-primary bg-primary/10":"border-border"}`} style={{minHeight}}>{empty||"Nothing with dates yet."}</div>;
   const start=startOfMonth(parseISO(minS)); const end=endOfMonth(parseISO(maxE));
   const dayOf=(iso)=> (parseISO(iso)-start)/MS;
   const totalDays=Math.max(1,(end-start)/MS+1);
@@ -126,7 +134,7 @@ function MiniGantt({ items, empty, minHeight=110, rangeStart, rangeEnd, onBarMov
   const canResize=!!onBarResize;
   return (
     <div ref={dropRef} className={`border rounded-xl overflow-hidden ${highlight?"border-primary ring-2 ring-ring/50":"border-border"}`}>
-      <div ref={trackRef} className="relative h-6 bg-muted/50 border-b border-border text-[10px] text-muted-foreground/70">
+      <div ref={trackRef} className="relative h-6 bg-muted/50 border-b border-border text-[10px] text-muted-foreground">
         {months.map((m,i)=>(<div key={i} className="absolute top-0 bottom-0 border-l border-border pl-1 flex items-center" style={{left:pct(dayOf(toISO(m)))+"%"}}>{MONTHS[m.getMonth()]} {String(m.getFullYear()).slice(2)}</div>))}
       </div>
       <div className="relative py-2" style={{minHeight:minHeight-24}}>
@@ -225,7 +233,6 @@ function BillingPlan(ctx){
   const ohMonthOf=(b,i)=> (b.meta&&b.meta.months&&b.meta.months[i]!=null&&b.meta.months[i]!=="")?Number(b.meta.months[i]):(b.amount||0);
   const ohRowFY=z12().map((_,i)=>byKind("overhead").reduce((s,b)=>s+ohMonthOf(b,i),0)); // FY view (overheads tab)
   const ohRow=periodMonthsD.map(d=>{ const slot=(d.getMonth()-3+12)%12; return byKind("overhead").reduce((s,b)=>s+ohMonthOf(b,slot),0); }); // period view (timeline)
-  const SubTab=({v,l})=>(<button onClick={()=>setSub(v)} className={`text-sm px-3 py-1.5 rounded-lg ${sub===v?"bg-primary text-primary-foreground":"text-muted-foreground hover:bg-muted"}`}>{l}</button>);
   const periodPicker=()=>(<div className="flex items-center gap-2 flex-wrap">
     <Select value={pMode} onValueChange={setPMode} items={{fy:"Financial year (Apr–Mar)",cal:"Calendar year (Jan–Dec)",custom:"Custom range"}}>
       <SelectTrigger><SelectValue/></SelectTrigger>
@@ -242,105 +249,113 @@ function BillingPlan(ctx){
       </Select>); })()}
     {pMode==="custom" && <><Input type="month" value={pFrom} onChange={e=>setPFrom(e.target.value)} className="w-auto"/><span className="text-sm text-muted-foreground">→</span><Input type="month" value={pTo} onChange={e=>setPTo(e.target.value)} className="w-auto"/></>}
   </div>);
-  const Stat=({label,value,tone})=>(<div className="rounded-xl border border-border px-4 py-3"><div className="text-xs text-muted-foreground/70">{label}</div><div className="text-lg font-bold" style={{color:tone||"var(--foreground)"}}>{value}</div></div>);
-  const Actions=(b)=> canEditKind(b.kind) ? <div className="ml-auto flex items-center gap-2 shrink-0"><button onClick={()=>openForm(b.kind,b)} className="text-muted-foreground/40 hover:text-primary-foreground"><Pencil size={14}/></button><button onClick={async ()=>{ if(await confirm({title:"Delete this entry?", confirmLabel:"Delete", destructive:true})) delBilling(b.id); }} className="text-muted-foreground/40 hover:text-destructive"><Trash2 size={14}/></button></div> : null;
-  const Head=({title,onAdd,can=true})=>(<div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-foreground/80">{title}</h3>{can&&onAdd&&<button onClick={onAdd} className="ml-auto flex items-center gap-1 text-xs font-semibold text-primary-foreground hover:text-primary-foreground"><Plus size={13}/> Add</button>}</div>);
+  const Stat=({label,value})=>(<div className="rounded-xl border px-4 py-3"><div className="text-xs text-muted-foreground">{label}</div><div className="text-lg font-medium tabular-nums">{value}</div></div>);
+  const Actions=(b)=> canEditKind(b.kind) ? <div className="ml-auto flex items-center shrink-0"><Button variant="ghost" size="icon-sm" title="Edit" onClick={()=>openForm(b.kind,b)}><Pencil/></Button><Button variant="ghost" size="icon-sm" title="Delete" onClick={async ()=>{ if(await confirm({title:"Delete this entry?", confirmLabel:"Delete", destructive:true})) delBilling(b.id); }}><Trash2/></Button></div> : null;
+  const Head=({title,onAdd,can=true})=>(<div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-medium">{title}</h3>{can&&onAdd&&<Button variant="ghost" size="sm" className="ml-auto" onClick={onAdd}><Plus data-icon="inline-start"/> Add</Button>}</div>);
   const money0=(n)=> n?("£"+Math.round(n).toLocaleString()):"";
   return (
     <div className="h-full flex flex-col bg-card">
       <div className="shrink-0 flex items-center gap-2 px-4 py-2.5 border-b border-border/60 flex-wrap">
-        <SubTab v="timeline" l="Timeline"/><SubTab v="overview" l="Overview"/><SubTab v="overheads" l="Overheads"/><SubTab v="invoices" l="Invoices"/><SubTab v="expenses" l="Expenses & mileage"/>
-        {sub==="invoices" && !isLeadership && <span className="ml-auto text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">Invoices are managed by team leadership</span>}
+        <Tabs value={sub} onValueChange={setSub}>
+          <TabsList>
+            <TabsTrigger value="timeline">Timeline</TabsTrigger>
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="overheads">Overheads</TabsTrigger>
+            <TabsTrigger value="invoices">Invoices</TabsTrigger>
+            <TabsTrigger value="expenses">Expenses & mileage</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        {sub==="invoices" && !isLeadership && <span className="ml-auto text-xs text-muted-foreground">Invoices are managed by team leadership</span>}
       </div>
       <div className="flex-1 min-h-0 overflow-auto p-4 space-y-6">
-        {sub==="timeline" && (()=>{ const cell="px-1.5 py-1 text-right border-l border-border/60 align-top"; const lab="px-2 py-1 text-left sticky left-0 bg-card z-10 align-top"; const mrow=(arr)=>arr.map((v,i)=><td key={i} className={cell}>{money0(v)}</td>); const confirmedNet=monthConfirmed.map((v,i)=>v-ohRow[i]); const predictedNet=bestCase.map((v,i)=>v-ohRow[i]);
+        {sub==="timeline" && (()=>{ const cell="px-1.5 py-1 text-right border-l border-border/60 align-top"; const lab="px-2 py-1 text-left sticky left-0 bg-card z-10 align-top"; const mrow=(arr)=>arr.map((v,i)=><TableCell key={i} className={cell}>{money0(v)}</TableCell>); const confirmedNet=monthConfirmed.map((v,i)=>v-ohRow[i]); const predictedNet=bestCase.map((v,i)=>v-ohRow[i]);
           return (<div className="text-xs">
-            <div className="flex items-center gap-2 mb-2 flex-wrap"><h3 className="text-sm font-semibold text-foreground/80">Billing timeline</h3><span className="text-xs text-muted-foreground/70">{periodLabel}</span><div className="ml-auto">{periodPicker()}</div></div>
-            <table className="border-collapse w-full table-fixed">
+            <div className="flex items-center gap-2 mb-2 flex-wrap"><h3 className="text-sm font-medium text-foreground">Billing timeline</h3><span className="text-xs text-muted-foreground">{periodLabel}</span><div className="ml-auto">{periodPicker()}</div></div>
+            <Table className="table-fixed text-xs">
               <colgroup><col style={{width:"22%"}}/>{periodLabels.map((m,i)=><col key={i}/>)}<col style={{width:"8%"}}/></colgroup>
-              <thead><tr className="text-[11px] text-muted-foreground/70 border-b border-border">
-                <th className={lab+" font-semibold text-muted-foreground"}>Client / phase</th>
-                {periodLabels.map((m,i)=><th key={i} className={cell+" font-semibold"}>{m}</th>)}
-                <th className={cell+" font-semibold text-muted-foreground"}>Total</th>
-              </tr></thead>
-              <tbody>
-                {clientRows.length===0 && <tr><td className={lab+" text-muted-foreground/70"} colSpan={monthsCount+2}>No projects with phase fees yet — add a fee to each phase in the project editor.</td></tr>}
+              <TableHeader><TableRow className="text-[11px]">
+                <TableHead className={lab+" h-auto text-muted-foreground"}>Client / phase</TableHead>
+                {periodLabels.map((m,i)=><TableHead key={i} className={cell+" h-auto text-muted-foreground"}>{m}</TableHead>)}
+                <TableHead className={cell+" h-auto text-muted-foreground"}>Total</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>
+                {clientRows.length===0 && <TableRow><TableCell className={lab+" text-muted-foreground"} colSpan={monthsCount+2}>No projects with phase fees yet — add a fee to each phase in the project editor.</TableCell></TableRow>}
                 {clientRows.map(({cl,rows,total})=>(<React.Fragment key={cl.id}>
-                  <tr className="bg-muted/50 border-t border-border"><td className={lab+" bg-muted/50 font-semibold text-foreground/80"}>{cl.name}</td>{periodLabels.map((m,i)=><td key={i} className={cell}></td>)}<td className={cell+" font-bold text-foreground/80"}>{money0(total)}</td></tr>
-                  {rows.map((r,ri)=>(<tr key={ri} className="border-t border-border/50 hover:bg-muted/30 align-top">
-                    <td className={lab+" text-muted-foreground pl-4"}>{r.p.index} · {r.ph.name}</td>
-                    {periodLabels.map((m,i)=><td key={i} className={cell}>{r.mi===i && <div className="leading-tight">
-                      <div className="text-foreground/80 font-medium">{money0(r.fee)}</div>
-                      {r.inv?<div className="mt-0.5 inline-block text-[9px] text-green-700 bg-green-50 border border-green-200 rounded px-1">Inv #{(r.inv.meta&&r.inv.meta.number)||"—"}</div>
-                        :(isLeadership&&r.ended?<button onClick={()=>generateInvoice({p:r.p,cl,ph:r.ph,amount:r.fee})} className="mt-0.5 text-[9px] text-primary-foreground hover:underline">+ invoice</button>:null)}
-                    </div>}</td>)}
-                    <td className={cell+" text-muted-foreground"}>{money0(r.fee)}</td>
-                  </tr>))}
+                  <TableRow className="bg-muted/50"><TableCell className={lab+" bg-muted/50 font-medium text-foreground"}>{cl.name}</TableCell>{periodLabels.map((m,i)=><TableCell key={i} className={cell}></TableCell>)}<TableCell className={cell+" font-medium text-foreground"}>{money0(total)}</TableCell></TableRow>
+                  {rows.map((r,ri)=>(<TableRow key={ri} className="align-top">
+                    <TableCell className={lab+" text-muted-foreground pl-4"}>{r.p.index} · {r.ph.name}</TableCell>
+                    {periodLabels.map((m,i)=><TableCell key={i} className={cell}>{r.mi===i && <div className="leading-tight">
+                      <div className="text-foreground font-medium">{money0(r.fee)}</div>
+                      {r.inv?<Badge variant="secondary" className="mt-0.5">Inv #{(r.inv.meta&&r.inv.meta.number)||"—"}</Badge>
+                        :(isLeadership&&r.ended?<Button variant="ghost" size="xs" className="mt-0.5" onClick={()=>generateInvoice({p:r.p,cl,ph:r.ph,amount:r.fee})}>+ invoice</Button>:null)}
+                    </div>}</TableCell>)}
+                    <TableCell className={cell+" text-muted-foreground"}>{money0(r.fee)}</TableCell>
+                  </TableRow>))}
                 </React.Fragment>))}
 
                 {/* ---- CONFIRMED (money that's actually booked) ---- */}
-                <tr className="border-t-2 border-input"><td className={lab+" font-bold text-foreground"}>Confirmed income</td>{monthConfirmed.map((v,i)=><td key={i} className={cell+" font-semibold text-foreground"}>{money0(v)}</td>)}<td className={cell+" font-bold text-foreground"}>{money0(sum(monthConfirmed))}</td></tr>
-                <tr className="text-destructive"><td className={lab}>Overheads</td>{mrow(ohRow)}<td className={cell}>{money0(sum(ohRow))}</td></tr>
-                <tr className="font-bold" style={{background:"#e9f7ef"}}><td className={lab} style={{color:NAVY,background:"#e9f7ef"}}>Confirmed net</td>{confirmedNet.map((v,i)=><td key={i} className={cell} style={{color:v<0?"#eb5757":"#1e874b",background:"#e9f7ef"}}>{money0(v)}</td>)}<td className={cell} style={{color:sum(confirmedNet)<0?"#eb5757":"#1e874b",background:"#e9f7ef"}}>{money0(sum(confirmedNet))}</td></tr>
+                <TableRow className="border-t-2 border-input"><TableCell className={lab+" font-medium text-foreground"}>Confirmed income</TableCell>{monthConfirmed.map((v,i)=><TableCell key={i} className={cell+" font-medium text-foreground"}>{money0(v)}</TableCell>)}<TableCell className={cell+" font-medium text-foreground"}>{money0(sum(monthConfirmed))}</TableCell></TableRow>
+                <TableRow className="text-destructive"><TableCell className={lab}>Overheads</TableCell>{mrow(ohRow)}<TableCell className={cell}>{money0(sum(ohRow))}</TableCell></TableRow>
+                <TableRow className="font-medium bg-primary/10"><TableCell className={lab+" bg-primary/10 text-foreground"}>Confirmed net</TableCell>{confirmedNet.map((v,i)=><TableCell key={i} className={cell+" bg-primary/10 "+(v<0?"text-destructive":"text-primary-foreground")}>{money0(v)}</TableCell>)}<TableCell className={cell+" bg-primary/10 "+(sum(confirmedNet)<0?"text-destructive":"text-primary-foreground")}>{money0(sum(confirmedNet))}</TableCell></TableRow>
 
-                <tr><td colSpan={monthsCount+2} className="py-2 border-b-2 border-input"></td></tr>
-                <tr><td colSpan={monthsCount+2} className="py-1"></td></tr>
+                <TableRow className="hover:bg-transparent border-b-2 border-input"><TableCell colSpan={monthsCount+2} className="py-2"></TableCell></TableRow>
+                <TableRow className="hover:bg-transparent border-b-0"><TableCell colSpan={monthsCount+2} className="py-1"></TableCell></TableRow>
 
                 {/* ---- PIPELINE ---- */}
-                <tr style={{background:"#eafaf0"}}><td className={lab+" font-bold"} style={{background:"#eafaf0",color:"#1e874b"}}><span className="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style={{background:"#27ae60"}}/>Highly likely to convert</td>{periodLabels.map((m,i)=><td key={i} className={cell} style={{background:"#eafaf0"}}></td>)}<td className={cell+" font-semibold"} style={{background:"#eafaf0",color:"#1e874b"}}>{money0(sum(highRows.map(h=>h.b.amount||0)))}</td></tr>
-                {highRows.length===0 && <tr><td className={lab+" text-muted-foreground/40 pl-4"} colSpan={monthsCount+2}>—</td></tr>}
-                {highRows.map(({b,mi},i)=>(<tr key={"h"+i} className="hover:bg-green-50/40"><td className={lab+" pl-4 text-muted-foreground"}>{b.client?b.client+" · ":""}{b.title}</td>{periodLabels.map((m,j)=><td key={j} className={cell} style={{color:"#1e874b"}}>{mi===j?money0(b.amount):""}</td>)}<td className={cell+" text-muted-foreground"}>{money0(b.amount)}</td></tr>))}
-                <tr style={{background:"#fff5e6"}}><td className={lab+" font-bold"} style={{background:"#fff5e6",color:"#b26b00"}}><span className="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style={{background:"#f59e0b"}}/>Less likely to convert</td>{periodLabels.map((m,i)=><td key={i} className={cell} style={{background:"#fff5e6"}}></td>)}<td className={cell+" font-semibold"} style={{background:"#fff5e6",color:"#b26b00"}}>{money0(sum(lowRows.map(l=>l.b.amount||0)))}</td></tr>
-                {lowRows.length===0 && <tr><td className={lab+" text-muted-foreground/40 pl-4"} colSpan={monthsCount+2}>—</td></tr>}
-                {lowRows.map(({b,mi},i)=>(<tr key={"l"+i} className="hover:bg-amber-50/40"><td className={lab+" pl-4 text-muted-foreground"}>{b.client?b.client+" · ":""}{b.title}</td>{periodLabels.map((m,j)=><td key={j} className={cell} style={{color:"#b26b00"}}>{mi===j?money0(b.amount):""}</td>)}<td className={cell+" text-muted-foreground/70"}>{money0(b.amount)}</td></tr>))}
+                <TableRow className="bg-primary/10"><TableCell className={lab+" font-medium bg-primary/10 text-primary-foreground"}><span className="inline-block size-2 rounded-full mr-1.5 align-middle bg-primary"/>Highly likely to convert</TableCell>{periodLabels.map((m,i)=><TableCell key={i} className={cell+" bg-primary/10"}></TableCell>)}<TableCell className={cell+" font-medium bg-primary/10 text-primary-foreground"}>{money0(sum(highRows.map(h=>h.b.amount||0)))}</TableCell></TableRow>
+                {highRows.length===0 && <TableRow><TableCell className={lab+" text-muted-foreground pl-4"} colSpan={monthsCount+2}>—</TableCell></TableRow>}
+                {highRows.map(({b,mi},i)=>(<TableRow key={"h"+i} className="hover:bg-primary/5"><TableCell className={lab+" pl-4 text-muted-foreground"}>{b.client?b.client+" · ":""}{b.title}</TableCell>{periodLabels.map((m,j)=><TableCell key={j} className={cell+" text-primary-foreground"}>{mi===j?money0(b.amount):""}</TableCell>)}<TableCell className={cell+" text-muted-foreground"}>{money0(b.amount)}</TableCell></TableRow>))}
+                <TableRow className="bg-amber-50"><TableCell className={lab+" font-medium bg-amber-50 text-amber-700"}><span className="inline-block size-2 rounded-full mr-1.5 align-middle" style={{background:"#f59e0b"}}/>Less likely to convert</TableCell>{periodLabels.map((m,i)=><TableCell key={i} className={cell+" bg-amber-50"}></TableCell>)}<TableCell className={cell+" font-medium bg-amber-50 text-amber-700"}>{money0(sum(lowRows.map(l=>l.b.amount||0)))}</TableCell></TableRow>
+                {lowRows.length===0 && <TableRow><TableCell className={lab+" text-muted-foreground pl-4"} colSpan={monthsCount+2}>—</TableCell></TableRow>}
+                {lowRows.map(({b,mi},i)=>(<TableRow key={"l"+i} className="hover:bg-amber-50/40"><TableCell className={lab+" pl-4 text-muted-foreground"}>{b.client?b.client+" · ":""}{b.title}</TableCell>{periodLabels.map((m,j)=><TableCell key={j} className={cell+" text-amber-700"}>{mi===j?money0(b.amount):""}</TableCell>)}<TableCell className={cell+" text-muted-foreground"}>{money0(b.amount)}</TableCell></TableRow>))}
 
                 {/* ---- PREDICTION ---- */}
-                <tr className="border-t-2 border-input font-semibold text-primary-foreground bg-primary/5"><td className={lab+" bg-primary/5"}>Proposals total</td>{mrow(proposals)}<td className={cell+" font-bold"}>{money0(sum(proposals))}</td></tr>
-                <tr className="font-semibold text-foreground/80"><td className={lab}>Best case total</td>{mrow(bestCase)}<td className={cell+" font-bold"}>{money0(sum(bestCase))}</td></tr>
-                <tr className="text-destructive"><td className={lab}>Predicted overheads</td>{mrow(ohRow)}<td className={cell}>{money0(sum(ohRow))}</td></tr>
-                <tr className="font-bold" style={{background:"var(--muted)"}}><td className={lab} style={{color:"var(--foreground)",background:"var(--muted)"}}>Predicted net (best case)</td>{predictedNet.map((v,i)=><td key={i} className={cell} style={{color:v<0?"#eb5757":"#27ae60",background:"var(--muted)"}}>{money0(v)}</td>)}<td className={cell} style={{color:sum(predictedNet)<0?"#eb5757":"#27ae60",background:"var(--muted)"}}>{money0(sum(predictedNet))}</td></tr>
-              </tbody>
-            </table>
-            <p className="text-[11px] text-muted-foreground/70 mt-2">Phase fees are set per phase in the project editor; each sits in the month its phase ends. Once a phase has finished, leadership can hit "invoice" to raise it (with an auto number) — that feeds the Invoices tab.</p>
+                <TableRow className="border-t-2 border-input font-medium text-primary-foreground bg-primary/5"><TableCell className={lab+" bg-primary/5"}>Proposals total</TableCell>{mrow(proposals)}<TableCell className={cell+" font-medium"}>{money0(sum(proposals))}</TableCell></TableRow>
+                <TableRow className="font-medium text-foreground"><TableCell className={lab}>Best case total</TableCell>{mrow(bestCase)}<TableCell className={cell+" font-medium"}>{money0(sum(bestCase))}</TableCell></TableRow>
+                <TableRow className="text-destructive"><TableCell className={lab}>Predicted overheads</TableCell>{mrow(ohRow)}<TableCell className={cell}>{money0(sum(ohRow))}</TableCell></TableRow>
+                <TableRow className="font-medium bg-muted"><TableCell className={lab+" bg-muted text-foreground"}>Predicted net (best case)</TableCell>{predictedNet.map((v,i)=><TableCell key={i} className={cell+" bg-muted "+(v<0?"text-destructive":"text-primary-foreground")}>{money0(v)}</TableCell>)}<TableCell className={cell+" bg-muted "+(sum(predictedNet)<0?"text-destructive":"text-primary-foreground")}>{money0(sum(predictedNet))}</TableCell></TableRow>
+              </TableBody>
+            </Table>
+            <p className="text-[11px] text-muted-foreground mt-2">Phase fees are set per phase in the project editor; each sits in the month its phase ends. Once a phase has finished, leadership can hit "invoice" to raise it (with an auto number) — that feeds the Invoices tab.</p>
           </div>); })()}
 
         {sub==="overview" && <>
-          <div className="flex items-center gap-2 mb-1 flex-wrap"><h3 className="text-sm font-semibold text-foreground/80">Overview</h3><span className="text-xs text-muted-foreground/70">{periodLabel}</span><div className="ml-auto">{periodPicker()}</div></div>
+          <div className="flex items-center gap-2 mb-1 flex-wrap"><h3 className="text-sm font-medium text-foreground">Overview</h3><span className="text-xs text-muted-foreground">{periodLabel}</span><div className="ml-auto">{periodPicker()}</div></div>
           <div className="grid gap-3" style={{gridTemplateColumns:"repeat(auto-fill,minmax(170px,1fr))"}}>
             <Stat label="Overheads / month" value={money(overheadTotal)}/>
-            <Stat label="Pipeline (potential)" value={money(pipelineTotal)} tone="#2f80ed"/>
-            <Stat label="Money coming in" value={money(comingIn)} tone="#27ae60"/>
-            <Stat label="Invoices outstanding" value={money(invoicesOut)} tone="#f59e0b"/>
+            <Stat label="Pipeline (potential)" value={money(pipelineTotal)}/>
+            <Stat label="Money coming in" value={money(comingIn)}/>
+            <Stat label="Invoices outstanding" value={money(invoicesOut)}/>
             <Stat label="Expenses owed" value={money(expensesTotal)}/>
           </div>
           <div>
-            <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-foreground/80">Confirmed work — timeline</h3><span className="text-[11px] text-muted-foreground/70">drag to move · drag an edge to stretch the start/end</span></div>
+            <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-medium text-foreground">Confirmed work — timeline</h3><span className="text-[11px] text-muted-foreground">drag to move · drag an edge to stretch the start/end</span></div>
             <MiniGantt rangeStart={periodStartISO} rangeEnd={periodEndISO} onBarMove={isLeadership?moveConfirmed:null} onBarResize={isLeadership?resizeConfirmed:null} onBarClick={(item)=>ctx.openProjectEditor&&ctx.openProjectEditor(item.pid)} minHeight={150} items={confirmedItems} empty="No scheduled projects yet — book work on the schedule, or confirm a prospective job below."/>
           </div>
           <div>
-            <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-foreground/80">Prospective work — timeline</h3><div className="ml-auto flex items-center gap-2">{byKind("pipeline").length===0 && <button onClick={seedPipeline} className="text-xs font-semibold text-muted-foreground hover:text-foreground border border-border rounded-lg px-2 py-1">Add examples</button>}<button onClick={()=>openForm("pipeline")} className="flex items-center gap-1 text-xs font-semibold text-primary-foreground hover:text-primary-foreground"><Plus size={13}/> Add</button></div></div>
+            <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-medium text-foreground">Prospective work — timeline</h3><div className="ml-auto flex items-center gap-2">{byKind("pipeline").length===0 && <Button variant="outline" size="sm" onClick={seedPipeline}>Add examples</Button>}<Button variant="ghost" size="sm" onClick={()=>openForm("pipeline")}><Plus data-icon="inline-start"/> Add</Button></div></div>
             <MiniGantt rangeStart={periodStartISO} rangeEnd={periodEndISO} onBarMove={moveProspective} onBarResize={resizeProspective} onBarClick={(item)=>item.entry&&openForm("pipeline",item.entry)} minHeight={150} items={prospectiveItems} empty="Add prospective jobs with expected dates to see them here."/>
-            <p className="text-[11px] text-muted-foreground/70 mt-1">Both timelines cover the full financial year (April → March). Drag a bar to move it, or drag either end to change its start/end. Use "→ Confirm" below to turn a prospect into a scheduled project.</p>
+            <p className="text-[11px] text-muted-foreground mt-1">Both timelines cover the full financial year (April → March). Drag a bar to move it, or drag either end to change its start/end. Use "→ Confirm" below to turn a prospect into a scheduled project.</p>
             <div className="rounded-xl border border-border overflow-hidden mt-2">
-              {byKind("pipeline").length===0 && <div className="px-3 py-3 text-sm text-muted-foreground/70">Nothing in the pipeline yet.</div>}
+              {byKind("pipeline").length===0 && <div className="px-3 py-3 text-sm text-muted-foreground">Nothing in the pipeline yet.</div>}
               {byKind("pipeline").map(b=>{ const low=b.meta&&b.meta.likelihood==="low"; return (<div key={b.id} className="flex items-center gap-3 px-3 py-2 border-t border-border/60 first:border-t-0 text-sm">
-                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0" style={{background:(low?"#f59e0b":"#27ae60")+"22",color:low?"#b26b00":"#1e874b"}}>{low?"Less likely":"Highly likely"}</span>
-                <span className="text-foreground/80 truncate">{b.client?b.client+" · ":""}{b.title}</span>
-                {b.status!=="won" && <button onClick={async ()=>{ if(await confirm({title:"Convert to a confirmed project?", description:"It'll be added to the schedule.", confirmLabel:"Convert"})) convertPipeline(b); }} className="shrink-0 text-[11px] font-semibold text-primary-foreground hover:underline">→ Confirm</button>}
-                <span className="ml-auto font-medium text-foreground/80 shrink-0">{money(b.amount)}</span>{Actions(b)}
+                <Badge variant="secondary" className="shrink-0">{low?"Less likely":"Highly likely"}</Badge>
+                <span className="text-foreground truncate">{b.client?b.client+" · ":""}{b.title}</span>
+                {b.status!=="won" && <Button variant="ghost" size="sm" className="shrink-0" onClick={async ()=>{ if(await confirm({title:"Convert to a confirmed project?", description:"It'll be added to the schedule.", confirmLabel:"Convert"})) convertPipeline(b); }}>→ Confirm</Button>}
+                <span className="ml-auto font-medium text-foreground shrink-0">{money(b.amount)}</span>{Actions(b)}
               </div>);})}
             </div>
           </div>
           <div>
             <Head title="Money coming in — sent invoices"/>
             <div className="rounded-xl border border-border overflow-hidden">
-              {byKind("invoice").filter(b=>b.status==="sent").length===0 && <div className="px-3 py-3 text-sm text-muted-foreground/70">Nothing awaiting payment. Mark an invoice "Sent out" and it appears here with its due date.</div>}
+              {byKind("invoice").filter(b=>b.status==="sent").length===0 && <div className="px-3 py-3 text-sm text-muted-foreground">Nothing awaiting payment. Mark an invoice "Sent out" and it appears here with its due date.</div>}
               {byKind("invoice").filter(b=>b.status==="sent").map(b=>{ const due=dueDate(b); return (<div key={b.id} className="flex items-center gap-3 px-3 py-2 border-t border-border/60 first:border-t-0 text-sm">
-                <span className="text-foreground/80 truncate">{b.client?b.client+" · ":""}{b.title}</span>
-                {due&&<span className="text-muted-foreground/70 shrink-0 hidden sm:inline">due {due}</span>}
-                <span className="ml-auto font-medium text-foreground/80 shrink-0">{money(b.amount)}</span>
+                <span className="text-foreground truncate">{b.client?b.client+" · ":""}{b.title}</span>
+                {due&&<span className="text-muted-foreground shrink-0 hidden sm:inline">due {due}</span>}
+                <span className="ml-auto font-medium text-foreground shrink-0">{money(b.amount)}</span>
               </div>);})}
-              {comingIn>0 && <div className="flex items-center gap-3 px-3 py-2 border-t border-border bg-muted/50 text-sm font-semibold"><span>Total expected</span><span className="ml-auto text-green-700">{money(comingIn)}</span></div>}
+              {comingIn>0 && <div className="flex items-center gap-3 px-3 py-2 border-t bg-muted/50 text-sm font-medium"><span>Total expected</span><span className="ml-auto text-primary-foreground">{money(comingIn)}</span></div>}
             </div>
           </div>
         </>}
@@ -351,59 +366,65 @@ function BillingPlan(ctx){
           const rowTotal=(b)=>z12().reduce((s,_,i)=>s+ohMonthOf(b,i),0);
           const addExamples=()=>{ const ex=[["Studio rent",6500],["Salaries & wages",18000],["Software & subscriptions",1200],["Utilities & internet",700],["Insurance",300],["Accounting & legal",450]]; ex.forEach(([t,a])=>addBilling({kind:"overhead",title:t,amount:a,meta:{}})); };
           return (<div>
-            <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-foreground/80">Monthly overheads</h3><span className="text-xs text-muted-foreground/70">edit the "All" column to set every month, or override a single month</span><div className="ml-auto flex items-center gap-2">{byKind("overhead").length===0 && <button onClick={addExamples} className="text-xs font-semibold text-muted-foreground hover:text-foreground border border-border rounded-lg px-2 py-1">Add examples</button>}<button onClick={()=>openForm("overhead")} className="flex items-center gap-1 text-xs font-semibold text-primary-foreground hover:text-primary-foreground"><Plus size={13}/> Add</button></div></div>
-            <div className="overflow-auto"><table className="border-collapse text-xs w-full" style={{minWidth:1100}}>
-              <thead><tr className="text-[11px] text-muted-foreground/70 border-b border-border"><th className={lab+" font-semibold"}>Overhead</th><th className={cell+" font-semibold text-muted-foreground"}>All</th>{FY_MONTHS.map((m,i)=><th key={i} className={cell+" font-semibold"}>{m}</th>)}<th className={cell+" font-semibold text-muted-foreground"}>Year</th><th className="w-6"></th></tr></thead>
-              <tbody>
-                {byKind("overhead").length===0 && <tr><td className={lab+" text-muted-foreground/70"} colSpan={16}>No overheads yet — add your own or click "Add examples".</td></tr>}
-                {byKind("overhead").map(b=>(<tr key={b.id} className="border-t border-border/50">
-                  <td className={lab+" text-foreground/80"}>{b.title}</td>
-                  <td className={cell}><input type="number" value={b.amount||""} onChange={e=>setBase(b,e.target.value)} className="w-16 text-right bg-muted/50 rounded px-1 py-0.5 outline-none"/></td>
-                  {FY_MONTHS.map((m,i)=>{ const ov=b.meta&&b.meta.months&&b.meta.months[i]; return <td key={i} className={cell}><input type="number" value={ov??""} placeholder={String(b.amount||0)} onChange={e=>setMonth(b,i,e.target.value)} className="w-14 text-right bg-card rounded px-1 py-0.5 outline-none border border-transparent hover:border-border focus:border-primary/40"/></td>; })}
-                  <td className={cell+" font-medium text-muted-foreground"}>{money0(rowTotal(b))}</td>
-                  <td className="text-center"><button onClick={async ()=>{ if(await confirm({title:"Delete this overhead?", confirmLabel:"Delete", destructive:true})) delBilling(b.id); }} className="text-muted-foreground/40 hover:text-destructive"><Trash2 size={13}/></button></td>
-                </tr>))}
-                {byKind("overhead").length>0 && <tr className="border-t-2 border-input font-bold bg-muted/50"><td className={lab+" bg-muted/50"}>Total</td><td className={cell}></td>{ohRowFY.map((v,i)=><td key={i} className={cell}>{money0(v)}</td>)}<td className={cell}>{money0(sum(ohRowFY))}</td><td></td></tr>}
-              </tbody>
-            </table></div>
-            <p className="text-[11px] text-muted-foreground/70 mt-2">Blank month = uses the "All" figure. These feed the "Predicted overheads" and net rows on the timeline.</p>
+            <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-medium text-foreground">Monthly overheads</h3><span className="text-xs text-muted-foreground">edit the "All" column to set every month, or override a single month</span><div className="ml-auto flex items-center gap-2">{byKind("overhead").length===0 && <Button variant="outline" size="sm" onClick={addExamples}>Add examples</Button>}<Button variant="ghost" size="sm" onClick={()=>openForm("overhead")}><Plus data-icon="inline-start"/> Add</Button></div></div>
+            <Table className="text-xs" style={{minWidth:1100}}>
+              <TableHeader><TableRow className="text-[11px]"><TableHead className={lab+" h-auto text-muted-foreground"}>Overhead</TableHead><TableHead className={cell+" h-auto text-muted-foreground"}>All</TableHead>{FY_MONTHS.map((m,i)=><TableHead key={i} className={cell+" h-auto text-muted-foreground"}>{m}</TableHead>)}<TableHead className={cell+" h-auto text-muted-foreground"}>Year</TableHead><TableHead className="w-6 h-auto"></TableHead></TableRow></TableHeader>
+              <TableBody>
+                {byKind("overhead").length===0 && <TableRow><TableCell className={lab+" text-muted-foreground"} colSpan={16}>No overheads yet — add your own or click "Add examples".</TableCell></TableRow>}
+                {byKind("overhead").map(b=>(<TableRow key={b.id}>
+                  <TableCell className={lab+" text-foreground"}>{b.title}</TableCell>
+                  <TableCell className={cell}><input type="number" value={b.amount||""} onChange={e=>setBase(b,e.target.value)} className="w-16 text-right bg-muted/50 rounded px-1 py-0.5 outline-none"/></TableCell>
+                  {FY_MONTHS.map((m,i)=>{ const ov=b.meta&&b.meta.months&&b.meta.months[i]; return <TableCell key={i} className={cell}><input type="number" value={ov??""} placeholder={String(b.amount||0)} onChange={e=>setMonth(b,i,e.target.value)} className="w-14 text-right bg-card rounded px-1 py-0.5 outline-none border border-transparent hover:border-border focus:border-ring"/></TableCell>; })}
+                  <TableCell className={cell+" font-medium text-muted-foreground"}>{money0(rowTotal(b))}</TableCell>
+                  <TableCell className="text-center"><Button variant="ghost" size="icon-sm" title="Delete" onClick={async ()=>{ if(await confirm({title:"Delete this overhead?", confirmLabel:"Delete", destructive:true})) delBilling(b.id); }}><Trash2/></Button></TableCell>
+                </TableRow>))}
+                {byKind("overhead").length>0 && <TableRow className="border-t-2 border-input font-medium bg-muted/50"><TableCell className={lab+" bg-muted/50"}>Total</TableCell><TableCell className={cell}></TableCell>{ohRowFY.map((v,i)=><TableCell key={i} className={cell}>{money0(v)}</TableCell>)}<TableCell className={cell}>{money0(sum(ohRowFY))}</TableCell><TableCell></TableCell></TableRow>}
+              </TableBody>
+            </Table>
+            <p className="text-[11px] text-muted-foreground mt-2">Blank month = uses the "All" figure. These feed the "Predicted overheads" and net rows on the timeline.</p>
           </div>); })()}
 
         {sub==="invoices" && <div className="space-y-5">
           {isLeadership && <div>
-            <h3 className="text-sm font-semibold text-foreground/80 mb-2">Ready to invoice <span className="text-xs font-normal text-muted-foreground/70">— phases that have finished</span></h3>
+            <h3 className="text-sm font-medium text-foreground mb-2">Ready to invoice <span className="text-xs font-normal text-muted-foreground">— phases that have finished</span></h3>
             <div className="rounded-xl border border-border overflow-hidden">
-              {readyPhases.length===0 && <div className="px-3 py-3 text-sm text-muted-foreground/70">Nothing ready — a phase appears here once its end date passes.</div>}
+              {readyPhases.length===0 && <div className="px-3 py-3 text-sm text-muted-foreground">Nothing ready — a phase appears here once its end date passes.</div>}
               {readyPhases.map((rp,i)=>(<div key={i} className="flex items-center gap-3 px-3 py-2 border-t border-border/60 first:border-t-0 text-sm">
                 <span className="w-2.5 h-2.5 rounded-xs shrink-0" style={{background:rp.cl?rp.cl.color:"#94a3b8"}}/>
-                <span className="text-foreground/80 truncate">{rp.cl?rp.cl.name+" · ":""}{rp.p.name} <span className="text-muted-foreground/70">· {rp.ph.name}</span></span>
-                <span className="text-muted-foreground/70 shrink-0 hidden sm:inline">ended {rp.end}</span>
-                <span className="font-medium text-foreground/80 shrink-0">{money(rp.amount)}</span>
-                <button onClick={()=>generateInvoice(rp)} className="shrink-0 text-xs font-semibold text-primary-foreground bg-primary px-2.5 py-1 rounded-lg hover:bg-primary/80">Generate</button>
+                <span className="text-foreground truncate">{rp.cl?rp.cl.name+" · ":""}{rp.p.name} <span className="text-muted-foreground">· {rp.ph.name}</span></span>
+                <span className="text-muted-foreground shrink-0 hidden sm:inline">ended {rp.end}</span>
+                <span className="font-medium text-foreground shrink-0">{money(rp.amount)}</span>
+                <Button size="sm" className="shrink-0" onClick={()=>generateInvoice(rp)}>Generate</Button>
               </div>))}
             </div>
           </div>}
           <div>
-            <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-foreground/80">Invoices</h3>{isLeadership&&<div className="ml-auto flex items-center gap-2">
-              <NativeSelect onChange={e=>{ const p=data.projects.find(x=>x.id===e.target.value); if(p){ const cl=clientById(p.clientId); openForm("invoice",null,{title:p.name,client:cl?cl.name:"",amount:p.cost||0,projectId:p.id}); } e.target.value=""; }}  defaultValue=""><option value="">Generate from project…</option>{data.projects.map(p=><option key={p.id} value={p.id}>{p.index} — {p.name}</option>)}</NativeSelect>
-              {byKind("invoice").length===0 && <button onClick={seedInvoices} className="text-xs font-semibold text-muted-foreground hover:text-foreground border border-border rounded-lg px-2 py-1">Examples</button>}
-              <button onClick={()=>openForm("invoice")} className="flex items-center gap-1 text-xs font-semibold text-primary-foreground hover:text-primary-foreground"><Plus size={13}/> Add</button></div>}</div>
+            <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-medium text-foreground">Invoices</h3>{isLeadership&&<div className="ml-auto flex items-center gap-2">
+              <Select value="" onValueChange={(v)=>{ const p=data.projects.find(x=>x.id===v); if(p){ const cl=clientById(p.clientId); openForm("invoice",null,{title:p.name,client:cl?cl.name:"",amount:p.cost||0,projectId:p.id}); } }} items={{"":"Generate from project…",...Object.fromEntries(data.projects.map(p=>[p.id,`${p.index} — ${p.name}`]))}}>
+                <SelectTrigger size="sm" className="w-56"><SelectValue/></SelectTrigger>
+                <SelectContent><SelectGroup><SelectItem value="">Generate from project…</SelectItem>{data.projects.map(p=><SelectItem key={p.id} value={p.id}>{p.index} — {p.name}</SelectItem>)}</SelectGroup></SelectContent>
+              </Select>
+              {byKind("invoice").length===0 && <Button variant="outline" size="sm" onClick={seedInvoices}>Examples</Button>}
+              <Button variant="ghost" size="sm" onClick={()=>openForm("invoice")}><Plus data-icon="inline-start"/> Add</Button></div>}</div>
             <div className="rounded-xl border border-border overflow-hidden">
-              {byKind("invoice").length===0 && <div className="px-3 py-3 text-sm text-muted-foreground/70">No invoices yet.</div>}
+              {byKind("invoice").length===0 && <div className="px-3 py-3 text-sm text-muted-foreground">No invoices yet.</div>}
               {byKind("invoice").map(b=>{ const st=INV_STATUS[b.status]||INV_STATUS.pending; return (<div key={b.id} className="flex items-center gap-3 px-3 py-2 border-t border-border/60 first:border-t-0 text-sm">
                 {isLeadership
-                  ? <NativeSelect value={b.status||"pending"} onChange={e=>editBilling({...b,status:e.target.value})} className="shrink-0" style={{color:st.color}}>{Object.entries(INV_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</NativeSelect>
-                  : <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0" style={{background:st.color+"22",color:st.color}}>{st.label}</span>}
-                <span className="text-foreground/80 truncate flex-1">{b.meta&&b.meta.number?<span className="text-muted-foreground/70">#{b.meta.number} </span>:""}{b.client?b.client+" · ":""}{b.title}</span>
-                <span className="font-medium text-foreground/80 shrink-0">{money(b.amount)}</span>
+                  ? <Select value={b.status||"pending"} onValueChange={(v)=>editBilling({...b,status:v})} items={Object.fromEntries(Object.entries(INV_STATUS).map(([k,v])=>[k,v.label]))}>
+                      <SelectTrigger size="sm" className="shrink-0"><SelectValue/></SelectTrigger>
+                      <SelectContent><SelectGroup>{Object.entries(INV_STATUS).map(([k,v])=><SelectItem key={k} value={k}>{v.label}</SelectItem>)}</SelectGroup></SelectContent>
+                    </Select>
+                  : <Badge variant="secondary" className="shrink-0">{st.label}</Badge>}
+                <span className="text-foreground truncate flex-1">{b.meta&&b.meta.number?<span className="text-muted-foreground">#{b.meta.number} </span>:""}{b.client?b.client+" · ":""}{b.title}</span>
+                <span className="font-medium text-foreground shrink-0">{money(b.amount)}</span>
                 {(()=>{ const project=data.projects.find(p=>p.id===b.projectId); const cl=(data.clients.find(c=>c.name===b.client))||(project&&clientById(project.clientId)); const phase=project&&b.meta&&b.meta.phaseId&&(project.phases||[]).find(p=>p.id===b.meta.phaseId); const args={inv:b,client:cl,project,phase,profile:ctx.invoiceProfile}; return (<span className="flex items-center gap-1.5 shrink-0">
-                  <button title="Download PDF invoice" onClick={()=>downloadInvoice(args)} className="text-muted-foreground/70 hover:text-primary-foreground"><Download size={15}/></button>
-                  <button title="Email / share this invoice" onClick={()=>emailInvoice(args)} className="text-muted-foreground/70 hover:text-primary-foreground"><Mail size={15}/></button>
+                  <Button variant="ghost" size="icon-sm" title="Download PDF invoice" onClick={()=>downloadInvoice(args)}><Download/></Button>
+                  <Button variant="ghost" size="icon-sm" title="Email / share this invoice" onClick={()=>emailInvoice(args)}><Mail/></Button>
                 </span>); })()}
                 {Actions(b)}
               </div>);})}
             </div>
-            <p className="text-xs text-muted-foreground/70 mt-2">Each invoice has a <b>Download</b> (PDF) and <b>Email/share</b> button. VAT is added at 20% on the PDF. Set your studio's details in Settings → Invoice details, and each client's billing address on the client.</p>
+            <p className="text-xs text-muted-foreground mt-2">Each invoice has a <b>Download</b> (PDF) and <b>Email/share</b> button. VAT is added at 20% on the PDF. Set your studio's details in Settings → Invoice details, and each client's billing address on the client.</p>
           </div>
         </div>}
 
@@ -417,27 +438,30 @@ function BillingPlan(ctx){
           return (<div className="space-y-5">
           <div className="flex items-center gap-3 flex-wrap">
             <PeoplePicker members={data.members} teams={teamList} value={expPeople} onChange={setExpPeople} me={myMemberId}/>
-            <NativeSelect value={expMonth} onChange={e=>setExpMonth(e.target.value)} ><option value="">All months</option>{monthsPresent.map(m=><option key={m} value={m}>{m}</option>)}</NativeSelect>
-            <span className="ml-auto text-sm text-muted-foreground">Showing <span className="font-semibold text-foreground/80">{money(shownTotal)}</span>{paidTotal>0&&<span className="text-muted-foreground/70"> · {money(paidTotal)} paid</span>}</span>
+            <Select value={expMonth} onValueChange={setExpMonth} items={{"":"All months",...Object.fromEntries(monthsPresent.map(m=>[m,m]))}}>
+              <SelectTrigger className="w-36"><SelectValue/></SelectTrigger>
+              <SelectContent><SelectGroup><SelectItem value="">All months</SelectItem>{monthsPresent.map(m=><SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectGroup></SelectContent>
+            </Select>
+            <span className="ml-auto text-sm text-muted-foreground">Showing <span className="font-medium text-foreground">{money(shownTotal)}</span>{paidTotal>0&&<span className="text-muted-foreground"> · {money(paidTotal)} paid</span>}</span>
           </div>
           {Object.keys(fowed).length>0 && <div>
-            <h3 className="text-sm font-semibold text-foreground/80 mb-2">Who's owed <span className="text-xs font-normal text-muted-foreground/70">(unpaid, for the current filter)</span></h3>
+            <h3 className="text-sm font-medium text-foreground mb-2">Who's owed <span className="text-xs font-normal text-muted-foreground">(unpaid, for the current filter)</span></h3>
             <div className="rounded-xl border border-border overflow-hidden">
-              {Object.entries(fowed).sort((a,b)=>b[1]-a[1]).map(([mid,amt])=>(<div key={mid} className="flex items-center gap-3 px-3 py-2 border-t border-border/60 first:border-t-0 text-sm"><span className="text-foreground/80">{mid==="?"?"Unassigned":memberName(mid)}</span><span className="ml-auto font-medium text-foreground/80">{money(amt)}</span></div>))}
+              {Object.entries(fowed).sort((a,b)=>b[1]-a[1]).map(([mid,amt])=>(<div key={mid} className="flex items-center gap-3 px-3 py-2 border-t border-border/60 first:border-t-0 text-sm"><span className="text-foreground">{mid==="?"?"Unassigned":memberName(mid)}</span><span className="ml-auto font-medium text-foreground">{money(amt)}</span></div>))}
             </div>
           </div>}
           <div>
-            <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-foreground/80">Expenses & mileage</h3><div className="ml-auto flex items-center gap-2">{allExp.length===0 && <button onClick={seedExpenses} className="text-xs font-semibold text-muted-foreground hover:text-foreground border border-border rounded-lg px-2 py-1">Add examples</button>}<button onClick={()=>openForm("expense")} className="flex items-center gap-1 text-xs font-semibold text-primary-foreground hover:text-primary-foreground"><Plus size={13}/> Add</button></div></div>
+            <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-medium text-foreground">Expenses & mileage</h3><div className="ml-auto flex items-center gap-2">{allExp.length===0 && <Button variant="outline" size="sm" onClick={seedExpenses}>Add examples</Button>}<Button variant="ghost" size="sm" onClick={()=>openForm("expense")}><Plus data-icon="inline-start"/> Add</Button></div></div>
             <div className="rounded-xl border border-border overflow-hidden">
-              {shown.length===0 && <div className="px-3 py-3 text-sm text-muted-foreground/70">No expenses match this filter.</div>}
+              {shown.length===0 && <div className="px-3 py-3 text-sm text-muted-foreground">No expenses match this filter.</div>}
               {shown.map(b=>{ const miles=b.meta&&b.meta.miles; const mo=b.meta&&b.meta.month; const pr=b.projectId&&data.projects.find(p=>p.id===b.projectId); const paid=b.status==="paid"; return (<div key={b.id} className="flex items-center gap-3 px-3 py-2 border-t border-border/60 first:border-t-0 text-sm">
-                <button onClick={()=>editBilling({...b,status:paid?"pending":"paid"})} title="Toggle paid" className="text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0" style={{background:(paid?"#27ae60":"#94a3b8")+"22",color:paid?"#1e874b":"#64748b"}}>{paid?"Paid":"Unpaid"}</button>
-                <span className="flex-1 min-w-0 text-foreground/80 truncate">{b.title}</span>
-                <span className="text-muted-foreground/70 shrink-0 hidden sm:inline">{b.memberId?memberName(b.memberId):""}{pr?" · "+pr.name:""}{mo?" · "+mo:""}{miles?" · "+miles+" mi":""}</span>
-                <span className="w-24 text-right font-medium text-foreground/80 shrink-0">{money(b.amount)}</span>
+                <label className="flex items-center gap-1.5 shrink-0 cursor-pointer" title="Mark as paid"><Switch checked={paid} onCheckedChange={(v)=>editBilling({...b,status:v?"paid":"pending"})}/><span className={"text-xs w-11 "+(paid?"":"text-muted-foreground")}>{paid?"Paid":"Unpaid"}</span></label>
+                <span className="flex-1 min-w-0 text-foreground truncate">{b.title}</span>
+                <span className="text-muted-foreground shrink-0 hidden sm:inline">{b.memberId?memberName(b.memberId):""}{pr?" · "+pr.name:""}{mo?" · "+mo:""}{miles?" · "+miles+" mi":""}</span>
+                <span className="w-24 text-right font-medium text-foreground shrink-0">{money(b.amount)}</span>
                 <span className="w-12 flex justify-end shrink-0">{Actions(b)}</span>
               </div>);})}
-              {shown.length>0 && <div className="flex items-center gap-3 px-3 py-2 border-t border-border bg-muted/50 text-sm font-semibold"><span className="flex-1">Total shown</span><span className="w-24 text-right shrink-0">{money(shownTotal)}</span><span className="w-12 shrink-0"></span></div>}
+              {shown.length>0 && <div className="flex items-center gap-3 px-3 py-2 border-t border-border bg-muted/50 text-sm font-medium"><span className="flex-1">Total shown</span><span className="w-24 text-right shrink-0">{money(shownTotal)}</span><span className="w-12 shrink-0"></span></div>}
             </div>
           </div>
         </div>); })()}
@@ -461,34 +485,62 @@ function BillingForm({ kind, entry, preset, members, projects=[], me, onSave, on
   const [likely,setLikely]=useState((p.meta&&p.meta.likelihood)||"high");
   const titleLabel=kind==="overhead"?"What is it?":kind==="expense"?"Description":"Title";
   const [titleErr,setTitleErr]=useState("");
+  const [dOpen,setDOpen]=useState(false),[sOpen,setSOpen]=useState(false),[eOpen,setEOpen]=useState(false);
   const save=()=>{ if(!title.trim()){ setTitleErr("Add a description."); return; } setTitleErr(""); let amt=Number(amount)||0; let meta;
     if(kind==="expense") meta={miles:Number(miles)||0,month:month||""};
     else if(kind==="pipeline") meta={start:pStart||"",end:pEnd||"",likelihood:likely};
     else if(kind==="overhead"){ if(month!==""){ const mi=Number(month); meta={...(entry?.meta||{}),months:{...((entry&&entry.meta&&entry.meta.months)||{}),[mi]:amt}}; amt=0; } else meta=(entry?.meta||{}); }
     else meta=(p.meta||entry?.meta||{});
     const b={...(entry||{}),id:entry?.id,kind,title:title.trim(),client:client||"",amount:amt,status:status||null,date:kind==="overhead"?"":(date||""),memberId:memberId||null,projectId:(kind==="expense"?projectId:(p.projectId||entry?.projectId))||null,meta}; onSave(b); };
-  return (<><ModalHead title={(entry?"Edit ":"New ")+({pipeline:"pipeline job",overhead:"overhead",invoice:"invoice",expense:"expense"}[kind]||"entry")} onClose={onClose}/><div>
+  return (<><ModalHead title={(entry?"Edit ":"New ")+({pipeline:"pipeline job",overhead:"overhead",invoice:"invoice",expense:"expense"}[kind]||"entry")}/><FieldGroup>
     <Field label={titleLabel} error={titleErr}><Input value={title} onChange={e=>setTitle(e.target.value)} autoFocus/></Field>
     {(kind==="pipeline"||kind==="invoice") && <Field label="Client"><Input value={client} onChange={e=>setClient(e.target.value)} placeholder="Client name"/></Field>}
     <div className="grid grid-cols-2 gap-3">
       <Field label={kind==="overhead"?"£ amount":"Amount (£)"}><Input type="number" min="0" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0"/></Field>
-      {kind==="overhead" && <Field label="Applies to"><NativeSelect className="w-full" value={month} onChange={e=>setMonth(e.target.value)}><option value="">Every month</option>{FY_MONTHS.map((m,i)=><option key={i} value={String(i)}>{m} only</option>)}</NativeSelect></Field>}
-      {kind==="pipeline" && <Field label="Status"><NativeSelect className="w-full" value={status} onChange={e=>setStatus(e.target.value)}>{Object.entries(PIPE_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</NativeSelect></Field>}
-      {kind==="invoice" && <Field label="Status"><NativeSelect className="w-full" value={status} onChange={e=>setStatus(e.target.value)}>{Object.entries(INV_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</NativeSelect></Field>}
+      {kind==="overhead" && <Field label="Applies to"><Select value={month} onValueChange={setMonth} items={{"":"Every month",...Object.fromEntries(FY_MONTHS.map((m,i)=>[String(i),m+" only"]))}}>
+        <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
+        <SelectContent><SelectGroup><SelectItem value="">Every month</SelectItem>{FY_MONTHS.map((m,i)=><SelectItem key={i} value={String(i)}>{m} only</SelectItem>)}</SelectGroup></SelectContent>
+      </Select></Field>}
+      {kind==="pipeline" && <Field label="Status"><Select value={status} onValueChange={setStatus} items={Object.fromEntries(Object.entries(PIPE_STATUS).map(([k,v])=>[k,v.label]))}>
+        <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
+        <SelectContent><SelectGroup>{Object.entries(PIPE_STATUS).map(([k,v])=><SelectItem key={k} value={k}>{v.label}</SelectItem>)}</SelectGroup></SelectContent>
+      </Select></Field>}
+      {kind==="invoice" && <Field label="Status"><Select value={status} onValueChange={setStatus} items={Object.fromEntries(Object.entries(INV_STATUS).map(([k,v])=>[k,v.label]))}>
+        <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
+        <SelectContent><SelectGroup>{Object.entries(INV_STATUS).map(([k,v])=><SelectItem key={k} value={k}>{v.label}</SelectItem>)}</SelectGroup></SelectContent>
+      </Select></Field>}
       {kind==="expense" && <Field label="Miles (if mileage)"><Input type="number" min="0" value={miles} onChange={e=>setMiles(e.target.value)} placeholder="0"/></Field>}
     </div>
     {kind==="expense" && <><div className="grid grid-cols-2 gap-3">
-      <Field label="Project"><NativeSelect className="w-full" value={projectId} onChange={e=>setProjectId(e.target.value)}><option value="">— none —</option>{projects.map(pr=><option key={pr.id} value={pr.id}>{pr.index} — {pr.name}</option>)}</NativeSelect></Field>
+      <Field label="Project"><Select value={projectId} onValueChange={setProjectId} items={{"":"— none —",...Object.fromEntries(projects.map(pr=>[pr.id,`${pr.index} — ${pr.name}`]))}}>
+        <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
+        <SelectContent><SelectGroup><SelectItem value="">— none —</SelectItem>{projects.map(pr=><SelectItem key={pr.id} value={pr.id}>{pr.index} — {pr.name}</SelectItem>)}</SelectGroup></SelectContent>
+      </Select></Field>
       <Field label="Month"><Input type="month" value={month} onChange={e=>setMonth(e.target.value)}/></Field>
     </div>
-    <Field label="Who's owed"><NativeSelect className="w-full" value={memberId} onChange={e=>setMemberId(e.target.value)}><option value="">—</option>{members.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</NativeSelect></Field></>}
+    <Field label="Who's owed"><Select value={memberId} onValueChange={setMemberId} items={{"":"—",...Object.fromEntries(members.map(m=>[m.id,m.name]))}}>
+        <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
+        <SelectContent><SelectGroup><SelectItem value="">—</SelectItem>{members.map(m=><SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectGroup></SelectContent>
+      </Select></Field></>}
     {kind==="pipeline" && <><div className="grid grid-cols-2 gap-3">
-      <Field label="Expected start"><Input type="date" value={pStart} onChange={e=>setPStart(e.target.value)}/></Field>
-      <Field label="Expected end"><Input type="date" value={pEnd} onChange={e=>setPEnd(e.target.value)}/></Field>
+      <Field label="Expected start"><Popover open={sOpen} onOpenChange={setSOpen}>
+        <PopoverTrigger render={<Button variant="outline" className="w-full tabular-nums" />}><CalendarIcon/> {pStart||"Pick a date"}</PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start"><CalendarPicker mode="single" selected={pStart?parseISO(pStart):undefined} onSelect={(d)=>{ if(d){ setPStart(toISO(d)); setSOpen(false); } }}/></PopoverContent>
+      </Popover></Field>
+      <Field label="Expected end"><Popover open={eOpen} onOpenChange={setEOpen}>
+        <PopoverTrigger render={<Button variant="outline" className="w-full tabular-nums" />}><CalendarIcon/> {pEnd||"Pick a date"}</PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start"><CalendarPicker mode="single" selected={pEnd?parseISO(pEnd):undefined} onSelect={(d)=>{ if(d){ setPEnd(toISO(d)); setEOpen(false); } }}/></PopoverContent>
+      </Popover></Field>
     </div>
-    <Field label="Likelihood to convert"><NativeSelect className="w-full" value={likely} onChange={e=>setLikely(e.target.value)}><option value="high">Highly likely</option><option value="low">Less likely</option></NativeSelect></Field></>}
-    {kind==="invoice" && <Field label="Invoice date"><Input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field>}
-  </div><ModalFoot onSave={save} onDelete={onDelete&&entry?()=>onDelete(entry.id):null} saveLabel={entry?"Save":"Add"}/></>);
+    <Field label="Likelihood to convert"><Select value={likely} onValueChange={setLikely} items={{high:"Highly likely",low:"Less likely"}}>
+        <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
+        <SelectContent><SelectGroup><SelectItem value="high">Highly likely</SelectItem><SelectItem value="low">Less likely</SelectItem></SelectGroup></SelectContent>
+      </Select></Field></>}
+    {kind==="invoice" && <Field label="Invoice date"><Popover open={dOpen} onOpenChange={setDOpen}>
+        <PopoverTrigger render={<Button variant="outline" className="w-full tabular-nums" />}><CalendarIcon/> {date||"Pick a date"}</PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start"><CalendarPicker mode="single" selected={date?parseISO(date):undefined} onSelect={(d)=>{ if(d){ setDate(toISO(d)); setDOpen(false); } }}/></PopoverContent>
+      </Popover></Field>}
+  </FieldGroup><ModalFoot onSave={save} onDelete={onDelete&&entry?()=>onDelete(entry.id):null} saveLabel={entry?"Save":"Add"}/></>);
 }
 
 export default function Billing({ org, me, data: cadData, reload }){
@@ -524,7 +576,7 @@ export default function Billing({ org, me, data: cadData, reload }){
     convertPipeline, shiftProjectDates, shiftProjectEdge };
 
   return (<div className="h-full">
-    {!canEdit && <div className="px-4 py-2 text-xs bg-amber-50 border-b border-amber-200 text-amber-800">You can view billing but not edit it.</div>}
+    {!canEdit && <div className="px-4 py-2 text-xs bg-muted text-muted-foreground border-b">You can view billing but not edit it.</div>}
     <BillingPlan {...ctx} />
     {projEdit && <ProjectModal org={org} project={projEdit} clients={cadData.clients} onClose={()=>setProjEdit(null)} onSaved={()=>{ setProjEdit(null); reload(); }} />}
     {modal?.type==="billing" && <ModalShell onClose={()=>setModal(null)}>

@@ -40,14 +40,14 @@ export default function MiniTracker({ org, me, data, reload }) {
       </>) : (<>
         <Select value={sel} onValueChange={(v) => { setSel(v); setSelPhase(""); }}
           items={{ "": "Track time on…", ...Object.fromEntries(data.projects.map(p => [p.id, projLabel(p)])) }}>
-          <SelectTrigger size="sm" className="max-w-48"><SelectValue/></SelectTrigger>
-          <SelectContent className="w-auto min-w-(--anchor-width)"><SelectGroup><SelectItem value="">Track time on…</SelectItem>{data.projects.map(p => <SelectItem key={p.id} value={p.id}>{projLabel(p)}</SelectItem>)}</SelectGroup></SelectContent>
+          <SelectTrigger size="sm" className="w-48"><SelectValue/></SelectTrigger>
+          <SelectContent><SelectGroup><SelectItem value="">Track time on…</SelectItem>{data.projects.map(p => <SelectItem key={p.id} value={p.id}>{projLabel(p)}</SelectItem>)}</SelectGroup></SelectContent>
         </Select>
         {phases.length > 0 && (
           <Select value={selPhase} onValueChange={setSelPhase}
             items={{ "": "Any phase", ...Object.fromEntries(phases.map(ph => [ph.id, ph.name])) }}>
-            <SelectTrigger size="sm" className="max-w-36"><SelectValue/></SelectTrigger>
-            <SelectContent className="w-auto min-w-(--anchor-width)"><SelectGroup><SelectItem value="">Any phase</SelectItem>{phases.map(ph => <SelectItem key={ph.id} value={ph.id}>{ph.name}</SelectItem>)}</SelectGroup></SelectContent>
+            <SelectTrigger size="sm" className="w-36"><SelectValue/></SelectTrigger>
+            <SelectContent><SelectGroup><SelectItem value="">Any phase</SelectItem>{phases.map(ph => <SelectItem key={ph.id} value={ph.id}>{ph.name}</SelectItem>)}</SelectGroup></SelectContent>
           </Select>
         )}
         <Button size="sm" onClick={start} disabled={!sel}><Play data-icon="inline-start" /> Start</Button>

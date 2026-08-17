@@ -837,7 +837,7 @@ export default function Schedule({ org, me, data: cadData, reload, onNavigate, p
           <Button variant="outline" size="icon" onClick={()=>step(1)} aria-label="Next month"><ChevronRight/></Button>
         </ButtonGroup>
         <Popover open={dateOpen} onOpenChange={setDateOpen}>
-          <PopoverTrigger render={<Button variant="outline" />}>
+          <PopoverTrigger render={<Button variant="outline" className="tabular-nums" />}>
             <Calendar/> {toISO(anchor)}
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
@@ -847,9 +847,9 @@ export default function Schedule({ org, me, data: cadData, reload, onNavigate, p
         <div className="text-sm font-semibold text-foreground/80 px-1 hidden md:block">{MONTHS_LONG[anchor.getMonth()]} {anchor.getFullYear()}</div>
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
           <div className="flex h-8 items-center gap-1.5 rounded-lg border border-input px-2"><Search size={14} className="text-muted-foreground/70"/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search" className="text-sm outline-none w-24 sm:w-32 bg-transparent"/></div>
-          <div className="flex h-8 items-center gap-1.5 rounded-lg border border-input px-2"><PeoplePicker members={data.members} teams={teams} value={peopleFilter} onChange={setPeopleFilter} me={me.id}/></div>
+          <PeoplePicker members={data.members} teams={teams} value={peopleFilter} onChange={setPeopleFilter} me={me.id}/>
           <Select value={holidayFilter} onValueChange={setHolidayFilter} items={{show:"Holidays: show",hide:"Holidays: hide",only:"Holidays: only"}}>
-            <SelectTrigger><Plane /><SelectValue/></SelectTrigger>
+            <SelectTrigger><SelectValue/></SelectTrigger>
             <SelectContent><SelectGroup>
               <SelectItem value="show">Holidays: show</SelectItem>
               <SelectItem value="hide">Holidays: hide</SelectItem>

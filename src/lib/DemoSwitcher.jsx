@@ -16,8 +16,8 @@ export default function DemoSwitcher() {
     <div className="fixed bottom-3 right-3 z-[60] flex items-center gap-2 bg-violet-600 text-white rounded-full shadow-lg pl-3.5 pr-2 py-1.5 text-xs font-semibold">
       <span>Demo · viewing as</span>
       <Select value={role} onValueChange={(v) => { setRole(v); demoApi.setRole(v); }} items={Object.fromEntries(ROLES)}>
-        <SelectTrigger size="sm"><SelectValue/></SelectTrigger>
-        <SelectContent className="w-auto min-w-(--anchor-width)"><SelectGroup>{ROLES.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectGroup></SelectContent>
+        <SelectTrigger size="sm" className="w-44"><SelectValue/></SelectTrigger>
+        <SelectContent><SelectGroup>{ROLES.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectGroup></SelectContent>
       </Select>
     </div>
   );

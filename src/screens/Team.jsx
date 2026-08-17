@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FieldGroup, FieldSet, FieldLegend } from "@/components/ui/field";
 import { toast } from "@/components/ui/toast";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function Team({ org, me, members, reload, onNavigate }) {
   const confirm = useConfirm();
@@ -51,7 +52,7 @@ export default function Team({ org, me, members, reload, onNavigate }) {
   const overSeats = !unlimitedSeats && seatsUsed >= (org.seats || 0);
 
   return (
-    <div className="p-4 flex flex-col gap-4 overflow-y-auto h-full">
+    <ScrollArea className="h-full"><div className="p-4 flex flex-col gap-4">
       <div className="flex items-center gap-3 flex-wrap">
         <div>
           <h2 className="text-base font-medium">People</h2>
@@ -124,7 +125,7 @@ export default function Team({ org, me, members, reload, onNavigate }) {
         <p className="text-sm text-muted-foreground">You've reached the team limit on your current plan{unlimitedSeats ? "" : ` (${org.seats} member${org.seats === 1 ? "" : "s"})`}. Upgrade to a larger plan to invite more people.</p>
       </Modal>}
       {editing && <AccessModal m={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />}
-    </div>
+    </div></ScrollArea>
   );
 }
 

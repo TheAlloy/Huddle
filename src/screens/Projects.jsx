@@ -11,6 +11,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const CLIENT_COLORS = ["#2f80ed", "#9b51e0", "#16a0a0", "#eb5757", "#27ae60", "#f2994a", "#2d9cdb", "#eb5757", "#6b7a99", "#b5179e"];
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -25,7 +26,7 @@ export default function Projects({ org, me, data, reload, terms }) {
   const clientById = (id) => data.clients.find(c => c.id === id);
 
   return (
-    <div className="p-4 space-y-4 overflow-y-auto h-full">
+    <ScrollArea className="h-full"><div className="p-4 space-y-4">
       <h2 className="text-base font-bold text-foreground">{T.clients} &amp; {T.projectsLower||"projects"}</h2>
 
       <Card title={T.clients} action={mayClients && <Button onClick={() => setModal({ type: "client" })}><Plus data-icon="inline-start" /> Add {T.clientLower}</Button>}>
@@ -78,7 +79,7 @@ export default function Projects({ org, me, data, reload, terms }) {
 
       {modal?.type === "client" && <ClientModal org={org} client={modal.c} onClose={() => setModal(null)} onSaved={() => { setModal(null); reload(); }} />}
       {modal?.type === "project" && <ProjectModal org={org} project={modal.p} clients={data.clients} onClose={() => setModal(null)} onSaved={() => { setModal(null); reload(); }} />}
-    </div>
+    </div></ScrollArea>
   );
 }
 

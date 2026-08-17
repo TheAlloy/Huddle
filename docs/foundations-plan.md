@@ -502,8 +502,21 @@ follows:
 - **One size tier per control row.** Default (h-8) everywhere; `size="sm"` only
   when an entire row is deliberately compact (MiniTracker strip) — never mixed
   within a row. Duration/unit entry → `InputGroup` + `InputGroupText` suffix.
-  Compact select triggers get `SelectContent
-  className="w-auto min-w-(--anchor-width)"` so popups fit their items.
+- **Select popups are never width-overridden.** The stock popup sizes to its
+  trigger (that's the design); long items mean the *trigger* gets an explicit
+  width (`w-56` project pickers, `w-36` phase pickers) — the docs pattern. An
+  earlier `w-auto min-w-(--anchor-width)` override was reverted for feeling
+  off-stock.
+- **No layout shift:** date/number-bearing buttons get `tabular-nums`;
+  screen-level scroll containers are the stock `ScrollArea` (overlay
+  scrollbar — zero layout width, so no shift and no reserved-gutter
+  asymmetry; a `scrollbar-gutter:stable` attempt was rejected for reading as
+  lopsided padding).
+- **Tone rule, precisely:** headings and control labels are foreground
+  (`font-medium`); only descriptions, hints, counts and secondary metadata are
+  `text-muted-foreground`. Never put `text-muted-foreground` on a container
+  that labels inherit from. (Table column headers stay muted — stock Table
+  convention.)
 
 *Verified live:* invite modal renders `field-group` with popup Select; manage
 modal renders 9 fieldsets/legends, 15 stock Checkboxes, 2 popup Selects; no
@@ -514,10 +527,16 @@ Tasks ✓ (+ Combobox for the team fields, replacing native datalists) →
 **Tracker/MiniTracker ✓** (start bubbles keep client data colors; running
 panel actions are stock secondary Buttons; all pickers are grouped popup
 Selects via screen-local `ProjectSelect`/`PhaseSelect` compositions; manual
-row on stock Inputs; inline log editing on ghost icon Buttons) → next:
-Summary (period row → `ToggleGroup`) → Billing (tab strip → `Tabs`, timeline
-→ `Table`) → Projects/Workspace → Settings → Onboarding/Auth/Paywall/Admin →
-Schedule chrome (board timeline stays custom viz inside stock chrome;
+row on stock Inputs; inline log editing on ghost icon Buttons) →
+**Summary ✓** (period + layout rows → `ToggleGroup`; nav → `ButtonGroup`;
+date-range → `Popover`+`Calendar mode="range"`; add-hours and list editing on
+popup Selects/InputGroups/date pickers; budget bars on `bg-primary`/
+`bg-destructive` semantic tokens; public-holiday chips → `Badge`; header
+uniform at 32px. *Deferred:* the calendar-cell micro editor inside colored
+day chips stays custom — too small for stock controls, redesign in rebuild)
+→ next: Billing (tab strip → `Tabs`, timeline → `Table`) →
+Projects/Workspace → Settings → Onboarding/Auth/Paywall/Admin → Schedule
+chrome (board timeline stays custom viz inside stock chrome;
 PeoplePicker/ClientPicker → stock Popover/DropdownMenu).
 
 ## Risks

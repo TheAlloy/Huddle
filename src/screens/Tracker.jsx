@@ -10,16 +10,17 @@ import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
 import { Calendar as CalendarIcon } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Screen-local composition: grouped project picker used by "start another",
 // "log manually" and inline edit rows. Content-pour only — stock parts.
-function ProjectSelect({ value, onValueChange, groups, placeholder = "Project…", className }) {
+function ProjectSelect({ value, onValueChange, groups, placeholder = "Project…", className = "w-56" }) {
   const items = { "": placeholder };
   groups.forEach(g => g.projects.forEach(p => { items[p.id] = `${p.index} — ${p.name}`; }));
   return (
     <Select value={value} onValueChange={onValueChange} items={items}>
       <SelectTrigger className={className}><SelectValue/></SelectTrigger>
-      <SelectContent className="w-auto min-w-(--anchor-width)">
+      <SelectContent>
         <SelectGroup><SelectItem value="">{placeholder}</SelectItem></SelectGroup>
         {groups.map(g => (
           <SelectGroup key={g.client ? g.client.id : "none"}>
@@ -32,11 +33,11 @@ function ProjectSelect({ value, onValueChange, groups, placeholder = "Project…
   );
 }
 
-function PhaseSelect({ value, onValueChange, phases, placeholder = "No phase", className }) {
+function PhaseSelect({ value, onValueChange, phases, placeholder = "No phase", className = "w-36" }) {
   return (
     <Select value={value} onValueChange={onValueChange} items={{ "": placeholder, ...Object.fromEntries(phases.map(p => [p.id, p.name])) }}>
       <SelectTrigger className={className}><SelectValue/></SelectTrigger>
-      <SelectContent className="w-auto min-w-(--anchor-width)"><SelectGroup><SelectItem value="">{placeholder}</SelectItem>{phases.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectGroup></SelectContent>
+      <SelectContent><SelectGroup><SelectItem value="">{placeholder}</SelectItem>{phases.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectGroup></SelectContent>
     </Select>
   );
 }
@@ -124,8 +125,8 @@ export default function Tracker({ org, me, data: cadData, reload }){
   ];
 
   return (
-    <div className="h-full overflow-y-auto bg-muted/30 p-4">
-      <div className="max-w-3xl mx-auto flex flex-col gap-4">
+    <ScrollArea className="h-full bg-muted/30">
+      <div className="max-w-3xl mx-auto flex flex-col gap-4 p-4">
         <div className="flex items-center gap-2"><Clock size={18} className="text-muted-foreground"/><h2 className="text-base font-medium">Time tracker</h2><span className="ml-auto text-sm text-muted-foreground">This week <span className="font-medium text-foreground">{fmtH(weekTot/60)}h</span></span></div>
 
         <div className={`rounded-xl p-4 ${run ? "text-white shadow-xs" : "border bg-card"}`} style={run ? { background: runColor() } : undefined}>
@@ -144,14 +145,14 @@ export default function Tracker({ org, me, data: cadData, reload }){
 
         {!run && <div className="flex flex-col gap-4">
           <div>
-            <div className="text-sm font-medium text-muted-foreground mb-2">Today's Projects</div>
+            <div className="text-sm font-medium mb-2">Today's Projects</div>
             <div className="flex flex-col gap-2">
               {projectBubbles.length===0 && <div className="text-sm text-muted-foreground">No projects assigned to you today — use Start another or Manual below.</div>}
               {projectBubbles.map(b=><BigBubble key={b.projectId+"|"+b.phaseId} onClick={()=>start(b.projectId,b.phaseId)} color={colorOf(b.projectId)} top={labProj(b.projectId)} sub={phName(b.projectId,b.phaseId)} mins={minsFor(b.projectId,b.phaseId)} title={"Start "+labTop(b.projectId)}/>)}
             </div>
           </div>
           <div>
-            <div className="text-sm font-medium text-muted-foreground mb-2">Tasks</div>
+            <div className="text-sm font-medium mb-2">Tasks</div>
             <div className="flex flex-col gap-2">
               {taskItems.length===0 && <div className="text-sm text-muted-foreground">No tasks assigned to you today.</div>}
               {taskItems.map(t=><BigBubble key={t.key} onClick={()=>startTask(t.id)} color={NAVY} top="Task" sub={t.title} mins={minsForTask(t.id)} title="Start task"/>)}
@@ -160,18 +161,18 @@ export default function Tracker({ org, me, data: cadData, reload }){
         </div>}
 
         {!run && <div className="rounded-xl border bg-card p-3 flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium text-muted-foreground flex items-center gap-1 shrink-0"><Play size={12}/> Start another</span>
+          <span className="text-sm font-medium flex items-center gap-1 shrink-0"><Play size={12}/> Start another</span>
           <ProjectSelect value={selP} onValueChange={(v)=>{setSelP(v);setSelPh("");}} groups={groups}/>
           {selproj?.phases?.length>0 && <PhaseSelect value={selPh} onValueChange={setSelPh} phases={selproj.phases}/>}
           <Button onClick={()=>{ start(selP,selPh); setSelP(""); setSelPh(""); }} disabled={!selP}><Play data-icon="inline-start"/> Start</Button>
         </div>}
 
         {mayManual && <div className="rounded-xl border bg-card p-3 flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium text-muted-foreground flex items-center gap-1 shrink-0"><Plus size={12}/> Log manually</span>
+          <span className="text-sm font-medium flex items-center gap-1 shrink-0"><Plus size={12}/> Log manually</span>
           <ProjectSelect value={mP} onValueChange={(v)=>{setMP(v);setMPh("");}} groups={groups}/>
           {mproj?.phases?.length>0 && <PhaseSelect value={mPh} onValueChange={setMPh} phases={mproj.phases}/>}
           <Popover open={mDateOpen} onOpenChange={setMDateOpen}>
-            <PopoverTrigger render={<Button variant="outline" />}><CalendarIcon/> {mDate}</PopoverTrigger>
+            <PopoverTrigger render={<Button variant="outline" className="tabular-nums" />}><CalendarIcon/> {mDate}</PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
               <CalendarPicker mode="single" selected={parseISO(mDate)} onSelect={(d)=>{ if(d){ setMDate(toISO(d)); setMDateOpen(false); } }} defaultMonth={parseISO(mDate)} />
             </PopoverContent>
@@ -182,7 +183,7 @@ export default function Tracker({ org, me, data: cadData, reload }){
         </div>}
 
         <div className="rounded-xl border bg-card p-3">
-          <div className="text-sm font-medium text-muted-foreground mb-2">Logged today — {hm(todayMins)}</div>
+          <div className="text-sm font-medium mb-2">Logged today — {hm(todayMins)}</div>
           <div className="flex flex-col gap-1">
             {todayEntries.length===0 && <span className="text-sm text-muted-foreground">Nothing logged yet today.</span>}
             {todayEntries.map(l=>{ const editing=editId===l.id; return (
@@ -207,7 +208,7 @@ export default function Tracker({ org, me, data: cadData, reload }){
         </div>
 
         <div className="rounded-xl border bg-card p-3">
-          <div className="text-sm font-medium text-muted-foreground mb-2">This week</div>
+          <div className="text-sm font-medium mb-2">This week</div>
           <div className="grid grid-cols-7 gap-1.5">
             {weekDays.map(d=>{ const t=dayTot(d); const isToday=toISO(d)===todayISO; return (
               <div key={toISO(d)} className={`rounded-lg border px-1 py-2 text-center ${isToday?"border-primary/40 bg-primary/10":""}`}>
@@ -217,6 +218,6 @@ export default function Tracker({ org, me, data: cadData, reload }){
           </div>
         </div>
       </div>
-    </div>
+    </ScrollArea>
   );
 }

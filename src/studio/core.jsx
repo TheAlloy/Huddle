@@ -4,6 +4,7 @@ import { Users, ChevronRight, X, Trash2 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 /* constants */
 export const MS = 86400000;
@@ -120,8 +121,9 @@ export function ModalHead({ title }){ return <DialogHeader><DialogTitle>{title}<
 export function ModalFoot({ onSave, onDelete, saveLabel="Save", disabled }){ return <DialogFooter>{onDelete&&<Button variant="destructive" onClick={onDelete}><Trash2 data-icon="inline-start" /> Delete</Button>}<Button onClick={onSave} disabled={disabled}>{saveLabel}</Button></DialogFooter>; }
 export function ToolBtn({ icon:Icon, label, onClick, primary }){ return <Button variant={primary?"default":"outline"} onClick={onClick}><Icon data-icon="inline-start" /> <span className="hidden sm:inline">{label}</span></Button>; }
 
+// Multi-select people filter — content-poured into the stock DropdownMenu
+// (checkbox items stay open on click). Value shape unchanged: "all" | id[] | id.
 export function PeoplePicker({ members, teams, value, onChange, me }){
-  const [open,setOpen]=useState(false);
   const allIds=members.map(m=>m.id);
   const isAll=value==="all";
   const sel=new Set(isAll?allIds:(Array.isArray(value)?value:(value?[value]:[])));
@@ -132,21 +134,36 @@ export function PeoplePicker({ members, teams, value, onChange, me }){
   const toggleTeam=(t)=>{ const ids=tmIds(t); const on=teamOn(t); const s=new Set(sel); ids.forEach(id=> on?s.delete(id):s.add(id)); commit(s); };
   const ungrouped=members.filter(m=>!(m.teams&&m.teams.length));
   const summary=isAll?"Everyone":(sel.size===0?"No one":(sel.size===1?((members.find(m=>m.id===[...sel][0])||{}).name||"1 person"):`${sel.size} people`));
-  return (<div className="relative">
-    <button onClick={()=>setOpen(o=>!o)} className="flex items-center gap-1.5 text-sm outline-none text-foreground/80"><Users size={14} className="text-muted-foreground/70"/>{summary}<ChevronRight size={13} className="text-muted-foreground/70" style={{transform:open?"rotate(90deg)":"none",transition:"transform .15s"}}/></button>
-    {open && <><div className="fixed inset-0 z-30" onClick={()=>setOpen(false)}/>
-      <div className="absolute z-40 mt-1 left-0 w-60 bg-card border border-border rounded-xl shadow-lg p-2 max-h-96 overflow-y-auto text-sm">
-        <div className="flex gap-1 mb-1.5">
-          <button onClick={()=>onChange("all")} className={`flex-1 text-xs py-1 rounded ${isAll?"bg-primary text-primary-foreground":"bg-muted text-muted-foreground hover:bg-muted"}`}>Everyone</button>
-          {me && <button onClick={()=>onChange([me])} className="flex-1 text-xs py-1 rounded bg-muted text-muted-foreground hover:bg-muted">Just me</button>}
-        </div>
-        {teams.map(t=>(<div key={t} className="mb-1">
-          <label className="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-muted/50 cursor-pointer font-semibold text-foreground/80"><input type="checkbox" checked={teamOn(t)} onChange={()=>toggleTeam(t)} className="w-3.5 h-3.5"/>{t}</label>
-          <div className="pl-5">{members.filter(m=>(m.teams||[]).includes(t)).map(m=><label key={m.id} className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-muted/50 cursor-pointer text-muted-foreground"><input type="checkbox" checked={sel.has(m.id)} onChange={()=>togglePerson(m.id)} className="w-3.5 h-3.5"/>{m.name}</label>)}</div>
-        </div>))}
-        {ungrouped.length>0 && <div className="pl-1 pt-1 border-t border-border/60">{ungrouped.map(m=><label key={m.id} className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-muted/50 cursor-pointer text-muted-foreground"><input type="checkbox" checked={sel.has(m.id)} onChange={()=>togglePerson(m.id)} className="w-3.5 h-3.5"/>{m.name}</label>)}</div>}
-      </div></>}
-  </div>);
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button variant="outline" />}><Users data-icon="inline-start"/> {summary}</DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-48 max-w-64">
+        <DropdownMenuGroup>
+          <DropdownMenuCheckboxItem checked={isAll} closeOnClick={false} onCheckedChange={()=>onChange("all")}>Everyone</DropdownMenuCheckboxItem>
+          {me && <DropdownMenuCheckboxItem checked={!isAll&&sel.size===1&&sel.has(me)} closeOnClick={false} onCheckedChange={()=>onChange([me])}>Just me</DropdownMenuCheckboxItem>}
+        </DropdownMenuGroup>
+        {teams.map(t=>(
+          <React.Fragment key={t}>
+            <DropdownMenuSeparator/>
+            <DropdownMenuGroup>
+              <DropdownMenuCheckboxItem checked={teamOn(t)} closeOnClick={false} onCheckedChange={()=>toggleTeam(t)} className="font-medium"><span className="min-w-0 flex-1 truncate">{t}</span></DropdownMenuCheckboxItem>
+              {members.filter(m=>(m.teams||[]).includes(t)).map(m=>(
+                <DropdownMenuCheckboxItem key={m.id} checked={sel.has(m.id)} closeOnClick={false} onCheckedChange={()=>togglePerson(m.id)} className="pl-8"><span className="min-w-0 flex-1 truncate">{m.name}</span></DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuGroup>
+          </React.Fragment>
+        ))}
+        {ungrouped.length>0 && <>
+          <DropdownMenuSeparator/>
+          <DropdownMenuGroup>
+            {ungrouped.map(m=>(
+              <DropdownMenuCheckboxItem key={m.id} checked={sel.has(m.id)} closeOnClick={false} onCheckedChange={()=>togglePerson(m.id)}><span className="min-w-0 flex-1 truncate">{m.name}</span></DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuGroup>
+        </>}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 /* Huddle <-> studio-shape adapter */

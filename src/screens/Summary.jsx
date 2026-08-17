@@ -4,7 +4,6 @@ import { NoAccess } from "./Workspace.jsx";
 import { MS, MONTHS, DOW, pad, toISO, parseISO, startOfDay, addDays, addMonths, startOfMonth, endOfMonth, startOfWeekMon, isWeekday, NAVY, AVATAR_BG, LEAVE_TYPES, initials, fmtH, money, pfList, projectsByClient, leaveDayFraction, holidayYearOf, fmtDayOrdinal, dRange, workdaysBetween, PeoplePicker, mapData, makeHandlers } from "../studio/core.jsx";
 import { Table2, ChevronLeft, ChevronRight, Calendar, Users, Building2, Plane, Clock, Plus, X, Pencil, Trash2 } from "lucide-react";
 import { useConfirm } from "../components/confirm.tsx";
-import { NativeSelect } from "@/components/ui/native-select";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -183,7 +182,12 @@ function SummaryView(ctx) {
                 {gs.map(g=>{ const {label,color}=bub(g); const editing=cEdit&&cEdit.mid===m.id&&cEdit.day===dayISO&&cEdit.key===g.key;
                   return (<div key={g.key} onPointerDown={editing?undefined:(e=>startCalDrag(e,g,m,dayISO))} className="rounded-md px-1.5 py-1 text-[11px] text-white cursor-grab active:cursor-grabbing" style={{background:color,touchAction:"none"}} title={label}>
                     {editing ? (<div className="flex flex-col gap-1" onClick={e=>e.stopPropagation()}>
-                      {!g.taskId && (()=>{ const pr=projectById(g.projectId); return pr&&pr.phases&&pr.phases.length>0 ? <NativeSelect value={cPh} onChange={e=>setCPh(e.target.value)} ><option value="">No phase</option>{pr.phases.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</NativeSelect> : null; })()}
+                      {!g.taskId && (()=>{ const pr=projectById(g.projectId); return pr&&pr.phases&&pr.phases.length>0 ? (
+                        <Select value={cPh} onValueChange={setCPh} items={{"":"No phase",...Object.fromEntries(pr.phases.map(p=>[p.id,p.name]))}}>
+                          <SelectTrigger size="sm" className="w-full bg-background text-foreground"><SelectValue/></SelectTrigger>
+                          <SelectContent><SelectGroup><SelectItem value="">No phase</SelectItem>{pr.phases.map(p=><SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectGroup></SelectContent>
+                        </Select>
+                      ) : null; })()}
                       <div className="flex items-center gap-1">
                         <input type="number" min="0" value={eH} onChange={e=>setEH(e.target.value)} className="w-8 text-foreground rounded px-1 py-0.5 outline-none"/><span>h</span>
                         <input type="number" min="0" max="59" value={eM} onChange={e=>setEM(e.target.value)} className="w-8 text-foreground rounded px-1 py-0.5 outline-none"/>

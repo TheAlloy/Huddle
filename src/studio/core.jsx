@@ -20,13 +20,6 @@ export const CLIENT_COLORS = ["#2f80ed","#9b51e0","#16a0a0","#eb5757","#27ae60",
 export const AVATAR_BG = ["#2f80ed","#9b51e0","#16a0a0","#eb5757","#27ae60","#f2994a","#2d9cdb","#6b7a99"];
 export const LEAVE_TYPES = { vacation:{label:"Holiday",color:"#f2994a"}, parental:{label:"Parental Leave",color:"#e67e22"}, sick:{label:"Sick Leave",color:"#c0563f"}, holiday:{label:"Public Holiday",color:"#7f8fa6"} };
 export const TASK_PRI = { high:{label:"High",color:"#eb5757"}, med:{label:"Medium",color:"#f59e0b"}, low:{label:"Low",color:"#94a3b8"} };
-// shadcn's Input styling as a class string for the screens that still render
-// raw <input>s. h-8 matches Button / SelectTrigger / NativeSelect exactly —
-// every control row sits at 32px. Textareas can't take a fixed height, so they
-// get their own string below.
-export const inputCls = "h-8 w-full min-w-0 text-sm rounded-lg border border-input bg-transparent px-2.5 py-1 transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50";
-export const textareaCls = "w-full min-w-0 text-sm rounded-lg border border-input bg-transparent px-2.5 py-1.5 transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50";
-
 /* pure helpers */
 export const pad = (n) => String(n).padStart(2,"0");
 export const toISO = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;

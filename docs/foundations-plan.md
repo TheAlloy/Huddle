@@ -591,9 +591,12 @@ stock `Tabs` — they switch what the form *is*, so tab semantics beat toggle
 semantics; multi-select chips stay ToggleGroups; (4) the Assign dialog's
 body gets `min-h-[30rem]` pinned to the tallest tab so switching kinds
 doesn't resize the modal (create mode only — edit mode has no tabs).
-**Rollout complete** — every screen is on stock shadcn. Remaining
-NativeSelects: Summary's calendar-cell micro-editor (deliberate) and core.jsx's
-export (its last consumer).
+**Rollout complete** — every screen is on stock shadcn. Follow-up sweep:
+Summary's calendar-cell micro-editor (the last NativeSelect) → popup `Select`
+with the `size="sm"` trigger (`bg-background text-foreground` so it reads
+inside the coloured bubble); `native-select.tsx` deleted from the registry
+set; core.jsx's dead `inputCls`/`textareaCls` exports removed (no consumers
+left). Zero NativeSelects remain in the codebase.
 
 ## Risks
 

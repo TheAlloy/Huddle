@@ -4,7 +4,8 @@ import { can } from "../lib/permissions.js";
 import { toISO, fmtH } from "../lib/dates.js";
 
 import { Play, Square, Clock } from "lucide-react";
-import { NativeSelect } from "@/components/ui/native-select";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 /** The condensed running-timer strip that sits on the Schedule page (like the studio dashboard). */
 export default function MiniTracker({ org, me, data, reload }) {
@@ -27,25 +28,31 @@ export default function MiniTracker({ org, me, data, reload }) {
   const runProj = run && projectById[run.projectId];
   const runPhase = run && runProj && (runProj.phases || []).find(x => x.id === run.phaseId);
   const phases = projectById[sel]?.phases || [];
+  const projLabel = (p) => (p.code ? p.code + " · " : "") + p.name;
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border bg-card shrink-0 text-sm flex-wrap">
-      <Clock size={15} className="text-muted-foreground/70" />
+    <div className="flex items-center gap-2 px-3 py-1.5 border-b bg-card shrink-0 text-sm flex-wrap">
+      <Clock size={15} className="text-muted-foreground" />
       {run ? (<>
-        <span className="font-bold tabular-nums text-base text-foreground">{clock(elapsed)}</span>
+        <span className="font-medium tabular-nums text-base">{clock(elapsed)}</span>
         <span className="text-muted-foreground truncate">{runProj ? (runProj.code || runProj.name) : "Tracking"}{runPhase ? " · " + runPhase.name : ""}</span>
-        <button onClick={stop} className="ml-1 flex items-center gap-1 text-xs font-semibold text-white rounded px-2 py-1" style={{ background: "#eb5757" }}><Square size={12} /> Stop &amp; log</button>
+        <Button variant="destructive" size="sm" className="ml-1" onClick={stop}><Square data-icon="inline-start" /> Stop &amp; log</Button>
       </>) : (<>
-        <NativeSelect className="max-w-[190px]" value={sel} onChange={e => { setSel(e.target.value); setSelPhase(""); }}>
-          <option value="">Track time on…</option>
-          {data.projects.map(p => <option key={p.id} value={p.id}>{p.code ? p.code + " · " : ""}{p.name}</option>)}
-        </NativeSelect>
-        {phases.length > 0 && <NativeSelect className="max-w-[130px]" value={selPhase} onChange={e => setSelPhase(e.target.value)}>
-          <option value="">Any phase</option>{phases.map(ph => <option key={ph.id} value={ph.id}>{ph.name}</option>)}
-        </NativeSelect>}
-        <button onClick={start} disabled={!sel} className="flex items-center gap-1 text-xs font-semibold bg-primary text-primary-foreground rounded px-2 py-1 disabled:opacity-40"><Play size={12} /> Start</button>
+        <Select value={sel} onValueChange={(v) => { setSel(v); setSelPhase(""); }}
+          items={{ "": "Track time on…", ...Object.fromEntries(data.projects.map(p => [p.id, projLabel(p)])) }}>
+          <SelectTrigger size="sm" className="max-w-48"><SelectValue/></SelectTrigger>
+          <SelectContent className="w-auto min-w-(--anchor-width)"><SelectGroup><SelectItem value="">Track time on…</SelectItem>{data.projects.map(p => <SelectItem key={p.id} value={p.id}>{projLabel(p)}</SelectItem>)}</SelectGroup></SelectContent>
+        </Select>
+        {phases.length > 0 && (
+          <Select value={selPhase} onValueChange={setSelPhase}
+            items={{ "": "Any phase", ...Object.fromEntries(phases.map(ph => [ph.id, ph.name])) }}>
+            <SelectTrigger size="sm" className="max-w-36"><SelectValue/></SelectTrigger>
+            <SelectContent className="w-auto min-w-(--anchor-width)"><SelectGroup><SelectItem value="">Any phase</SelectItem>{phases.map(ph => <SelectItem key={ph.id} value={ph.id}>{ph.name}</SelectItem>)}</SelectGroup></SelectContent>
+          </Select>
+        )}
+        <Button size="sm" onClick={start} disabled={!sel}><Play data-icon="inline-start" /> Start</Button>
       </>)}
-      <span className="ml-auto text-xs text-muted-foreground/70">Logged today <b className="text-muted-foreground">{fmtH(totalToday / 60)}h</b></span>
+      <span className="ml-auto text-xs text-muted-foreground">Logged today <span className="font-medium text-foreground">{fmtH(totalToday / 60)}h</span></span>
     </div>
   );
 }

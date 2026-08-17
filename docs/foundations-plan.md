@@ -499,16 +499,26 @@ follows:
   (`variant="label"` for sub-groups); validation `error` + `aria-invalid`;
   checkbox grids → stock `Checkbox`; selectable chips → `Button
   variant="secondary" size="xs"` (killed the last inline-NAVY chips).
+- **One size tier per control row.** Default (h-8) everywhere; `size="sm"` only
+  when an entire row is deliberately compact (MiniTracker strip) — never mixed
+  within a row. Duration/unit entry → `InputGroup` + `InputGroupText` suffix.
+  Compact select triggers get `SelectContent
+  className="w-auto min-w-(--anchor-width)"` so popups fit their items.
 
 *Verified live:* invite modal renders `field-group` with popup Select; manage
 modal renders 9 fieldsets/legends, 15 stock Checkboxes, 2 popup Selects; no
 crashes.
 
-**Rollout order (pending Troy's review of People):** Tasks → Tracker/
-MiniTracker → Summary (period row → `ToggleGroup`) → Billing (tab strip →
-`Tabs`, timeline → `Table`) → Projects/Workspace → Settings → Onboarding/
-Auth/Paywall/Admin → Schedule chrome (board timeline stays custom viz inside
-stock chrome; PeoplePicker/ClientPicker → stock Popover/DropdownMenu).
+**Rollout (Troy reviews each screen as it lands):** People ✓ (approved) →
+Tasks ✓ (+ Combobox for the team fields, replacing native datalists) →
+**Tracker/MiniTracker ✓** (start bubbles keep client data colors; running
+panel actions are stock secondary Buttons; all pickers are grouped popup
+Selects via screen-local `ProjectSelect`/`PhaseSelect` compositions; manual
+row on stock Inputs; inline log editing on ghost icon Buttons) → next:
+Summary (period row → `ToggleGroup`) → Billing (tab strip → `Tabs`, timeline
+→ `Table`) → Projects/Workspace → Settings → Onboarding/Auth/Paywall/Admin →
+Schedule chrome (board timeline stays custom viz inside stock chrome;
+PeoplePicker/ClientPicker → stock Popover/DropdownMenu).
 
 ## Risks
 

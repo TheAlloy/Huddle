@@ -17,7 +17,7 @@ export default function DemoSwitcher() {
       <span>Demo · viewing as</span>
       <Select value={role} onValueChange={(v) => { setRole(v); demoApi.setRole(v); }} items={Object.fromEntries(ROLES)}>
         <SelectTrigger size="sm"><SelectValue/></SelectTrigger>
-        <SelectContent><SelectGroup>{ROLES.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectGroup></SelectContent>
+        <SelectContent className="w-auto min-w-(--anchor-width)"><SelectGroup>{ROLES.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectGroup></SelectContent>
       </Select>
     </div>
   );

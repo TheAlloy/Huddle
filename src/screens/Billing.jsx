@@ -228,7 +228,7 @@ function BillingPlan(ctx){
   const SubTab=({v,l})=>(<button onClick={()=>setSub(v)} className={`text-sm px-3 py-1.5 rounded-lg ${sub===v?"bg-primary text-primary-foreground":"text-muted-foreground hover:bg-muted"}`}>{l}</button>);
   const periodPicker=()=>(<div className="flex items-center gap-2 flex-wrap">
     <Select value={pMode} onValueChange={setPMode} items={{fy:"Financial year (Apr–Mar)",cal:"Calendar year (Jan–Dec)",custom:"Custom range"}}>
-      <SelectTrigger size="sm"><SelectValue/></SelectTrigger>
+      <SelectTrigger><SelectValue/></SelectTrigger>
       <SelectContent><SelectGroup>
         <SelectItem value="fy">Financial year (Apr–Mar)</SelectItem>
         <SelectItem value="cal">Calendar year (Jan–Dec)</SelectItem>
@@ -237,10 +237,10 @@ function BillingPlan(ctx){
     </Select>
     {(pMode==="fy"||pMode==="cal") && (()=>{ const years=Array.from({length:11},(_,i)=>_nowFY.getFullYear()-5+i); const label=(y)=>pMode==="fy"?`${y}/${String(y+1).slice(2)}`:String(y); return (
       <Select value={String(pYear)} onValueChange={(v)=>setPYear(Number(v))} items={Object.fromEntries(years.map(y=>[String(y),label(y)]))}>
-        <SelectTrigger size="sm"><SelectValue/></SelectTrigger>
+        <SelectTrigger><SelectValue/></SelectTrigger>
         <SelectContent><SelectGroup>{years.map(y=><SelectItem key={y} value={String(y)}>{label(y)}</SelectItem>)}</SelectGroup></SelectContent>
       </Select>); })()}
-    {pMode==="custom" && <><input type="month" value={pFrom} onChange={e=>setPFrom(e.target.value)} className="text-xs rounded-lg border border-border px-2 py-1.5 outline-none"/><span className="text-xs text-muted-foreground/70">→</span><input type="month" value={pTo} onChange={e=>setPTo(e.target.value)} className="text-xs rounded-lg border border-border px-2 py-1.5 outline-none"/></>}
+    {pMode==="custom" && <><Input type="month" value={pFrom} onChange={e=>setPFrom(e.target.value)} className="w-auto"/><span className="text-sm text-muted-foreground">→</span><Input type="month" value={pTo} onChange={e=>setPTo(e.target.value)} className="w-auto"/></>}
   </div>);
   const Stat=({label,value,tone})=>(<div className="rounded-xl border border-border px-4 py-3"><div className="text-xs text-muted-foreground/70">{label}</div><div className="text-lg font-bold" style={{color:tone||"var(--foreground)"}}>{value}</div></div>);
   const Actions=(b)=> canEditKind(b.kind) ? <div className="ml-auto flex items-center gap-2 shrink-0"><button onClick={()=>openForm(b.kind,b)} className="text-muted-foreground/40 hover:text-primary-foreground"><Pencil size={14}/></button><button onClick={async ()=>{ if(await confirm({title:"Delete this entry?", confirmLabel:"Delete", destructive:true})) delBilling(b.id); }} className="text-muted-foreground/40 hover:text-destructive"><Trash2 size={14}/></button></div> : null;

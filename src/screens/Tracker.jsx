@@ -1,9 +1,45 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
-import { NAVY, DOW, pad, toISO, startOfDay, addDays, startOfWeekMon, hm, fmtClock, fmtH, projectsByClient, lsGet, lsSet, openFloatingTimer, mapData, makeHandlers } from "../studio/core.jsx";
+import { NAVY, DOW, pad, toISO, parseISO, startOfDay, addDays, startOfWeekMon, hm, fmtClock, fmtH, projectsByClient, lsGet, lsSet, openFloatingTimer, mapData, makeHandlers } from "../studio/core.jsx";
 import { Play, Square, PictureInPicture2, X, Plus, Pencil, Trash2, Clock } from "lucide-react";
-import { NativeSelect } from "@/components/ui/native-select";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
+import { Calendar as CalendarIcon } from "lucide-react";
+
+// Screen-local composition: grouped project picker used by "start another",
+// "log manually" and inline edit rows. Content-pour only — stock parts.
+function ProjectSelect({ value, onValueChange, groups, placeholder = "Project…", className }) {
+  const items = { "": placeholder };
+  groups.forEach(g => g.projects.forEach(p => { items[p.id] = `${p.index} — ${p.name}`; }));
+  return (
+    <Select value={value} onValueChange={onValueChange} items={items}>
+      <SelectTrigger className={className}><SelectValue/></SelectTrigger>
+      <SelectContent className="w-auto min-w-(--anchor-width)">
+        <SelectGroup><SelectItem value="">{placeholder}</SelectItem></SelectGroup>
+        {groups.map(g => (
+          <SelectGroup key={g.client ? g.client.id : "none"}>
+            <SelectLabel>{g.client ? g.client.name : "No client"}</SelectLabel>
+            {g.projects.map(p => <SelectItem key={p.id} value={p.id}>{p.index} — {p.name}</SelectItem>)}
+          </SelectGroup>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function PhaseSelect({ value, onValueChange, phases, placeholder = "No phase", className }) {
+  return (
+    <Select value={value} onValueChange={onValueChange} items={{ "": placeholder, ...Object.fromEntries(phases.map(p => [p.id, p.name])) }}>
+      <SelectTrigger className={className}><SelectValue/></SelectTrigger>
+      <SelectContent className="w-auto min-w-(--anchor-width)"><SelectGroup><SelectItem value="">{placeholder}</SelectItem>{phases.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectGroup></SelectContent>
+    </Select>
+  );
+}
 
 export default function Tracker({ org, me, data: cadData, reload }){
   const meId=me.id;
@@ -14,7 +50,7 @@ export default function Tracker({ org, me, data: cadData, reload }){
   const [run,setRun]=useState(()=>lsGet("tracker_run_"+meId));
   const [now,setNow]=useState(Date.now());
   const [selP,setSelP]=useState(""),[selPh,setSelPh]=useState("");
-  const [mP,setMP]=useState(""),[mPh,setMPh]=useState(""),[mDate,setMDate]=useState(toISO(startOfDay(new Date()))),[mH,setMH]=useState(1),[mM,setMM]=useState(0);
+  const [mP,setMP]=useState(""),[mPh,setMPh]=useState(""),[mDate,setMDate]=useState(toISO(startOfDay(new Date()))),[mH,setMH]=useState(1),[mM,setMM]=useState(0),[mDateOpen,setMDateOpen]=useState(false);
   const [editId,setEditId]=useState(null),[eH,setEH]=useState(0),[eM,setEM]=useState(0),[eProj,setEProj]=useState(""),[ePh,setEPh]=useState("");
   const pip=useRef(null), pipActions=useRef({});
   const closePip=()=>{ if(pip.current){ try{pip.current.close();}catch(_){} pip.current=null; } };
@@ -60,7 +96,6 @@ export default function Tracker({ org, me, data: cadData, reload }){
   const runTop=()=> run? (run.taskId? "Task · "+((taskById(run.taskId)||{}).title||"task") : labProj(run.projectId)) : "—";
   const runColor=()=> run? (run.taskId? NAVY : colorOf(run.projectId)) : "#64748b";
   const groups=projectsByClient(data.projects,data.clients);
-  const grp=(g)=>(<optgroup key={g.client?g.client.id:"none"} label={g.client?g.client.name:"No client"}>{g.projects.map(p=><option key={p.id} value={p.id}>{p.index} — {p.name}</option>)}</optgroup>);
 
   pipActions.current={ run, stop, top:runTop };
   const openPip=async()=>{ if(!run) return; if(pip.current){ try{pip.current.win.focus();}catch(_){} return; }
@@ -73,12 +108,13 @@ export default function Tracker({ org, me, data: cadData, reload }){
   const dayTot=(d)=>(data.timeLogs||[]).filter(l=>l.memberId===meId&&l.date===toISO(d)).reduce((s,l)=>s+l.minutes,0);
   const weekTot=weekDays.reduce((s,d)=>s+dayTot(d),0);
 
+  // Data-colored start card — the client color IS the content here.
   const BigBubble=({onClick,color,top,sub,mins,title})=>(
     <button onClick={onClick} title={title} className="w-full text-left rounded-2xl px-5 py-4 text-white transition hover:brightness-110 shadow-xs" style={{background:color}}>
       <div className="flex items-center gap-3">
-        <span className="grid place-items-center w-11 h-11 rounded-full bg-card shrink-0" style={{color}}><Play size={20}/></span>
-        <div className="min-w-0 flex-1"><div className="text-base font-bold leading-tight truncate">{top}</div><div className="opacity-90 leading-tight truncate text-sm">{sub||"—"}</div></div>
-        <div className="text-right shrink-0"><div className="text-[11px] opacity-80">Today</div><div className="font-bold text-lg leading-tight">{hm(mins)}</div></div>
+        <span className="grid place-items-center size-11 rounded-full bg-card shrink-0" style={{color}}><Play size={20}/></span>
+        <div className="min-w-0 flex-1"><div className="text-base font-medium leading-tight truncate">{top}</div><div className="opacity-90 leading-tight truncate text-sm">{sub||"—"}</div></div>
+        <div className="text-right shrink-0"><div className="text-xs opacity-80">Today</div><div className="font-medium text-lg leading-tight">{hm(mins)}</div></div>
       </div>
     </button>);
   const projectBubbles=bubbles.filter(b=>!b.internal);
@@ -89,89 +125,94 @@ export default function Tracker({ org, me, data: cadData, reload }){
 
   return (
     <div className="h-full overflow-y-auto bg-muted/30 p-4">
-      <div className="max-w-3xl mx-auto space-y-4">
-        <div className="flex items-center gap-2"><Clock size={18} className="text-muted-foreground"/><h2 className="text-base font-bold text-foreground">Time tracker</h2><span className="ml-auto text-xs text-muted-foreground">This week <b className="text-foreground/80">{fmtH(weekTot/60)}h</b></span></div>
+      <div className="max-w-3xl mx-auto flex flex-col gap-4">
+        <div className="flex items-center gap-2"><Clock size={18} className="text-muted-foreground"/><h2 className="text-base font-medium">Time tracker</h2><span className="ml-auto text-sm text-muted-foreground">This week <span className="font-medium text-foreground">{fmtH(weekTot/60)}h</span></span></div>
 
-        <div className={`rounded-xl p-4 ${run ? "text-white shadow-xs" : "border border-border bg-card"}`} style={run ? { background: runColor() } : undefined}>
+        <div className={`rounded-xl p-4 ${run ? "text-white shadow-xs" : "border bg-card"}`} style={run ? { background: runColor() } : undefined}>
           {run ? (
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="w-2.5 h-2.5 rounded-full bg-card" style={{animation:"pulse 1.5s infinite"}}/>
-              <div><div className="text-xs opacity-90">{runTop()}{!run.taskId&&phName(run.projectId,run.phaseId)?" · "+phName(run.projectId,run.phaseId):""}</div><div className="text-3xl font-bold tabular-nums">{elapsed}</div></div>
+              <span className="size-2.5 rounded-full bg-card" style={{animation:"pulse 1.5s infinite"}}/>
+              <div><div className="text-xs opacity-90">{runTop()}{!run.taskId&&phName(run.projectId,run.phaseId)?" · "+phName(run.projectId,run.phaseId):""}</div><div className="text-3xl font-medium tabular-nums">{elapsed}</div></div>
               <div className="ml-auto flex items-center gap-2">
-                <button onClick={stop} className="flex items-center gap-1.5 bg-card text-foreground text-sm font-semibold px-3 py-2 rounded-lg hover:bg-muted"><Square size={14}/> Stop &amp; log</button>
-                <button onClick={openPip} title="Pop out floating timer" className="grid place-items-center w-10 h-10 rounded-lg bg-white/20 text-white hover:bg-white/30"><PictureInPicture2 size={17}/></button>
-                <button onClick={cancel} title="Discard" className="text-white/80 hover:text-white"><X size={18}/></button>
+                <Button variant="secondary" onClick={stop}><Square data-icon="inline-start"/> Stop &amp; log</Button>
+                <Button variant="secondary" size="icon" title="Pop out floating timer" onClick={openPip}><PictureInPicture2/></Button>
+                <Button variant="secondary" size="icon" title="Discard" onClick={cancel}><X/></Button>
               </div>
             </div>
-          ) : <div className="text-sm text-muted-foreground/70">Not tracking — tap one of today's projects below, or start another.</div>}
+          ) : <div className="text-sm text-muted-foreground">Not tracking — tap one of today's projects below, or start another.</div>}
         </div>
 
-        {!run && <div className="space-y-4">
+        {!run && <div className="flex flex-col gap-4">
           <div>
-            <div className="text-sm font-semibold text-muted-foreground mb-2">Today's Projects</div>
-            <div className="space-y-2">
-              {projectBubbles.length===0 && <div className="text-xs text-muted-foreground/70">No projects assigned to you today — use Start another or Manual below.</div>}
+            <div className="text-sm font-medium text-muted-foreground mb-2">Today's Projects</div>
+            <div className="flex flex-col gap-2">
+              {projectBubbles.length===0 && <div className="text-sm text-muted-foreground">No projects assigned to you today — use Start another or Manual below.</div>}
               {projectBubbles.map(b=><BigBubble key={b.projectId+"|"+b.phaseId} onClick={()=>start(b.projectId,b.phaseId)} color={colorOf(b.projectId)} top={labProj(b.projectId)} sub={phName(b.projectId,b.phaseId)} mins={minsFor(b.projectId,b.phaseId)} title={"Start "+labTop(b.projectId)}/>)}
             </div>
           </div>
           <div>
-            <div className="text-sm font-semibold text-muted-foreground mb-2">Tasks</div>
-            <div className="space-y-2">
-              {taskItems.length===0 && <div className="text-xs text-muted-foreground/70">No tasks assigned to you today.</div>}
+            <div className="text-sm font-medium text-muted-foreground mb-2">Tasks</div>
+            <div className="flex flex-col gap-2">
+              {taskItems.length===0 && <div className="text-sm text-muted-foreground">No tasks assigned to you today.</div>}
               {taskItems.map(t=><BigBubble key={t.key} onClick={()=>startTask(t.id)} color={NAVY} top="Task" sub={t.title} mins={minsForTask(t.id)} title="Start task"/>)}
             </div>
           </div>
         </div>}
 
-        {!run && <div className="rounded-xl border border-border bg-card p-3 flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-medium text-muted-foreground/70 flex items-center gap-1 shrink-0"><Play size={12}/> Start another</span>
-          <NativeSelect value={selP} onChange={e=>{setSelP(e.target.value);setSelPh("");}} ><option value="">Project…</option>{groups.map(grp)}</NativeSelect>
-          {selproj?.phases?.length>0 && <NativeSelect value={selPh} onChange={e=>setSelPh(e.target.value)} ><option value="">No phase</option>{selproj.phases.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</NativeSelect>}
-          <button onClick={()=>{ start(selP,selPh); setSelP(""); setSelPh(""); }} disabled={!selP} className="flex items-center gap-1.5 bg-green-600 text-white text-sm font-semibold px-3 py-1.5 rounded-lg hover:bg-green-700 disabled:opacity-40"><Play size={14}/> Start</button>
+        {!run && <div className="rounded-xl border bg-card p-3 flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium text-muted-foreground flex items-center gap-1 shrink-0"><Play size={12}/> Start another</span>
+          <ProjectSelect value={selP} onValueChange={(v)=>{setSelP(v);setSelPh("");}} groups={groups}/>
+          {selproj?.phases?.length>0 && <PhaseSelect value={selPh} onValueChange={setSelPh} phases={selproj.phases}/>}
+          <Button onClick={()=>{ start(selP,selPh); setSelP(""); setSelPh(""); }} disabled={!selP}><Play data-icon="inline-start"/> Start</Button>
         </div>}
 
-        {mayManual && <div className="rounded-xl border border-border bg-card p-3 flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-medium text-muted-foreground/70 flex items-center gap-1 shrink-0"><Plus size={12}/> Log manually</span>
-          <NativeSelect value={mP} onChange={e=>{setMP(e.target.value);setMPh("");}} ><option value="">Project…</option>{groups.map(grp)}</NativeSelect>
-          {mproj?.phases?.length>0 && <NativeSelect value={mPh} onChange={e=>setMPh(e.target.value)} ><option value="">No phase</option>{mproj.phases.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</NativeSelect>}
-          <input type="date" value={mDate} onChange={e=>setMDate(e.target.value)} className="text-sm rounded-lg border border-border px-2 py-1.5 outline-none"/>
-          <input type="number" min="0" value={mH} onChange={e=>setMH(e.target.value)} className="w-12 text-sm rounded-lg border border-border px-2 py-1.5 outline-none"/><span className="text-xs text-muted-foreground/70">h</span>
-          <input type="number" min="0" max="59" value={mM} onChange={e=>setMM(e.target.value)} className="w-12 text-sm rounded-lg border border-border px-2 py-1.5 outline-none"/><span className="text-xs text-muted-foreground/70">m</span>
-          <button onClick={addManual} disabled={!mP} className="bg-primary text-primary-foreground text-sm font-semibold px-3 py-1.5 rounded-lg hover:bg-primary/80 disabled:opacity-40">Add</button>
+        {mayManual && <div className="rounded-xl border bg-card p-3 flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium text-muted-foreground flex items-center gap-1 shrink-0"><Plus size={12}/> Log manually</span>
+          <ProjectSelect value={mP} onValueChange={(v)=>{setMP(v);setMPh("");}} groups={groups}/>
+          {mproj?.phases?.length>0 && <PhaseSelect value={mPh} onValueChange={setMPh} phases={mproj.phases}/>}
+          <Popover open={mDateOpen} onOpenChange={setMDateOpen}>
+            <PopoverTrigger render={<Button variant="outline" />}><CalendarIcon/> {mDate}</PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <CalendarPicker mode="single" selected={parseISO(mDate)} onSelect={(d)=>{ if(d){ setMDate(toISO(d)); setMDateOpen(false); } }} defaultMonth={parseISO(mDate)} />
+            </PopoverContent>
+          </Popover>
+          <InputGroup className="w-20"><InputGroupInput type="number" min="0" value={mH} onChange={e=>setMH(e.target.value)}/><InputGroupAddon align="inline-end"><InputGroupText>h</InputGroupText></InputGroupAddon></InputGroup>
+          <InputGroup className="w-20"><InputGroupInput type="number" min="0" max="59" value={mM} onChange={e=>setMM(e.target.value)}/><InputGroupAddon align="inline-end"><InputGroupText>m</InputGroupText></InputGroupAddon></InputGroup>
+          <Button onClick={addManual} disabled={!mP}>Add</Button>
         </div>}
 
-        <div className="rounded-xl border border-border bg-card p-3">
-          <div className="text-xs font-semibold text-muted-foreground mb-2">Logged today — {hm(todayMins)}</div>
+        <div className="rounded-xl border bg-card p-3">
+          <div className="text-sm font-medium text-muted-foreground mb-2">Logged today — {hm(todayMins)}</div>
           <div className="flex flex-col gap-1">
-            {todayEntries.length===0 && <span className="text-xs text-muted-foreground/70">Nothing logged yet today.</span>}
+            {todayEntries.length===0 && <span className="text-sm text-muted-foreground">Nothing logged yet today.</span>}
             {todayEntries.map(l=>{ const editing=editId===l.id; return (
               <div key={l.id} className="flex items-center gap-2 text-sm">
-                <span className="w-2.5 h-2.5 rounded-xs shrink-0" style={{background:l.taskId?NAVY:colorOf(l.projectId)}}/>
-                <span className="text-foreground/80 truncate">{l.taskId?("Task · "+((taskById(l.taskId)||{}).title||"task")):(labProj(l.projectId)+(phName(l.projectId,l.phaseId)?" · "+phName(l.projectId,l.phaseId):""))}</span>
-                <span className="text-muted-foreground/40" style={{fontSize:11}}>{l.source}</span>
+                <span className="size-2.5 rounded-xs shrink-0" style={{background:l.taskId?NAVY:colorOf(l.projectId)}}/>
+                <span className="truncate">{l.taskId?("Task · "+((taskById(l.taskId)||{}).title||"task")):(labProj(l.projectId)+(phName(l.projectId,l.phaseId)?" · "+phName(l.projectId,l.phaseId):""))}</span>
+                <span className="text-xs text-muted-foreground">{l.source}</span>
                 {editing ? (<span className="ml-auto flex items-center gap-1 flex-wrap justify-end">
-                  {!l.taskId && <NativeSelect value={eProj} onChange={e=>{setEProj(e.target.value);setEPh("");}} className="max-w-[130px]"><option value="">No project</option>{groups.map(grp)}</NativeSelect>}
-                  {!l.taskId && projById(eProj)?.phases?.length>0 && <NativeSelect value={ePh} onChange={e=>setEPh(e.target.value)} className="max-w-[120px]"><option value="">No phase</option>{projById(eProj).phases.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</NativeSelect>}
-                  <input type="number" min="0" value={eH} onChange={e=>setEH(e.target.value)} className="w-11 rounded border border-border px-1.5 py-1 outline-none"/><span className="text-xs text-muted-foreground/70">h</span>
-                  <input type="number" min="0" max="59" value={eM} onChange={e=>setEM(e.target.value)} className="w-11 rounded border border-border px-1.5 py-1 outline-none"/><span className="text-xs text-muted-foreground/70">m</span>
-                  <button onClick={()=>saveEdit(l)} className="text-xs font-semibold text-primary-foreground bg-primary px-2 py-1 rounded">Save</button>
-                  <button onClick={()=>setEditId(null)} className="text-muted-foreground/70 hover:text-foreground"><X size={15}/></button>
-                </span>) : (<span className="ml-auto flex items-center gap-2">
-                  <span className="font-medium text-foreground/80 tabular-nums">{hm(l.minutes)}</span>
-                  <button onClick={()=>beginEdit(l)} className="text-muted-foreground/40 hover:text-primary-foreground"><Pencil size={13}/></button>
-                  <button onClick={()=>delTimeLogs([l.id])} className="text-muted-foreground/40 hover:text-destructive"><Trash2 size={13}/></button>
+                  {!l.taskId && <ProjectSelect value={eProj} onValueChange={(v)=>{setEProj(v);setEPh("");}} groups={groups} placeholder="No project" className="max-w-36"/>}
+                  {!l.taskId && projById(eProj)?.phases?.length>0 && <PhaseSelect value={ePh} onValueChange={setEPh} phases={projById(eProj).phases} className="max-w-32"/>}
+                  <InputGroup className="w-20"><InputGroupInput type="number" min="0" value={eH} onChange={e=>setEH(e.target.value)}/><InputGroupAddon align="inline-end"><InputGroupText>h</InputGroupText></InputGroupAddon></InputGroup>
+                  <InputGroup className="w-20"><InputGroupInput type="number" min="0" max="59" value={eM} onChange={e=>setEM(e.target.value)}/><InputGroupAddon align="inline-end"><InputGroupText>m</InputGroupText></InputGroupAddon></InputGroup>
+                  <Button onClick={()=>saveEdit(l)}>Save</Button>
+                  <Button variant="ghost" size="icon" title="Cancel" onClick={()=>setEditId(null)}><X/></Button>
+                </span>) : (<span className="ml-auto flex items-center gap-1">
+                  <span className="font-medium tabular-nums">{hm(l.minutes)}</span>
+                  <Button variant="ghost" size="icon-xs" title="Edit" onClick={()=>beginEdit(l)}><Pencil/></Button>
+                  <Button variant="ghost" size="icon-xs" title="Delete" onClick={()=>delTimeLogs([l.id])}><Trash2/></Button>
                 </span>)}
               </div>);})}
           </div>
         </div>
 
-        <div className="rounded-xl border border-border bg-card p-3">
-          <div className="text-xs font-semibold text-muted-foreground mb-2">This week</div>
+        <div className="rounded-xl border bg-card p-3">
+          <div className="text-sm font-medium text-muted-foreground mb-2">This week</div>
           <div className="grid grid-cols-7 gap-1.5">
             {weekDays.map(d=>{ const t=dayTot(d); const isToday=toISO(d)===todayISO; return (
-              <div key={toISO(d)} className={`rounded-lg border px-1 py-2 text-center ${isToday?"border-primary/40 bg-primary/10":"border-border/60"}`}>
-                <div className="text-[10px] text-muted-foreground/70">{DOW[d.getDay()]} {pad(d.getDate())}</div>
-                <div className="text-sm font-semibold text-foreground/80 mt-0.5">{t?fmtH(t/60):"·"}</div>
+              <div key={toISO(d)} className={`rounded-lg border px-1 py-2 text-center ${isToday?"border-primary/40 bg-primary/10":""}`}>
+                <div className="text-xs text-muted-foreground">{DOW[d.getDay()]} {pad(d.getDate())}</div>
+                <div className="text-sm font-medium mt-0.5">{t?fmtH(t/60):"·"}</div>
               </div>);})}
           </div>
         </div>

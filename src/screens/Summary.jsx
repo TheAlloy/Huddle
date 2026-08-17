@@ -139,7 +139,7 @@ function SummaryView(ctx) {
           <div className="flex items-center gap-1.5 rounded-lg border border-border px-2 h-8"><Building2 size={14} className="text-muted-foreground/70"/>
             <Select value={cf} onValueChange={setCf} items={{all:"All clients",...Object.fromEntries(data.clients.map(c=>[c.id,c.name]))}}>
               <SelectTrigger size="sm"><SelectValue/></SelectTrigger>
-              <SelectContent><SelectGroup><SelectItem value="all">All clients</SelectItem>{data.clients.map(c=><SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectGroup></SelectContent>
+              <SelectContent className="w-auto min-w-(--anchor-width)"><SelectGroup><SelectItem value="all">All clients</SelectItem>{data.clients.map(c=><SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectGroup></SelectContent>
             </Select>
           </div>
         </> : <span className="text-sm font-medium text-foreground/80">Holiday year · {pad(hs.getDate())} {MONTHS[hs.getMonth()]} {hs.getFullYear()} – {pad(he.getDate())} {MONTHS[he.getMonth()]} {he.getFullYear()}</span>}

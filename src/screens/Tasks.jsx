@@ -79,8 +79,8 @@ function InternalBoard(ctx){
         <div className="ml-auto flex items-center gap-2">
           {myMemberId && <label className="flex items-center gap-2 text-sm cursor-pointer"><Checkbox checked={mineOnly} onCheckedChange={(v)=>setMineOnly(!!v)}/> Mine only</label>}
           <Select value={teamF} onValueChange={setTeamF} items={{all:"All teams",...Object.fromEntries(teamList.map(t=>[t,t]))}}>
-            <SelectTrigger size="sm"><SelectValue/></SelectTrigger>
-            <SelectContent><SelectGroup><SelectItem value="all">All teams</SelectItem>{teamList.map(t=><SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectGroup></SelectContent>
+            <SelectTrigger><SelectValue/></SelectTrigger>
+            <SelectContent className="w-auto min-w-(--anchor-width)"><SelectGroup><SelectItem value="all">All teams</SelectItem>{teamList.map(t=><SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectGroup></SelectContent>
           </Select>
           {ctx.canEdit && <Button onClick={()=>setModal({type:"task",payload:{__new:true}})}><Plus data-icon="inline-start" /> Add task</Button>}
         </div>
@@ -123,7 +123,7 @@ function TaskForm({ task, members, teams=[], projects=[], clients=[], onSave, on
         <Field label="Related project (optional)">
           <Select value={projectId} onValueChange={(v)=>{setProjectId(v);setPhaseId("");}} items={projectItems}>
             <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
-            <SelectContent>
+            <SelectContent className="w-auto min-w-(--anchor-width)">
               <SelectGroup><SelectItem value="">— none —</SelectItem></SelectGroup>
               {projectGroups.map(g=>(
                 <SelectGroup key={g.client?g.client.id:"none"}>

@@ -2,8 +2,8 @@ import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffe
 import { sb } from "../lib/supabase.js";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
-import { inputCls, textareaCls, Field, Avatar } from "../ui.jsx";
-import { toast } from "sonner";
+import { Field, Avatar } from "../ui.jsx";
+import { toast } from "@/components/ui/toast";
 import { phaseRanges, ModalShell, ModalHead, ModalFoot } from "../studio/core.jsx";
 import { InviteModal } from "./Team.jsx";
 import { ProjectModal } from "./Projects.jsx";
@@ -13,7 +13,10 @@ import { Button } from "@/components/ui/button";
 import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
 import {
   Plus, X, ChevronLeft, ChevronRight, Search, Trash2, AlertTriangle, Users,
   Pencil, ZoomIn, ZoomOut, Plane, Building2, Calendar, Play, Square,
@@ -80,7 +83,7 @@ function openFloatingTimer({ getTop, getElapsed, onStop }){
     return window.documentPictureInPicture.requestWindow({width:340,height:64}).then(wire).catch(()=>null);
   }
   const w=(typeof window!=="undefined") ? window.open("","studioTimer","width=340,height=120") : null;
-  if(!w){ toast.error("Pop-out was blocked — allow pop-ups for this site (or use Chrome/Edge for an always-on-top timer)."); return Promise.resolve(null); }
+  if(!w){ toast.add({ title: "Pop-out was blocked — allow pop-ups for this site (or use Chrome/Edge for an always-on-top timer).", type: "error" }); return Promise.resolve(null); }
   return Promise.resolve(wire(w));
 }
 
@@ -409,7 +412,7 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
     if(kind==="leave") onSave({...base,kind:"leave",leaveType,projectId:null,phaseId:null,startTime:partDay?sTime:null,endTime:partDay?eTime:null});
     else onSave({...base,kind:"work",projectId,phaseId:phaseId||null,leaveType:null}, phaseId?{projectId,phaseId,hours:phaseHours===""?null:Number(phaseHours)}:null);
   };
-  return (<ModalShell onClose={onClose}><ModalHead title={assignment?"Edit assignment":"Assign work"} onClose={onClose}/><div className="p-5">
+  return (<ModalShell onClose={onClose}><ModalHead title={assignment?"Edit assignment":"Assign work"} onClose={onClose}/><div>
     {!assignment
       ? <div className="flex gap-2 mb-4">{[["work","Project work"],["leave","Time off"],["internal","Tasks"]].map(([v,l])=><button key={v} onClick={()=>setKind(v)} className={`flex-1 text-sm py-2 rounded-lg border ${kind===v?"border-primary bg-primary/10 text-primary-foreground":"border-border text-muted-foreground"}`}>{l}</button>)}</div>
       : <div className="mb-4 text-xs inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted text-muted-foreground">{kind==="leave"?"Time off":kind==="internal"?"Task":"Project work"}</div>}
@@ -418,14 +421,22 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
       <Field label="Project"><NativeSelect className="w-full" value={projectId} onChange={e=>{ if(e.target.value==="__new__"){ onNewProject&&onNewProject(); return; } setProjectId(e.target.value);setPhaseId(""); }}>{projectsByClient(projects,clients).map(g=>(<optgroup key={g.client?g.client.id:"none"} label={g.client?g.client.name:"No client"}>{g.projects.map(p=><option key={p.id} value={p.id}>{p.index} — {p.name}</option>)}</optgroup>))}{onNewProject && <option value="__new__">➕ New project / client…</option>}</NativeSelect></Field>
       {client && <div className="-mt-1 mb-3 flex items-center gap-2 text-xs text-muted-foreground"><span className="w-3 h-3 rounded-xs" style={{background:client.color}}/>Client: <span className="font-medium text-foreground/80">{client.name} · {proj.index} {proj.name}</span></div>}
       {proj?.phases?.length>0 && <Field label="Phase"><NativeSelect className="w-full" value={phaseId} onChange={e=>setPhaseId(e.target.value)}><option value="">— none —</option>{proj.phases.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</NativeSelect></Field>}
-      {phaseId && <Field label="Monitor designer hours for this phase (optional)"><input type="number" min="0" className={inputCls} value={phaseHours} onChange={e=>setPhaseHours(e.target.value)} placeholder="e.g. 20"/><p className="text-xs text-muted-foreground/70 mt-1">Sets the hours budget for this phase across the whole project — the bar fills up as time is logged. Leave blank for no monitoring.</p></Field>}
+      {phaseId && <Field label="Monitor designer hours for this phase (optional)"><Input type="number" min="0" value={phaseHours} onChange={e=>setPhaseHours(e.target.value)} placeholder="e.g. 20"/><p className="text-xs text-muted-foreground/70 mt-1">Sets the hours budget for this phase across the whole project — the bar fills up as time is logged. Leave blank for no monitoring.</p></Field>}
     </>) : kind==="internal" ? (<>
       <Field label="Task" error={errs.taskId}><NativeSelect className="w-full" value={taskId} onChange={e=>setTaskId(e.target.value)}><option value="">Choose a task…</option>{tasks.filter(t=>t.status!=="done").map(t=><option key={t.id} value={t.id}>{t.title}</option>)}<option value="__new__">➕ New task…</option></NativeSelect></Field>
       {taskId==="__new__" ? (<>
-        <Field label="New task" error={errs.taskTitle}><input className={inputCls} value={taskTitle} onChange={e=>setTaskTitle(e.target.value)} placeholder="e.g. Improve our SEO"/></Field>
+        <Field label="New task" error={errs.taskTitle}><Input value={taskTitle} onChange={e=>setTaskTitle(e.target.value)} placeholder="e.g. Improve our SEO"/></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Importance"><NativeSelect className="w-full" value={taskPri} onChange={e=>setTaskPri(e.target.value)}><option value="high">High</option><option value="med">Medium</option><option value="low">Low</option></NativeSelect></Field>
-          <Field label="Team (optional)"><input className={inputCls} value={taskTeam} list="assign-teams" onChange={e=>setTaskTeam(e.target.value)} placeholder="optional"/><datalist id="assign-teams">{teams.map(t=><option key={t} value={t}/>)}</datalist></Field>
+          <Field label="Team (optional)">
+            <Combobox items={teams} inputValue={taskTeam} onInputValueChange={setTaskTeam}>
+              <ComboboxInput placeholder="optional" />
+              <ComboboxContent>
+                <ComboboxEmpty>No teams yet — type to create one.</ComboboxEmpty>
+                <ComboboxList>{(item) => <ComboboxItem key={item} value={item}>{item}</ComboboxItem>}</ComboboxList>
+              </ComboboxContent>
+            </Combobox>
+          </Field>
         </div>
         <p className="text-xs text-muted-foreground/70 -mt-1 mb-1">Creates the task on the Tasks board and puts it on this person's timeline.</p>
       </>) : <p className="text-xs text-muted-foreground/70 -mt-1 mb-1">Puts this task on the person's timeline so it shows as one of today's projects and can be tracked.</p>}
@@ -433,16 +444,16 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
       <Field label="Type"><NativeSelect className="w-full" value={leaveType} onChange={e=>setLeaveType(e.target.value)}>{Object.entries(LEAVE_TYPES).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</NativeSelect></Field>
     )}
     <div className="grid grid-cols-3 gap-3">
-      <Field label="Start date"><input type="date" className={inputCls} value={start} onChange={e=>onStartCh(e.target.value)}/></Field>
-      <Field label="Duration (weeks)"><input type="number" min="0.2" step="0.5" className={inputCls} value={dur} onChange={e=>onDurCh(e.target.value)}/></Field>
-      <Field label="End date" error={errs.dates}><input type="date" className={inputCls} value={end} onChange={e=>onEndCh(e.target.value)}/></Field>
+      <Field label="Start date"><Input type="date" value={start} onChange={e=>onStartCh(e.target.value)}/></Field>
+      <Field label="Duration (weeks)"><Input type="number" min="0.2" step="0.5" value={dur} onChange={e=>onDurCh(e.target.value)}/></Field>
+      <Field label="End date" error={errs.dates}><Input type="date" value={end} onChange={e=>onEndCh(e.target.value)}/></Field>
     </div>
     <p className="text-xs text-muted-foreground/70 -mt-1">Set a start + duration and the end fills in (1 week = 5 working days), or pick the end date directly.</p>
     {kind==="leave" && <div className="mt-2 mb-1">
       <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer"><input type="checkbox" checked={partDay} onChange={e=>setPartDay(e.target.checked)} className="w-4 h-4"/> Part-day (take only part of the first / last day)</label>
       {partDay && <div className="mt-2 grid grid-cols-2 gap-3">
-        <Field label="First day starts"><input type="time" className={inputCls} value={sTime} onChange={e=>setSTime(e.target.value)}/></Field>
-        <Field label="Last day ends"><input type="time" className={inputCls} value={eTime} onChange={e=>setETime(e.target.value)}/></Field>
+        <Field label="First day starts"><Input type="time" value={sTime} onChange={e=>setSTime(e.target.value)}/></Field>
+        <Field label="Last day ends"><Input type="time" value={eTime} onChange={e=>setETime(e.target.value)}/></Field>
         <p className="col-span-2 text-xs text-muted-foreground/70 -mt-2">Based on a {WORKDAY_H}-hour day ({pad(WORK_START)}:00–{pad(WORK_END)}:00). For a single-day half, set both times on that day (e.g. 09:00–13:00 = half a day).</p>
       </div>}
     </div>}
@@ -706,7 +717,7 @@ function ProposalForm({ org, clients, members, anchor, onCreate, onClose }) {
   };
   const lastEnd=phases.length?phaseRanges(startDate,phases.map(p=>({id:p.id,name:p.name,days:Math.max(1,Math.round(p.days||1))}))).slice(-1)[0].end:null;
   if(step==="input"){
-    return (<ModalShell onClose={onClose}><ModalHead title="New project from a proposal" onClose={onClose}/><div className="p-5">
+    return (<ModalShell onClose={onClose}><ModalHead title="New project from a proposal" onClose={onClose}/><div>
       <p className="text-sm text-muted-foreground mb-4 flex items-start gap-2"><Sparkles size={16} className="text-violet-500 mt-0.5 shrink-0"/> Drop in a proposal and AI will pull out the client, phases, durations and value for you to review.</p>
       <label className="block border-2 border-dashed border-border rounded-xl p-5 text-center cursor-pointer hover:border-violet-400 hover:bg-violet-50/40 mb-3">
         <input type="file" accept=".pdf,.txt,.md,.markdown,application/pdf,text/plain" className="hidden" onChange={e=>onFile(e.target.files[0])}/>
@@ -716,26 +727,26 @@ function ProposalForm({ org, clients, members, anchor, onCreate, onClose }) {
       </label>
       <div className="text-xs text-muted-foreground/70 mb-1">…or paste the proposal text</div>
       <textarea value={paste} onChange={e=>setPaste(e.target.value)} rows={5} className="w-full text-sm rounded-lg border border-border px-3 py-2 outline-none focus:border-violet-400 mb-3" placeholder="Paste here…"/>
-      <Field label="Project start date"><input type="date" className={inputCls} value={startDate} onChange={e=>setStartDate(e.target.value)}/></Field>
+      <Field label="Project start date"><Input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)}/></Field>
       {error && <p className="text-sm text-destructive mb-2">{error}</p>}
     </div>
     <div className="flex items-center gap-2 px-5 py-4 border-t border-border/60">
       <button onClick={extract} disabled={busy} className="ml-auto flex items-center gap-2 text-sm bg-violet-600 text-white px-4 py-2 rounded-lg hover:bg-violet-700 disabled:opacity-60"><Sparkles size={15}/> {busy?"Reading proposal…":"Extract with AI"}</button>
     </div></ModalShell>);
   }
-  return (<ModalShell onClose={onClose}><ModalHead title="Review & create" onClose={onClose}/><div className="p-5">
+  return (<ModalShell onClose={onClose}><ModalHead title="Review & create" onClose={onClose}/><div>
     {confidence && <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4 flex items-start gap-1.5"><AlertTriangle size={13} className="mt-0.5 shrink-0"/><span>{confidence} — check everything below before creating.</span></div>}
     <Field label="Client">
       <div className="flex gap-2 mb-2">{[["existing","Existing"],["new","New client"]].map(([v,l])=><button key={v} onClick={()=>setClientMode(v)} className={`flex-1 text-sm py-2 rounded-lg border ${clientMode===v?"border-violet-500 bg-violet-50 text-violet-700":"border-border text-muted-foreground"}`}>{l}</button>)}</div>
       {clientMode==="existing"
         ? <NativeSelect className="w-full" value={existingClientId} onChange={e=>setExistingClientId(e.target.value)}>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</NativeSelect>
-        : <div><input className={inputCls+" mb-2"} value={newClientName} onChange={e=>setNewClientName(e.target.value)} placeholder="Client name"/><div className="flex flex-wrap gap-2">{CLIENT_COLORS.map(c=><button key={c} onClick={()=>setNewClientColor(c)} className="w-7 h-7 rounded-lg" style={{background:c,outline:newClientColor===c?"2px solid var(--ring)":"none",outlineOffset:2}}/>)}</div></div>}
+        : <div><Input className="mb-2" value={newClientName} onChange={e=>setNewClientName(e.target.value)} placeholder="Client name"/><div className="flex flex-wrap gap-2">{CLIENT_COLORS.map(c=><button key={c} onClick={()=>setNewClientColor(c)} className="w-7 h-7 rounded-lg" style={{background:c,outline:newClientColor===c?"2px solid var(--ring)":"none",outlineOffset:2}}/>)}</div></div>}
     </Field>
     <div className="grid grid-cols-3 gap-3">
-      <div className="col-span-1"><Field label="Code"><input className={inputCls} value={code} onChange={e=>setCode(e.target.value)} placeholder={autoCode()}/></Field></div>
-      <div className="col-span-2"><Field label="Project name"><input className={inputCls} value={projectName} onChange={e=>setProjectName(e.target.value)}/></Field></div>
+      <div className="col-span-1"><Field label="Code"><Input value={code} onChange={e=>setCode(e.target.value)} placeholder={autoCode()}/></Field></div>
+      <div className="col-span-2"><Field label="Project name"><Input value={projectName} onChange={e=>setProjectName(e.target.value)}/></Field></div>
     </div>
-    <Field label={`Project value ${currency?"("+currency+")":""}`}><input type="number" min="0" className={inputCls} value={cost} onChange={e=>setCost(e.target.value)} placeholder="0"/></Field>
+    <Field label={`Project value ${currency?"("+currency+")":""}`}><Input type="number" min="0" value={cost} onChange={e=>setCost(e.target.value)} placeholder="0"/></Field>
     <Field label="Phases & durations (working days)">
       <div className="space-y-1.5 mb-2">{phases.map((p,i)=>(
         <div key={p.id} className="flex items-center gap-2 text-sm bg-muted/50 rounded-lg px-2.5 py-1.5">
@@ -749,8 +760,8 @@ function ProposalForm({ org, clients, members, anchor, onCreate, onClose }) {
       <button onClick={()=>setPhases([...phases,{id:uid(),name:"",days:5}])} className="text-xs flex items-center gap-1 text-muted-foreground hover:text-foreground"><Plus size={13}/> Add phase</button>
     </Field>
     <div className="grid grid-cols-2 gap-3">
-      <Field label="Start date"><input type="date" className={inputCls} value={startDate} onChange={e=>setStartDate(e.target.value)}/></Field>
-      <Field label="Finishes (calculated)"><div className={inputCls+" bg-muted/50 text-muted-foreground"}>{lastEnd?`${pad(parseISO(lastEnd).getDate())} ${MONTHS[parseISO(lastEnd).getMonth()]} ${parseISO(lastEnd).getFullYear()}`:"—"}</div></Field>
+      <Field label="Start date"><Input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)}/></Field>
+      <Field label="Finishes (calculated)"><Input readOnly disabled value={lastEnd?`${pad(parseISO(lastEnd).getDate())} ${MONTHS[parseISO(lastEnd).getMonth()]} ${parseISO(lastEnd).getFullYear()}`:"—"}/></Field>
     </div>
     <Field label="Assign people (one bar per phase each)">
       <div className="flex flex-wrap gap-1.5">{members.map(m=>(<button key={m.id} onClick={()=>togglePerson(m.id)} className={`text-xs px-2.5 py-1.5 rounded-lg border ${people.includes(m.id)?"border-violet-500 bg-violet-50 text-violet-700":"border-border text-muted-foreground"}`}>{m.name}</button>))}</div>
@@ -838,18 +849,16 @@ export default function Schedule({ org, me, data: cadData, reload, onNavigate, p
           <div className="flex h-8 items-center gap-1.5 rounded-lg border border-input px-2"><Search size={14} className="text-muted-foreground/70"/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search" className="text-sm outline-none w-24 sm:w-32 bg-transparent"/></div>
           <div className="flex h-8 items-center gap-1.5 rounded-lg border border-input px-2"><PeoplePicker members={data.members} teams={teams} value={peopleFilter} onChange={setPeopleFilter} me={me.id}/></div>
           <Select value={holidayFilter} onValueChange={setHolidayFilter} items={{show:"Holidays: show",hide:"Holidays: hide",only:"Holidays: only"}}>
-            <SelectTrigger><Plane size={14} className="text-muted-foreground/70"/><SelectValue/></SelectTrigger>
-            {/* alignItemWithTrigger (the component default) opens macOS-style over
-                the trigger; false drops below like every native select in the app. */}
-            <SelectContent alignItemWithTrigger={false} align="start">
+            <SelectTrigger><Plane /><SelectValue/></SelectTrigger>
+            <SelectContent><SelectGroup>
               <SelectItem value="show">Holidays: show</SelectItem>
               <SelectItem value="hide">Holidays: hide</SelectItem>
               <SelectItem value="only">Holidays: only</SelectItem>
-            </SelectContent>
+            </SelectGroup></SelectContent>
           </Select>
           <div className="flex h-8 items-center gap-1.5 rounded-lg border border-input px-2"><ClientPicker clients={data.clients} value={clientFilter} onChange={setClientFilter}/></div>
-          {canEdit && <Button variant="secondary" onClick={()=>setModal({type:"proposal"})}><Sparkles/> <span className="hidden sm:inline">Proposal</span></Button>}
-          {canEdit && <Button onClick={()=>setModal({type:"assign"})}><Plus/> <span className="hidden sm:inline">Assign Work</span></Button>}
+          {canEdit && <Button variant="secondary" onClick={()=>setModal({type:"proposal"})}><Sparkles data-icon="inline-start" /> <span className="hidden sm:inline">Proposal</span></Button>}
+          {canEdit && <Button onClick={()=>setModal({type:"assign"})}><Plus data-icon="inline-start" /> <span className="hidden sm:inline">Assign Work</span></Button>}
         </div>
       </div>
 
@@ -895,11 +904,11 @@ function ClientForm({ org, client, canEdit, onClose, onSaved }){
   const [addr,setAddr]=useState(client?.billingAddress||"");
   const save=async()=>{ const row={org_id:org.id,name:name.trim(),color,payment_terms:Number(terms)||30,billing_address:addr.trim()||null}; if(client) await sb.from("clients").update(row).eq("id",client.id); else await sb.from("clients").insert(row); onSaved(); };
   const del=async()=>{ if(!(await confirm({title:"Delete this client?", confirmLabel:"Delete", destructive:true}))) return; await sb.from("clients").delete().eq("id",client.id); onSaved(); };
-  return (<ModalShell onClose={onClose}><ModalHead title={client?"Edit client":"Add client"} onClose={onClose}/><div className="p-5">
-    <Field label="Client name"><input className={inputCls} disabled={!canEdit} value={name} onChange={e=>setName(e.target.value)}/></Field>
+  return (<ModalShell onClose={onClose}><ModalHead title={client?"Edit client":"Add client"} onClose={onClose}/><div>
+    <Field label="Client name"><Input disabled={!canEdit} value={name} onChange={e=>setName(e.target.value)}/></Field>
     <Field label="Colour"><div className="flex flex-wrap gap-2">{CLIENT_COLORS.map(c=><button key={c} disabled={!canEdit} onClick={()=>setColor(c)} className="w-8 h-8 rounded-lg" style={{background:c,outline:color===c?"2px solid var(--ring)":"none",outlineOffset:2}}/>)}</div></Field>
-    <Field label="Payment terms (days)"><input type="number" className={inputCls} disabled={!canEdit} value={terms} onChange={e=>setTerms(e.target.value)}/></Field>
-    <Field label="Billing address (for invoices)"><textarea className={textareaCls} rows={3} disabled={!canEdit} value={addr} onChange={e=>setAddr(e.target.value)}/></Field>
+    <Field label="Payment terms (days)"><Input type="number" disabled={!canEdit} value={terms} onChange={e=>setTerms(e.target.value)}/></Field>
+    <Field label="Billing address (for invoices)"><Textarea rows={3} disabled={!canEdit} value={addr} onChange={e=>setAddr(e.target.value)}/></Field>
   </div>{canEdit?<ModalFoot onSave={save} onDelete={client?del:null} saveLabel="Save"/>:<div className="px-5 py-4 border-t border-border/60 text-right"><button onClick={onClose} className="text-sm text-muted-foreground">Close</button></div>}</ModalShell>);
 }
 
@@ -913,16 +922,16 @@ function MemberForm({ org, member, teams, canEdit, onClose, onSaved }){
   const [newTeam,setNewTeam]=useState("");
   const toggle=(t)=>setSel(s=>s.includes(t)?s.filter(x=>x!==t):[...s,t]);
   const save=async()=>{ await sb.from("memberships").update({ display_name:name.trim(), job_title:role.trim()||null, daily_hours:Number(daily)||8, holiday_allowance:Number(allow)||0, hourly_rate:rate===""?null:Number(rate), teams:sel.length?sel:null }).eq("id",member.id); onSaved(); };
-  return (<ModalShell onClose={onClose}><ModalHead title={"Edit "+(member?.name||"person")} onClose={onClose}/><div className="p-5">
-    <Field label="Name"><input className={inputCls} disabled={!canEdit} value={name} onChange={e=>setName(e.target.value)}/></Field>
-    <Field label="Job title / role"><input className={inputCls} disabled={!canEdit} value={role} onChange={e=>setRole(e.target.value)} placeholder="Designer"/></Field>
+  return (<ModalShell onClose={onClose}><ModalHead title={"Edit "+(member?.name||"person")} onClose={onClose}/><div>
+    <Field label="Name"><Input disabled={!canEdit} value={name} onChange={e=>setName(e.target.value)}/></Field>
+    <Field label="Job title / role"><Input disabled={!canEdit} value={role} onChange={e=>setRole(e.target.value)} placeholder="Designer"/></Field>
     <div className="grid grid-cols-3 gap-3">
-      <Field label="Hours / day"><input type="number" className={inputCls} disabled={!canEdit} value={daily} onChange={e=>setDaily(e.target.value)}/></Field>
-      <Field label="Holiday (days/yr)"><input type="number" className={inputCls} disabled={!canEdit} value={allow} onChange={e=>setAllow(e.target.value)}/></Field>
-      <Field label="Rate (£/hr)"><input type="number" className={inputCls} disabled={!canEdit} value={rate} onChange={e=>setRate(e.target.value)} placeholder="—"/></Field>
+      <Field label="Hours / day"><Input type="number" disabled={!canEdit} value={daily} onChange={e=>setDaily(e.target.value)}/></Field>
+      <Field label="Holiday (days/yr)"><Input type="number" disabled={!canEdit} value={allow} onChange={e=>setAllow(e.target.value)}/></Field>
+      <Field label="Rate (£/hr)"><Input type="number" disabled={!canEdit} value={rate} onChange={e=>setRate(e.target.value)} placeholder="—"/></Field>
     </div>
     <Field label="Teams"><div className="flex flex-wrap gap-1.5 mb-2">{teams.map(t=><button key={t} disabled={!canEdit} onClick={()=>toggle(t)} className={`text-xs px-2 py-1 rounded-full border ${sel.includes(t)?"bg-primary text-primary-foreground border-transparent":"border-border text-muted-foreground"}`}>{t}</button>)}</div>
-      {canEdit && <div className="flex gap-2"><input className={inputCls} value={newTeam} onChange={e=>setNewTeam(e.target.value)} placeholder="New team name"/><button onClick={()=>{ if(newTeam.trim()&&!sel.includes(newTeam.trim())){ setSel([...sel,newTeam.trim()]); setNewTeam(""); } }} className="text-sm border border-border rounded-lg px-3">Add</button></div>}
+      {canEdit && <div className="flex gap-2"><Input value={newTeam} onChange={e=>setNewTeam(e.target.value)} placeholder="New team name"/><button onClick={()=>{ if(newTeam.trim()&&!sel.includes(newTeam.trim())){ setSel([...sel,newTeam.trim()]); setNewTeam(""); } }} className="text-sm border border-border rounded-lg px-3">Add</button></div>}
     </Field>
     <p className="text-[11px] text-muted-foreground/70">Roles, permissions and invites are managed on the People page.</p>
   </div>{canEdit?<ModalFoot onSave={save} saveLabel="Save"/>:<div className="px-5 py-4 border-t border-border/60 text-right"><button onClick={onClose} className="text-sm text-muted-foreground">Close</button></div>}</ModalShell>);

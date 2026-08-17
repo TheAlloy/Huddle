@@ -1,14 +1,11 @@
 import React, { useState, useMemo, useRef, useCallback } from "react";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
-import {
-  MS, MONTHS, DOW, pad, toISO, parseISO, startOfDay, addDays, addMonths, startOfMonth, endOfMonth, startOfWeekMon, isWeekday,
-  NAVY, AVATAR_BG, LEAVE_TYPES, initials, fmtH, money, pfList, projectsByClient, leaveDayFraction, holidayYearOf, fmtDayOrdinal, dRange, workdaysBetween,
-  PeoplePicker, mapData, makeHandlers,
-} from "../studio/core.jsx";
+import { MS, MONTHS, DOW, pad, toISO, parseISO, startOfDay, addDays, addMonths, startOfMonth, endOfMonth, startOfWeekMon, isWeekday, NAVY, AVATAR_BG, LEAVE_TYPES, initials, fmtH, money, pfList, projectsByClient, leaveDayFraction, holidayYearOf, fmtDayOrdinal, dRange, workdaysBetween, PeoplePicker, mapData, makeHandlers } from "../studio/core.jsx";
 import { Table2, ChevronLeft, ChevronRight, Calendar, Users, Building2, Plane, Clock, Plus, X, Pencil, Trash2 } from "lucide-react";
 import { useConfirm } from "../components/confirm.tsx";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 function SummaryView(ctx) {
   const confirm = useConfirm();
@@ -140,7 +137,10 @@ function SummaryView(ctx) {
             <PeoplePicker members={data.members} teams={teamList} value={peopleFilter} onChange={(v)=>{setPeople(v);setEdit(null);}} me={myMemberId}/>
           </div>
           <div className="flex items-center gap-1.5 rounded-lg border border-border px-2 h-8"><Building2 size={14} className="text-muted-foreground/70"/>
-            <NativeSelect value={cf} onChange={e=>setCf(e.target.value)} ><option value="all">All clients</option>{data.clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</NativeSelect>
+            <Select value={cf} onValueChange={setCf} items={{all:"All clients",...Object.fromEntries(data.clients.map(c=>[c.id,c.name]))}}>
+              <SelectTrigger size="sm"><SelectValue/></SelectTrigger>
+              <SelectContent><SelectGroup><SelectItem value="all">All clients</SelectItem>{data.clients.map(c=><SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectGroup></SelectContent>
+            </Select>
           </div>
         </> : <span className="text-sm font-medium text-foreground/80">Holiday year · {pad(hs.getDate())} {MONTHS[hs.getMonth()]} {hs.getFullYear()} – {pad(he.getDate())} {MONTHS[he.getMonth()]} {he.getFullYear()}</span>}
         <button onClick={()=>setMode(mode==="holiday"?"logged":"holiday")} className={`ml-auto flex items-center gap-1.5 text-sm px-3 h-8 rounded-lg border ${mode==="holiday"?"bg-orange-500 text-white border-orange-500":"border-border text-muted-foreground hover:bg-muted/50"}`}><Plane size={15}/> {mode==="holiday"?"Back to hours":"Holiday"}</button>

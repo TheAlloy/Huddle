@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
-import {
-  NAVY, DOW, pad, toISO, startOfDay, addDays, startOfWeekMon, hm, fmtClock, fmtH,
-  projectsByClient, lsGet, lsSet, openFloatingTimer, mapData, makeHandlers,
-} from "../studio/core.jsx";
+import { NAVY, DOW, pad, toISO, startOfDay, addDays, startOfWeekMon, hm, fmtClock, fmtH, projectsByClient, lsGet, lsSet, openFloatingTimer, mapData, makeHandlers } from "../studio/core.jsx";
 import { Play, Square, PictureInPicture2, X, Plus, Pencil, Trash2, Clock } from "lucide-react";
 import { NativeSelect } from "@/components/ui/native-select";
 

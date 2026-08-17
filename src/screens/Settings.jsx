@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
-import { Btn, Card, Field, inputCls, textareaCls, Pill, Modal } from "../ui.jsx";
+import { Card, Field, Pill, Modal } from "../ui.jsx";
 import { can } from "../lib/permissions.js";
 import { USAGE_OPTIONS } from "../lib/terms.js";
 import { PlanCard } from "./PlanCard.jsx";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function Settings({ org, me, members, reload }) {
   const [name, setName] = useState(org.name);
@@ -62,8 +65,8 @@ export default function Settings({ org, me, members, reload }) {
       const res = await fetch("/api/billing-portal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: org.id, accessToken: token }) });
       const body = await res.json();
       if (body.url) window.location.href = body.url;
-      else toast.error(body.error || "Billing portal isn't available yet.");
-    } catch (_) { toast.error("Couldn't reach the billing portal (only works on the live site)."); }
+      else toast.add({ title: body.error || "Billing portal isn't available yet.", type: "error" });
+    } catch (_) { toast.add({ title: "Couldn't reach the billing portal (only works on the live site).", type: "error" }); }
     setBusy(false);
   };
 
@@ -73,8 +76,8 @@ export default function Settings({ org, me, members, reload }) {
       const token = (await sb.auth.getSession()).data.session?.access_token;
       const res = await fetch("/api/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: org.id, priceId, accessToken: token }) });
       const body = await res.json();
-      if (body.url) window.location.href = body.url; else toast.error(body.error || "Couldn't start checkout.");
-    } catch (_) { toast.error("Couldn't reach the checkout — it only runs on the live site with Stripe connected."); }
+      if (body.url) window.location.href = body.url; else toast.add({ title: body.error || "Couldn't start checkout.", type: "error" });
+    } catch (_) { toast.add({ title: "Couldn't reach the checkout — it only runs on the live site with Stripe connected.", type: "error" }); }
     setBusy(false);
   };
 
@@ -120,10 +123,10 @@ export default function Settings({ org, me, members, reload }) {
 
       <Card title="Studio">
         <Field label="Studio name">
-          <input className={inputCls} value={name} disabled={!admin} onChange={e => setName(e.target.value)} />
+          <Input value={name} disabled={!admin} onChange={e => setName(e.target.value)} />
         </Field>
         {admin && <div className="flex items-center gap-2">
-          <Btn onClick={save} disabled={busy || !name.trim()}>{busy ? "Saving…" : "Save changes"}</Btn>
+          <Button onClick={save} disabled={busy || !name.trim()}>{busy ? "Saving…" : "Save changes"}</Button>
           {saved && <span className="text-xs text-green-600">Saved.</span>}
         </div>}
         {!admin && <p className="text-xs text-muted-foreground/70">Only owners and administrators can change these.</p>}
@@ -138,7 +141,7 @@ export default function Settings({ org, me, members, reload }) {
           {liveSub?.status === "trialing"
             ? <Pill color="#2f80ed">Free trial{liveSub.trialEnd ? " — " + Math.max(0, Math.ceil((liveSub.trialEnd * 1000 - Date.now()) / 86400000)) + " days left" : ""}</Pill>
             : <Pill color={org.status === "active" ? "#27ae60" : org.status === "past_due" ? "#f59e0b" : "#eb5757"}>{org.status}</Pill>}
-          {admin && <Btn variant="outline" className="ml-auto" onClick={openBillingPortal} disabled={busy}>Manage billing</Btn>}
+          {admin && <Button variant="outline" className="ml-auto" onClick={openBillingPortal} disabled={busy}>Manage billing</Button>}
         </div>
         <div className="text-xs text-muted-foreground/70 mt-3">
           {liveSub?.status === "trialing" && liveSub.trialEnd
@@ -163,23 +166,23 @@ export default function Settings({ org, me, members, reload }) {
       {admin && <Card title="Invoice details">
         <p className="text-xs text-muted-foreground mb-3">These print on the PDF invoices you download from Billing. Leave anything blank to omit it.</p>
         <div className="grid sm:grid-cols-2 gap-3">
-          <Field label="Company name"><input className={inputCls} value={inv.company || ""} onChange={e => setF("company", e.target.value)} placeholder={org.name} /></Field>
-          <Field label="VAT number"><input className={inputCls} value={inv.vat || ""} onChange={e => setF("vat", e.target.value)} placeholder="GB 000 0000 00" /></Field>
+          <Field label="Company name"><Input value={inv.company || ""} onChange={e => setF("company", e.target.value)} placeholder={org.name} /></Field>
+          <Field label="VAT number"><Input value={inv.vat || ""} onChange={e => setF("vat", e.target.value)} placeholder="GB 000 0000 00" /></Field>
         </div>
-        <Field label="Company address (one line each)"><textarea className={textareaCls} rows={3} value={inv.address || ""} onChange={e => setF("address", e.target.value)} placeholder={"Building 2\nYour Street\nTown, Postcode"} /></Field>
-        <Field label="Contact email(s) for invoice queries"><input className={inputCls} value={inv.emails || ""} onChange={e => setF("emails", e.target.value)} placeholder="accounts@yourstudio.com" /></Field>
+        <Field label="Company address (one line each)"><Textarea rows={3} value={inv.address || ""} onChange={e => setF("address", e.target.value)} placeholder={"Building 2\nYour Street\nTown, Postcode"} /></Field>
+        <Field label="Contact email(s) for invoice queries"><Input value={inv.emails || ""} onChange={e => setF("emails", e.target.value)} placeholder="accounts@yourstudio.com" /></Field>
         <div className="text-xs font-semibold text-muted-foreground mt-2 mb-1">Bank details (printed under “pay by transfer”)</div>
         <div className="grid sm:grid-cols-2 gap-3">
-          <Field label="Account name"><input className={inputCls} value={inv.bankName || ""} onChange={e => setF("bankName", e.target.value)} /></Field>
-          <Field label="Bank / branch"><input className={inputCls} value={inv.bankBranch || ""} onChange={e => setF("bankBranch", e.target.value)} /></Field>
-          <Field label="Sort code"><input className={inputCls} value={inv.sort || ""} onChange={e => setF("sort", e.target.value)} /></Field>
-          <Field label="Account number"><input className={inputCls} value={inv.account || ""} onChange={e => setF("account", e.target.value)} /></Field>
-          <Field label="IBAN"><input className={inputCls} value={inv.iban || ""} onChange={e => setF("iban", e.target.value)} /></Field>
-          <Field label="SWIFT / BIC"><input className={inputCls} value={inv.swift || ""} onChange={e => setF("swift", e.target.value)} /></Field>
+          <Field label="Account name"><Input value={inv.bankName || ""} onChange={e => setF("bankName", e.target.value)} /></Field>
+          <Field label="Bank / branch"><Input value={inv.bankBranch || ""} onChange={e => setF("bankBranch", e.target.value)} /></Field>
+          <Field label="Sort code"><Input value={inv.sort || ""} onChange={e => setF("sort", e.target.value)} /></Field>
+          <Field label="Account number"><Input value={inv.account || ""} onChange={e => setF("account", e.target.value)} /></Field>
+          <Field label="IBAN"><Input value={inv.iban || ""} onChange={e => setF("iban", e.target.value)} /></Field>
+          <Field label="SWIFT / BIC"><Input value={inv.swift || ""} onChange={e => setF("swift", e.target.value)} /></Field>
         </div>
         <div className="grid sm:grid-cols-2 gap-3">
-          <Field label="Accent colour (hex)"><input className={inputCls} value={inv.accent || ""} onChange={e => setF("accent", e.target.value)} placeholder="#1f2d4e" /></Field>
-          <Field label="Short logo text (top of invoice)"><input className={inputCls} value={inv.logoText || ""} onChange={e => setF("logoText", e.target.value)} placeholder={org.name?.split(" ")[0] || "Studio"} /></Field>
+          <Field label="Accent colour (hex)"><Input value={inv.accent || ""} onChange={e => setF("accent", e.target.value)} placeholder="#1f2d4e" /></Field>
+          <Field label="Short logo text (top of invoice)"><Input value={inv.logoText || ""} onChange={e => setF("logoText", e.target.value)} placeholder={org.name?.split(" ")[0] || "Studio"} /></Field>
         </div>
 
         <div className="mt-2 mb-3 rounded-xl border border-border p-3">
@@ -191,7 +194,7 @@ export default function Settings({ org, me, members, reload }) {
               {inv.letterhead ? "Replace image" : "Upload image"}
               <input type="file" accept="image/png,image/jpeg" className="hidden" onChange={e => {
                 const f = e.target.files && e.target.files[0]; if (!f) return;
-                if (f.size > 900000) { toast.error("That image is a bit large — please use one under ~600–900 KB so invoices stay quick to generate."); return; }
+                if (f.size > 900000) { toast.add({ title: "That image is a bit large — please use one under ~600–900 KB so invoices stay quick to generate.", type: "error" }); return; }
                 const r = new FileReader(); r.onload = () => setF("letterhead", r.result); r.readAsDataURL(f);
               }} />
             </label>
@@ -201,7 +204,7 @@ export default function Settings({ org, me, members, reload }) {
           <p className="text-[11px] text-muted-foreground/70 mt-2">Banner mode (default) sits your header across the top and prints the invoice below it. Tick "full-page background" only if your image is a complete A4 template with space left in the middle for the invoice text.</p>
         </div>
 
-        <div className="flex items-center gap-2"><Btn onClick={saveInvoice} disabled={busy}>Save invoice details</Btn>{invSaved && <span className="text-xs text-green-600">Saved.</span>}</div>
+        <div className="flex items-center gap-2"><Button onClick={saveInvoice} disabled={busy}>Save invoice details</Button>{invSaved && <span className="text-xs text-green-600">Saved.</span>}</div>
       </Card>}
 
       {admin && <Card title="How you use Huddle">
@@ -211,8 +214,8 @@ export default function Settings({ org, me, members, reload }) {
             <input type="radio" name="usage-settings" checked={usage === o.key} onChange={() => setUsage(o.key)} className="mt-0.5" />
             <span><span className="text-sm font-medium text-foreground">{o.label}</span><span className="block text-xs text-muted-foreground">{o.blurb}</span></span>
           </label>))}</div>
-        {usage === "other" && <input className={inputCls + " mt-2"} value={usageOther} onChange={e => setUsageOther(e.target.value)} placeholder="How would you describe it?" />}
-        <div className="flex items-center gap-2 mt-3"><Btn onClick={saveUsage} disabled={busy}>Save</Btn>{usageSaved && <span className="text-xs text-green-600">Saved.</span>}</div>
+        {usage === "other" && <Input className="mt-2" value={usageOther} onChange={e => setUsageOther(e.target.value)} placeholder="How would you describe it?" />}
+        <div className="flex items-center gap-2 mt-3"><Button onClick={saveUsage} disabled={busy}>Save</Button>{usageSaved && <span className="text-xs text-green-600">Saved.</span>}</div>
       </Card>}
 
       {admin && <Card title="Desktop app warnings">
@@ -225,16 +228,16 @@ export default function Settings({ org, me, members, reload }) {
           <input type="checkbox" checked={minWarn} onChange={e => setMinWarn(e.target.checked)} className="mt-0.5" />
           <span><span className="text-sm font-medium text-foreground">Remind on minimise</span><span className="block text-xs text-muted-foreground">If the tracker isn't running when they minimise, remind them to start recording.</span></span>
         </label>
-        <div className="flex items-center gap-2 mt-3"><Btn onClick={saveDesktop} disabled={busy}>Save</Btn>{dwSaved && <span className="text-xs text-green-600">Saved.</span>}</div>
+        <div className="flex items-center gap-2 mt-3"><Button onClick={saveDesktop} disabled={busy}>Save</Button>{dwSaved && <span className="text-xs text-green-600">Saved.</span>}</div>
       </Card>}
 
       <Card title="Your account">
         <div className="text-sm text-muted-foreground">{me.email}</div>
         <div className="text-xs text-muted-foreground/70 mt-1">Signed in · role: {me.role}</div>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Btn variant="outline" onClick={() => setAccountModal("email")}>Change email</Btn>
-          <Btn variant="outline" onClick={() => setAccountModal("password")}>Change password</Btn>
-          <Btn variant="outline" onClick={async () => { await sb.auth.signOut(); window.location.reload(); }}>Sign out</Btn>
+          <Button variant="outline" onClick={() => setAccountModal("email")}>Change email</Button>
+          <Button variant="outline" onClick={() => setAccountModal("password")}>Change password</Button>
+          <Button variant="outline" onClick={async () => { await sb.auth.signOut(); window.location.reload(); }}>Sign out</Button>
         </div>
         {can(me, "account.close") && <button onClick={() => setAccountModal("delete")} className="mt-3 text-xs text-destructive hover:text-destructive hover:underline">Delete account</button>}
       </Card>
@@ -270,15 +273,15 @@ function ChangeEmailModal({ currentEmail, onClose }) {
 
   return (
     <Modal title="Change email" onClose={onClose}
-      footer={done ? <Btn variant="dark" onClick={onClose}>Done</Btn> : <><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn variant="dark" onClick={submit} disabled={busy}>{busy ? "Saving…" : "Change email"}</Btn></>}>
+      footer={done ? <Button variant="secondary" onClick={onClose}>Done</Button> : <><Button variant="ghost" onClick={onClose}>Cancel</Button><Button variant="secondary" onClick={submit} disabled={busy}>{busy ? "Saving…" : "Change email"}</Button></>}>
       {done ? (
         <p className="text-sm text-muted-foreground">Almost there — we've emailed a confirmation link to <b>{email}</b>. Click it to finish changing your address. Until then, keep signing in with your current email.</p>
       ) : (
         <>
           <p className="text-xs text-muted-foreground mb-3">Enter the new address and your current password (twice) to confirm it's you.</p>
-          <Field label="New email address"><input autoComplete="off" className={inputCls} value={email} onChange={e => setEmail(e.target.value)} placeholder="you@studio.com" autoFocus /></Field>
-          <Field label="Current password"><input type="password" autoComplete="new-password" className={inputCls} value={pw} onChange={e => setPw(e.target.value)} /></Field>
-          <Field label="Confirm current password"><input type="password" autoComplete="new-password" className={inputCls} value={pw2} onChange={e => setPw2(e.target.value)} /></Field>
+          <Field label="New email address"><Input autoComplete="off" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@studio.com" autoFocus /></Field>
+          <Field label="Current password"><Input type="password" autoComplete="new-password" value={pw} onChange={e => setPw(e.target.value)} /></Field>
+          <Field label="Confirm current password"><Input type="password" autoComplete="new-password" value={pw2} onChange={e => setPw2(e.target.value)} /></Field>
           {err && <div className="text-xs text-destructive mt-1">{err}</div>}
         </>
       )}
@@ -305,13 +308,13 @@ function ChangePasswordModal({ currentEmail, onClose }) {
 
   return (
     <Modal title="Change password" onClose={onClose}
-      footer={done ? <Btn variant="dark" onClick={onClose}>Done</Btn> : <><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn variant="dark" onClick={submit} disabled={busy}>{busy ? "Sending…" : "Send reset link"}</Btn></>}>
+      footer={done ? <Button variant="secondary" onClick={onClose}>Done</Button> : <><Button variant="ghost" onClick={onClose}>Cancel</Button><Button variant="secondary" onClick={submit} disabled={busy}>{busy ? "Sending…" : "Send reset link"}</Button></>}>
       {done ? (
         <p className="text-sm text-muted-foreground">We've emailed a reset link to <b>{currentEmail}</b>. Open it, set a new password, and you'll be signed out to sign back in with it.</p>
       ) : (
         <>
           <p className="text-xs text-muted-foreground mb-3">Confirm your current password. We'll email you a secure link to set a new one.</p>
-          <Field label="Current password"><input type="password" autoComplete="new-password" className={inputCls} value={pw} onChange={e => setPw(e.target.value)} autoFocus /></Field>
+          <Field label="Current password"><Input type="password" autoComplete="new-password" value={pw} onChange={e => setPw(e.target.value)} autoFocus /></Field>
           {err && <div className="text-xs text-destructive mt-1">{err}</div>}
         </>
       )}
@@ -340,7 +343,7 @@ function DeleteAccountModal({ org, me, members, onClose }) {
   };
 
   if (step === "choose") return (
-    <Modal title="Delete account" onClose={onClose} footer={<Btn variant="ghost" onClick={onClose}>Cancel</Btn>}>
+    <Modal title="Delete account" onClose={onClose} footer={<Button variant="ghost" onClick={onClose}>Cancel</Button>}>
       <p className="text-sm text-muted-foreground mb-3">What would you like to do with <b>{org.name}</b>?</p>
       <div className="space-y-2">
         <button onClick={() => setStep("transfer")} disabled={others.length === 0} className={`w-full text-left border rounded-xl p-3 ${others.length === 0 ? "opacity-50 cursor-not-allowed border-border" : "border-border hover:border-primary hover:bg-primary/10"}`}>
@@ -357,7 +360,7 @@ function DeleteAccountModal({ org, me, members, onClose }) {
 
   if (step === "transfer") return (
     <Modal title="Transfer ownership" onClose={onClose}
-      footer={<><Btn variant="ghost" onClick={() => setStep("choose")} disabled={busy}>Back</Btn><Btn variant="dark" onClick={() => newOwner ? call({ action: "transfer", newOwnerId: newOwner }) : setErr("Choose a new owner.")} disabled={busy}>{busy ? "Transferring…" : "Transfer & leave"}</Btn></>}>
+      footer={<><Button variant="ghost" onClick={() => setStep("choose")} disabled={busy}>Back</Button><Button variant="secondary" onClick={() => newOwner ? call({ action: "transfer", newOwnerId: newOwner }) : setErr("Choose a new owner.")} disabled={busy}>{busy ? "Transferring…" : "Transfer & leave"}</Button></>}>
       <p className="text-sm text-muted-foreground mb-3">Choose who becomes the new owner of <b>{org.name}</b>. You'll be removed from the team and signed out.</p>
       <NativeSelect className="w-full" value={newOwner} onChange={e => setNewOwner(e.target.value)}>
         <option value="">Select a team member…</option>
@@ -369,7 +372,7 @@ function DeleteAccountModal({ org, me, members, onClose }) {
 
   return (
     <Modal title="Delete the whole team" onClose={onClose}
-      footer={<><Btn variant="ghost" onClick={() => setStep("choose")} disabled={busy}>Back</Btn><Btn variant="danger" onClick={() => call({ action: "delete" })} disabled={busy}>{busy ? "Deleting…" : "Yes, delete everything"}</Btn></>}>
+      footer={<><Button variant="ghost" onClick={() => setStep("choose")} disabled={busy}>Back</Button><Button variant="destructive" onClick={() => call({ action: "delete" })} disabled={busy}>{busy ? "Deleting…" : "Yes, delete everything"}</Button></>}>
       <p className="text-sm text-muted-foreground">This permanently deletes <b>{org.name}</b> and all of its schedules, time logs, projects and members, and cancels the subscription. <b>This cannot be undone.</b> You'll be signed out.</p>
       {err && <div className="text-xs text-destructive mt-2">{err}</div>}
     </Modal>

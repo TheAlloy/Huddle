@@ -376,9 +376,17 @@ and shadcn-Button CTAs (lime default / secondary) confirmed by computed style;
 avatars on the canonical palette; Tasks, Billing, Tracker, Settings all render
 with a clean console from a cold load.
 
-*Registry→React-18 note:* `shadcn add --overwrite` clobbers the `forwardRef`
-patch on `button.tsx` — it was re-applied this step. Check it after any future
-`add`.
+*Registry→React note — RESOLVED by upgrading to React 19 (19.2.8, with
+lucide-react 1.31 and React 19 types).* The registry assumes React 19, where
+refs pass to function components; on React 18 every Base UI `render=` target
+needed a `forwardRef` patch, and each new component brought a new silent ref
+bug (dialog cleanup crashed; the Combobox popup anchored to the 24px chevron
+instead of the input). After the upgrade all six patches were deleted and the
+components restored with `add --overwrite` — **every file in
+`src/components/ui/` is now registry-pristine** (`grep forwardRef` returns
+nothing). Verified on 19: dialogs open/close cleanly, the confirm flow works,
+the Combobox anchors full-width to its input, select popups and toasts render.
+Future `shadcn add` needs no post-processing.
 
 **Consistency pass (review feedback, same day).** Two findings from Troy's
 screenshot review:
@@ -399,10 +407,108 @@ screenshot review:
   `alignItemWithTrigger={false}`; popup-below verified live. Decide once
   whether to flip the default in `select.tsx` when more popup Selects land.
 
-**7. Hand off to the rebuild** — router, app shell wiring, store (UX brief
-step 1). Remaining polish, screen-level and by eye: popup `Select` for the
-other high-traffic filters, `Popover`+`Calendar` for form date fields,
-Billing's tab row, density/contrast judgment calls.
+**7. Stock-anatomy purge — DONE.** After review, Troy set the binding rule:
+*content is ours; the component is theirs, untouched.* Old component UI gets
+thrown away — the stock shadcn component (preset-styled) renders it, and our
+content is poured in. Shims may only pour content; any visual override is a
+violation. What changed:
+
+- `Btn` **deleted**; all call sites codemodded to the stock `Button`
+  (primary→default, dark→secondary, danger→destructive).
+- `inputCls`/`textareaCls` retired from screens; every raw `<input>`/
+  `<textarea>` is now the stock `Input`/`Textarea` component (brace-aware
+  codemod; the one fake-input div became a disabled `Input`).
+- `Field` renders stock `Field`/`FieldLabel`/`FieldDescription`/`FieldError`;
+  `Card` renders stock Card anatomy (`CardHeader`/`CardTitle`/`CardAction`/
+  `CardContent`); `Pill` renders stock `Badge` (data color only); `Empty`/
+  `Spinner` render the stock components.
+- `Modal` + `ModalShell`/`ModalHead`/`ModalFoot` render stock Dialog anatomy:
+  built-in close button, stock `DialogHeader`/`DialogFooter`, stock padding
+  (the `p-0` surgery and the screens' `p-5` body wrappers are gone).
+- Popup `Select` (with `items` for trigger labels) now covers the visible
+  filters and dialog forms: Billing period+year, Summary client filter, Tasks
+  team filter, Team invite/access roles + status, DemoSwitcher role.
+  **`select.tsx` divergence:** `alignItemWithTrigger` defaults to `false`
+  (dropdown-below) — documented in-file, re-apply after `--overwrite`.
+- Entity pickers dense in forms (project/phase/member in Schedule dash,
+  Tracker, MiniTracker, Summary inline edits, Billing rows) remain on the
+  stock `NativeSelect` — still a shadcn component, appropriate for dense
+  forms; convert to popup per screen during the rebuild if wanted.
+
+*Verified live:* Assign modal shows pure stock anatomy (dialog-header/title,
+built-in close, dialog-footer, 6 stock Fields, stock Inputs, 16px stock
+padding); popup selects on Tasks/Billing/Summary; stock Card/Badge anatomy on
+People; every screen renders from a cold load, no crashes.
+
+*Known trade-off:* consecutive `Field`s have no inter-field gap yet — stock
+forms wrap fields in `FieldGroup`, which is per-screen composition work for
+the rebuild.
+
+**8. Skill audit + select fix — DONE.** Diagnosed via the shadcn skill after
+Troy's padding screenshot. Two compounding causes, both ours:
+
+- **`select.tsx` had been edited** to default `alignItemWithTrigger` to
+  `false` (my earlier "fix" for the overlay behavior). That put the popup in
+  Base UI's fallback mode, which nova barely dresses. Reverted to
+  registry-exact (`add --overwrite`, diff verified clean) — the popup-over-
+  trigger behavior is the component's design and is back.
+- **Composition violation:** the popup's inner padding lives on `SelectGroup`
+  (`p-1`), and per the skill rules items must always sit inside their Group.
+  Our SelectItems were direct children of SelectContent, so the padding never
+  rendered. All 9 popup selects now wrap items in `SelectGroup`.
+
+Audit fixes from the skill's enforced rules:
+
+- **Toast:** Base UI projects use the `toast` component, not sonner. Swapped:
+  `toast.error(msg)` → `toast.add({title, type:"error"})` (13 sites), Toaster
+  from `ui/toast`, `sonner.tsx` deleted, sonner uninstalled.
+- **Icons in Buttons:** `data-icon="inline-start"`, no size props (10 sites).
+- Trigger slots cleaned (no custom classes on icons inside SelectTrigger);
+  index.css scrollbar styling removed (layout-only globals remain).
+
+**Registry drift audit (dry-run all 27 components):** every flagged file traces
+to the one documented functional divergence — `button.tsx` forwardRef for
+React 18 — plus upstream `"use client"` banner drift in separator/tooltip.
+`select.tsx` and `field.tsx` verified content-identical. **Zero visual
+divergences from the registry exist.**
+
+*Verified live:* popup opens in aligned mode over the trigger, wider than the
+trigger, `SelectGroup` padding 4px, rounded items, translucent nova surface —
+matching the docs reference; Base UI toast mounts with title + icon.
+
+*Deferred skill-rule violations (per-screen composition, step 9):* `FieldGroup`
+around form field runs, `space-y-*` → `flex gap-*` sweeps, `aria-invalid` on
+controls alongside Field's `data-invalid`, checkbox → `Checkbox`, search boxes
+→ `InputGroup`.
+
+**9. Screen-by-screen recomposition — IN PROGRESS.** Decision (Troy): stop
+patching legacy markup; recompose each screen from stock shadcn composition.
+**People is the finished reference screen** — the pattern every other screen
+follows:
+
+- Page: `flex flex-col gap-4` (no `space-y`); heading `text-base font-medium`
+  + `text-sm text-muted-foreground` subtitle. Two text tones only
+  (`foreground` via default, `muted-foreground`) — no `/70` `/40` opacities,
+  no `font-semibold`.
+- Persistent notices → `Alert`; transient confirmations → `toast.add`
+  (the green "invitation sent" banner and copy-link notices are toasts now).
+- Statuses → `Badge` variants (`destructive` for Suspended, `secondary` for
+  roles) — no hand-colored pills for status.
+- Row actions → `Button variant="ghost" size="icon-sm"`, never raw buttons.
+- Forms → `FieldGroup` > `Field`; sections → `FieldSet` + `FieldLegend`
+  (`variant="label"` for sub-groups); validation `error` + `aria-invalid`;
+  checkbox grids → stock `Checkbox`; selectable chips → `Button
+  variant="secondary" size="xs"` (killed the last inline-NAVY chips).
+
+*Verified live:* invite modal renders `field-group` with popup Select; manage
+modal renders 9 fieldsets/legends, 15 stock Checkboxes, 2 popup Selects; no
+crashes.
+
+**Rollout order (pending Troy's review of People):** Tasks → Tracker/
+MiniTracker → Summary (period row → `ToggleGroup`) → Billing (tab strip →
+`Tabs`, timeline → `Table`) → Projects/Workspace → Settings → Onboarding/
+Auth/Paywall/Admin → Schedule chrome (board timeline stays custom viz inside
+stock chrome; PeoplePicker/ClientPicker → stock Popover/DropdownMenu).
 
 ## Risks
 

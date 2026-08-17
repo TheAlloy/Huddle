@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
-import { Btn, Card, Pill, Modal, Field, inputCls, Empty, Spinner } from "../ui.jsx";
+import { Card, Pill, Modal, Field, Empty, Spinner } from "../ui.jsx";
 import { Search, Building2, Users, CreditCard } from "lucide-react";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const PLANS = ["trial", "starter", "studio", "enterprise"];
 const STATUSES = ["active", "past_due", "suspended", "cancelled"];
@@ -56,7 +58,7 @@ export default function Admin() {
           <Search size={14} className="text-muted-foreground/70" />
           <input className="text-sm outline-none flex-1" placeholder="Search studios…" value={q} onChange={e => setQ(e.target.value)} />
         </div>
-        <Btn variant="outline" onClick={load}>Refresh</Btn>
+        <Button variant="outline" onClick={load}>Refresh</Button>
       </div>
 
       <Card title={`Studios (${shown.length})`}>
@@ -70,7 +72,7 @@ export default function Admin() {
               </div>
               <Pill color="#2f80ed">{o.plan}</Pill>
               <Pill color={STATUS_COLOR[o.status] || "#94a3b8"}>{o.status}</Pill>
-              <Btn variant="outline" onClick={() => setEditing(o)}>Manage</Btn>
+              <Button variant="outline" onClick={() => setEditing(o)}>Manage</Button>
             </div>
           ))}
         </div>
@@ -99,10 +101,10 @@ function OrgModal({ o, onClose, onSaved }) {
     setBusy(false); onSaved();
   };
   return (<Modal title={o.name} onClose={onClose}
-    footer={<><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</Btn></>}>
+    footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</Button></>}>
     <div className="grid grid-cols-2 gap-3">
       <Field label="Plan"><NativeSelect className="w-full" value={plan} onChange={e => setPlan(e.target.value)}>{PLANS.map(p => <option key={p} value={p}>{p}</option>)}</NativeSelect></Field>
-      <Field label="Seats"><input type="number" min="1" className={inputCls} value={seats} onChange={e => setSeats(e.target.value)} /></Field>
+      <Field label="Seats"><Input type="number" min="1" value={seats} onChange={e => setSeats(e.target.value)} /></Field>
     </div>
     <Field label="Status" hint="Suspending blocks the studio's team from using the app.">
       <NativeSelect className="w-full" value={status} onChange={e => setStatus(e.target.value)}>{STATUSES.map(s => <option key={s} value={s}>{s}</option>)}</NativeSelect>

@@ -1,10 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
-import { Btn, Field, inputCls, Modal, Avatar, Pill, Card, Empty } from "../ui.jsx";
+import { Field, Modal, Avatar, Card, Empty } from "../ui.jsx";
 import { PERMISSIONS, PERMISSION_GROUPS, ROLES, ROLE_KEYS, effectivePermissions, isFromRole, can } from "../lib/permissions.js";
-import { Plus, Mail, Trash2, Pencil, RefreshCw, Link as LinkIcon } from "lucide-react";
+import { Plus, Mail, Trash2, Pencil, RefreshCw, Link as LinkIcon, TriangleAlert } from "lucide-react";
 import { useConfirm } from "../components/confirm.tsx";
-import { NativeSelect } from "@/components/ui/native-select";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { FieldGroup, FieldSet, FieldLegend } from "@/components/ui/field";
+import { toast } from "@/components/ui/toast";
 
 export default function Team({ org, me, members, reload, onNavigate }) {
   const confirm = useConfirm();
@@ -13,7 +20,6 @@ export default function Team({ org, me, members, reload, onNavigate }) {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState("");
 
   const manage = can(me, "team.manage");
 
@@ -45,36 +51,40 @@ export default function Team({ org, me, members, reload, onNavigate }) {
   const overSeats = !unlimitedSeats && seatsUsed >= (org.seats || 0);
 
   return (
-    <div className="p-4 space-y-4 overflow-y-auto h-full">
+    <div className="p-4 flex flex-col gap-4 overflow-y-auto h-full">
       <div className="flex items-center gap-3 flex-wrap">
         <div>
-          <h2 className="text-base font-bold text-foreground">People</h2>
-          <p className="text-xs text-muted-foreground">{unlimitedSeats ? `${seatsUsed} team member${seatsUsed === 1 ? "" : "s"} · unlimited invites` : `${seatsUsed} of ${org.seats} seats used`} on the {org.plan && org.plan !== "trial" ? org.plan : "current"} plan.</p>
+          <h2 className="text-base font-medium">People</h2>
+          <p className="text-sm text-muted-foreground">{unlimitedSeats ? `${seatsUsed} team member${seatsUsed === 1 ? "" : "s"} · unlimited invites` : `${seatsUsed} of ${org.seats} seats used`} on the {org.plan && org.plan !== "trial" ? org.plan : "current"} plan.</p>
         </div>
-        {manage && <Btn variant="outline" title="Refresh" className="ml-auto w-8 px-0" onClick={() => { loadInvites(); reload(); }}><RefreshCw size={15} /></Btn>}
-        {manage && <Btn onClick={() => overSeats ? setUpgradeOpen(true) : setInviteOpen(true)}><Plus size={14} /> Invite someone</Btn>}
+        {manage && <Button variant="outline" size="icon" title="Refresh" className="ml-auto" onClick={() => { loadInvites(); reload(); }}><RefreshCw /></Button>}
+        {manage && <Button onClick={() => overSeats ? setUpgradeOpen(true) : setInviteOpen(true)}><Plus data-icon="inline-start" /> Invite someone</Button>}
       </div>
-      {overSeats && manage && <div className="text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2">
-        You've used all your seats. Add more in Settings → Subscription to invite additional people.
-      </div>}
-      {note && <div className="text-xs bg-green-50 border border-green-200 text-green-800 rounded-lg px-3 py-2">{note}</div>}
+
+      {overSeats && manage && (
+        <Alert>
+          <TriangleAlert />
+          <AlertTitle>All seats are in use</AlertTitle>
+          <AlertDescription>Add more in Settings → Subscription to invite additional people.</AlertDescription>
+        </Alert>
+      )}
 
       <Card title="Team members">
         {members.length === 0 && <Empty title="No one here yet">Invite your team to get started.</Empty>}
-        <div className="divide-y divide-border/60">
+        <div className="flex flex-col">
           {members.map((m, i) => {
             const role = ROLES[m.role] || ROLES.member;
-            return (<div key={m.id} className="flex items-center gap-3 py-2.5 text-sm">
+            return (<div key={m.id} className="flex items-center gap-3 border-b py-2.5 text-sm last:border-b-0">
               <Avatar name={m.display_name || m.email} i={i} />
               <div className="min-w-0">
-                <div className="font-medium text-foreground truncate">{m.display_name || m.email || "Invited"} {m.user_id === me.user_id && <span className="text-muted-foreground/70 font-normal">(you)</span>}</div>
-                <div className="text-xs text-muted-foreground/70 truncate">{m.email}{m.job_title ? " · " + m.job_title : ""}</div>
+                <div className="font-medium truncate">{m.display_name || m.email || "Invited"} {m.user_id === me.user_id && <span className="text-muted-foreground font-normal">(you)</span>}</div>
+                <div className="text-xs text-muted-foreground truncate">{m.email}{m.job_title ? " · " + m.job_title : ""}</div>
               </div>
               <div className="ml-auto flex items-center gap-2 shrink-0">
-                {m.status === "suspended" && <Pill color="#eb5757">Suspended</Pill>}
-                <Pill color={m.role === "owner" ? "#9b51e0" : "#2f80ed"}>{role.label}</Pill>
+                {m.status === "suspended" && <Badge variant="destructive">Suspended</Badge>}
+                <Badge variant="secondary">{role.label}</Badge>
                 {manage && (
-                  <button className="text-muted-foreground/70 hover:text-primary-foreground" title="Manage member" onClick={() => setEditing(m)}><Pencil size={15} /></button>
+                  <Button variant="ghost" size="icon-sm" title="Manage member" onClick={() => setEditing(m)}><Pencil /></Button>
                 )}
               </div>
             </div>);
@@ -84,24 +94,24 @@ export default function Team({ org, me, members, reload, onNavigate }) {
 
       {manage && invites.length > 0 && (
         <Card title="Pending invitations">
-          <div className="divide-y divide-border/60">
+          <div className="flex flex-col">
             {invites.map(inv => (
-              <div key={inv.id} className="flex items-center gap-3 py-2.5 text-sm">
-                <Mail size={15} className="text-muted-foreground/40" />
-                <div className="min-w-0"><div className="text-foreground/80 truncate">{inv.email}</div>
-                  <div className="text-xs text-muted-foreground/70">{(ROLES[inv.role] || {}).label} · expires {String(inv.expires_at).slice(0, 10)}</div></div>
-                <div className="ml-auto flex items-center gap-2">
-                  <button title="Copy invite link to share" className="text-muted-foreground/70 hover:text-primary-foreground"
-                    onClick={() => { const link = `${window.location.origin}/?invite=${inv.token}`; navigator.clipboard?.writeText(link); setNote("Invite link copied — paste it to " + inv.email); }}><LinkIcon size={14} /></button>
-                  <button title="Resend" className="text-muted-foreground/70 hover:text-primary-foreground" disabled={busy}
+              <div key={inv.id} className="flex items-center gap-3 border-b py-2.5 text-sm last:border-b-0">
+                <Mail className="size-4 text-muted-foreground" />
+                <div className="min-w-0"><div className="truncate">{inv.email}</div>
+                  <div className="text-xs text-muted-foreground">{(ROLES[inv.role] || {}).label} · expires {String(inv.expires_at).slice(0, 10)}</div></div>
+                <div className="ml-auto flex items-center gap-1">
+                  <Button variant="ghost" size="icon-sm" title="Copy invite link to share"
+                    onClick={() => { const link = `${window.location.origin}/?invite=${inv.token}`; navigator.clipboard?.writeText(link); toast.add({ title: "Invite link copied — paste it to " + inv.email, type: "success" }); }}><LinkIcon /></Button>
+                  <Button variant="ghost" size="icon-sm" title="Resend" disabled={busy}
                     onClick={async () => {
                       setBusy(true);
                       const token = (await sb.auth.getSession()).data.session?.access_token;
                       await fetch("/api/invite", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: org.id, email: inv.email, role: inv.role, accessToken: token }) });
-                      setBusy(false); setNote("Invitation resent to " + inv.email); loadInvites();
-                    }}><RefreshCw size={14} /></button>
-                  <button title="Revoke" className="text-muted-foreground/70 hover:text-destructive"
-                    onClick={async () => { if (await confirm({ title: "Revoke this invitation?", confirmLabel: "Revoke", destructive: true })) { await sb.from("invites").delete().eq("id", inv.id); loadInvites(); } }}><Trash2 size={14} /></button>
+                      setBusy(false); toast.add({ title: "Invitation resent to " + inv.email, type: "success" }); loadInvites();
+                    }}><RefreshCw /></Button>
+                  <Button variant="ghost" size="icon-sm" title="Revoke"
+                    onClick={async () => { if (await confirm({ title: "Revoke this invitation?", confirmLabel: "Revoke", destructive: true })) { await sb.from("invites").delete().eq("id", inv.id); loadInvites(); } }}><Trash2 /></Button>
                 </div>
               </div>
             ))}
@@ -109,8 +119,8 @@ export default function Team({ org, me, members, reload, onNavigate }) {
         </Card>
       )}
 
-      {inviteOpen && <InviteModal org={org} onClose={() => setInviteOpen(false)} onSent={(email, altNote) => { setInviteOpen(false); setNote(altNote || ("Invitation sent to " + email)); loadInvites(); }} onSeatsFull={() => { setInviteOpen(false); setUpgradeOpen(true); }} />}
-      {upgradeOpen && <Modal title="Upgrade to add more people" onClose={() => setUpgradeOpen(false)} footer={<><Btn variant="ghost" onClick={() => setUpgradeOpen(false)}>Not now</Btn><Btn variant="dark" onClick={() => { setUpgradeOpen(false); onNavigate && onNavigate("settings"); }}>See plans</Btn></>}>
+      {inviteOpen && <InviteModal org={org} onClose={() => setInviteOpen(false)} onSent={(email, altNote) => { setInviteOpen(false); toast.add({ title: altNote || ("Invitation sent to " + email), type: "success" }); loadInvites(); }} onSeatsFull={() => { setInviteOpen(false); setUpgradeOpen(true); }} />}
+      {upgradeOpen && <Modal title="Upgrade to add more people" onClose={() => setUpgradeOpen(false)} footer={<><Button variant="ghost" onClick={() => setUpgradeOpen(false)}>Not now</Button><Button variant="secondary" onClick={() => { setUpgradeOpen(false); onNavigate && onNavigate("settings"); }}>See plans</Button></>}>
         <p className="text-sm text-muted-foreground">You've reached the team limit on your current plan{unlimitedSeats ? "" : ` (${org.seats} member${org.seats === 1 ? "" : "s"})`}. Upgrade to a larger plan to invite more people.</p>
       </Modal>}
       {editing && <AccessModal m={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />}
@@ -140,15 +150,17 @@ export function InviteModal({ org, onClose, onSent, onSeatsFull }) {
     setBusy(false);
   };
   return (<Modal title="Invite someone" onClose={onClose}
-    footer={<><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={send} disabled={busy}>{busy ? "Sending…" : "Send invitation"}</Btn></>}>
-    <Field label="Email address"><input className={inputCls} value={email} onChange={e => setEmail(e.target.value)} placeholder="name@studio.com" autoFocus /></Field>
-    <Field label="Access level" hint={ROLES[role]?.blurb}>
-      <NativeSelect className="w-full" value={role} onChange={e => setRole(e.target.value)}>
-        {ROLE_KEYS.filter(k => k !== "owner").map(k => <option key={k} value={k}>{ROLES[k].label}</option>)}
-      </NativeSelect>
-    </Field>
-    {err && <div className="text-xs text-destructive">{err}</div>}
-    <p className="text-xs text-muted-foreground/70 mt-2">They'll receive an email with a link to set up their account and join {org.name}.</p>
+    footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={send} disabled={busy}>{busy ? "Sending…" : "Send invitation"}</Button></>}>
+    <FieldGroup>
+      <Field label="Email address" error={err}><Input value={email} onChange={e => setEmail(e.target.value)} placeholder="name@studio.com" aria-invalid={err ? true : undefined} autoFocus /></Field>
+      <Field label="Access level" hint={ROLES[role]?.blurb}>
+        <Select value={role} onValueChange={setRole} items={Object.fromEntries(ROLE_KEYS.filter(k => k !== "owner").map(k => [k, ROLES[k].label]))}>
+          <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
+          <SelectContent><SelectGroup>{ROLE_KEYS.filter(k => k !== "owner").map(k => <SelectItem key={k} value={k}>{ROLES[k].label}</SelectItem>)}</SelectGroup></SelectContent>
+        </Select>
+      </Field>
+      <p className="text-sm text-muted-foreground">They'll receive an email with a link to set up their account and join {org.name}.</p>
+    </FieldGroup>
   </Modal>);
 }
 
@@ -190,54 +202,66 @@ function AccessModal({ m, onClose, onSaved }) {
   };
 
   return (<Modal wide title={`Manage — ${m.display_name || m.email}`} onClose={onClose}
-    footer={<>{!isOwner && <Btn variant="danger" className="mr-auto" onClick={remove} disabled={busy}><Trash2 size={14} /> Remove from studio</Btn>}<Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</Btn></>}>
-    <div className="text-xs font-semibold text-muted-foreground mb-2">Profile &amp; scheduling</div>
-    <div className="grid sm:grid-cols-2 gap-3">
-      <Field label="Display name"><input className={inputCls} value={name} onChange={e => setName(e.target.value)} placeholder={m.email} /></Field>
-      <Field label="Job title"><input className={inputCls} value={jobTitle} onChange={e => setJobTitle(e.target.value)} placeholder="Designer" /></Field>
-    </div>
-    <div className="grid grid-cols-3 gap-3">
-      <Field label="Hours / day"><input type="number" className={inputCls} value={daily} onChange={e => setDaily(e.target.value)} /></Field>
-      <Field label="Holiday (days/yr)"><input type="number" className={inputCls} value={allow} onChange={e => setAllow(e.target.value)} /></Field>
-      <Field label="Rate (£/hr)" hint="Guides billing cost."><input type="number" className={inputCls} value={rate} onChange={e => setRate(e.target.value)} placeholder="—" /></Field>
-    </div>
-    <Field label="Teams">
-      <div className="flex flex-wrap gap-1.5 mb-2">{teams.map(t => <button key={t} onClick={() => toggleTeam(t)} className="text-xs px-2 py-1 rounded-full text-white" style={{ background: "#1f2d4e" }}>{t} ✕</button>)}{teams.length === 0 && <span className="text-xs text-muted-foreground/70">No teams yet.</span>}</div>
-      <div className="flex gap-2"><input className={inputCls} value={newTeam} onChange={e => setNewTeam(e.target.value)} placeholder="Add to a team…" onKeyDown={e => { if (e.key === "Enter" && newTeam.trim()) { if (!teams.includes(newTeam.trim())) setTeams([...teams, newTeam.trim()]); setNewTeam(""); } }} /><Btn variant="outline" onClick={() => { if (newTeam.trim() && !teams.includes(newTeam.trim())) { setTeams([...teams, newTeam.trim()]); setNewTeam(""); } }}>Add</Btn></div>
-    </Field>
+    footer={<>{!isOwner && <Button variant="destructive" className="mr-auto" onClick={remove} disabled={busy}><Trash2 data-icon="inline-start" /> Remove from studio</Button>}<Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</Button></>}>
+    <FieldGroup>
+      <FieldSet>
+        <FieldLegend>Profile &amp; scheduling</FieldLegend>
+        <FieldGroup>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <Field label="Display name"><Input value={name} onChange={e => setName(e.target.value)} placeholder={m.email} /></Field>
+            <Field label="Job title"><Input value={jobTitle} onChange={e => setJobTitle(e.target.value)} placeholder="Designer" /></Field>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Hours / day"><Input type="number" value={daily} onChange={e => setDaily(e.target.value)} /></Field>
+            <Field label="Holiday (days/yr)"><Input type="number" value={allow} onChange={e => setAllow(e.target.value)} /></Field>
+            <Field label="Rate (£/hr)" hint="Guides billing cost."><Input type="number" value={rate} onChange={e => setRate(e.target.value)} placeholder="—" /></Field>
+          </div>
+          <Field label="Teams">
+            <div className="flex flex-wrap items-center gap-1.5">{teams.map(t => <Button key={t} variant="secondary" size="xs" onClick={() => toggleTeam(t)}>{t} ✕</Button>)}{teams.length === 0 && <span className="text-sm text-muted-foreground">No teams yet.</span>}</div>
+            <div className="flex gap-2"><Input value={newTeam} onChange={e => setNewTeam(e.target.value)} placeholder="Add to a team…" onKeyDown={e => { if (e.key === "Enter" && newTeam.trim()) { if (!teams.includes(newTeam.trim())) setTeams([...teams, newTeam.trim()]); setNewTeam(""); } }} /><Button variant="outline" onClick={() => { if (newTeam.trim() && !teams.includes(newTeam.trim())) { setTeams([...teams, newTeam.trim()]); setNewTeam(""); } }}>Add</Button></div>
+          </Field>
+        </FieldGroup>
+      </FieldSet>
 
-    {isOwner
-      ? <p className="text-xs text-muted-foreground/70 mt-2">This is the studio owner — role and permissions can't be changed here.</p>
-      : <>
-        <div className="grid sm:grid-cols-2 gap-3 mt-4 mb-2 pt-4 border-t border-border/60">
-          <Field label="Role" hint={ROLES[role]?.blurb}>
-            <NativeSelect className="w-full" value={role} onChange={e => setRole(e.target.value)}>{ROLE_KEYS.map(k => <option key={k} value={k}>{ROLES[k].label}</option>)}</NativeSelect>
-          </Field>
-          <Field label="Status">
-            <NativeSelect className="w-full" value={status} onChange={e => setStatus(e.target.value)}>
-              <option value="active">Active</option><option value="suspended">Suspended (cannot sign in)</option>
-            </NativeSelect>
-          </Field>
-        </div>
-        <div className="text-xs font-semibold text-muted-foreground mb-2">What they can do</div>
-        <div className="border border-border rounded-xl divide-y divide-border/60">
-          {PERMISSION_GROUPS.map(g => (
-            <div key={g} className="p-3">
-              <div className="text-[11px] uppercase tracking-wide text-muted-foreground/70 mb-1.5">{g}</div>
-              <div className="grid sm:grid-cols-2 gap-1.5">
-                {PERMISSIONS.filter(p => p.group === g).map(p => {
-                  const locked = isFromRole(draft, p.key);
-                  const on = eff.includes(p.key);
-                  return (<label key={p.key} className={`flex items-center gap-2 text-sm ${locked ? "text-muted-foreground/70" : "text-foreground/80 cursor-pointer"}`}>
-                    <input type="checkbox" className="w-3.5 h-3.5" checked={on} disabled={locked} onChange={() => toggle(p.key)} />
-                    {p.label}{locked && <span className="text-[10px] text-muted-foreground/40">(from role)</span>}
-                  </label>);
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-        <p className="text-xs text-muted-foreground/70 mt-3">Greyed ticks come with the role. Tick extras to grant more on top. Use the copy-link on a pending invite to share sign-in details.</p>
-      </>}
+      {isOwner
+        ? <p className="text-sm text-muted-foreground">This is the studio owner — role and permissions can't be changed here.</p>
+        : <>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <Field label="Role" hint={ROLES[role]?.blurb}>
+              <Select value={role} onValueChange={setRole} items={Object.fromEntries(ROLE_KEYS.map(k => [k, ROLES[k].label]))}>
+                <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
+                <SelectContent><SelectGroup>{ROLE_KEYS.map(k => <SelectItem key={k} value={k}>{ROLES[k].label}</SelectItem>)}</SelectGroup></SelectContent>
+              </Select>
+            </Field>
+            <Field label="Status">
+              <Select value={status} onValueChange={setStatus} items={{active:"Active",suspended:"Suspended (cannot sign in)"}}>
+                <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
+                <SelectContent><SelectGroup><SelectItem value="active">Active</SelectItem><SelectItem value="suspended">Suspended (cannot sign in)</SelectItem></SelectGroup></SelectContent>
+              </Select>
+            </Field>
+          </div>
+          <FieldSet>
+            <FieldLegend>What they can do</FieldLegend>
+            <FieldGroup>
+              {PERMISSION_GROUPS.map(g => (
+                <FieldSet key={g}>
+                  <FieldLegend variant="label">{g}</FieldLegend>
+                  <div className="grid sm:grid-cols-2 gap-1.5">
+                    {PERMISSIONS.filter(p => p.group === g).map(p => {
+                      const locked = isFromRole(draft, p.key);
+                      const on = eff.includes(p.key);
+                      return (<label key={p.key} className={`flex items-center gap-2 text-sm ${locked ? "text-muted-foreground" : ""}`}>
+                        <Checkbox checked={on} disabled={locked} onCheckedChange={() => toggle(p.key)} />
+                        {p.label}{locked && <span className="text-xs text-muted-foreground">(from role)</span>}
+                      </label>);
+                    })}
+                  </div>
+                </FieldSet>
+              ))}
+            </FieldGroup>
+          </FieldSet>
+          <p className="text-sm text-muted-foreground">Greyed ticks come with the role. Tick extras to grant more on top. Use the copy-link on a pending invite to share sign-in details.</p>
+        </>}
+    </FieldGroup>
   </Modal>);
 }

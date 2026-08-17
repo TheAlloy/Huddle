@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
-import { Btn, Field, inputCls, Pill } from "../ui.jsx";
+import { Field, Pill } from "../ui.jsx";
 import { ROLES, ROLE_KEYS } from "../lib/permissions.js";
 import { USAGE_OPTIONS } from "../lib/terms.js";
 import { PlanCard } from "./PlanCard.jsx";
 import { Check, Plus, Trash2 } from "lucide-react";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 /** First-run wizard. Creates the organization, invites the team, adds a first client/project, and picks a plan. */
 export default function Onboarding({ user, onDone }) {
@@ -130,19 +132,19 @@ export default function Onboarding({ user, onDone }) {
           {step === 1 && (<>
             <h1 className="text-lg font-bold text-foreground mb-1">Set up your studio</h1>
             <p className="text-sm text-muted-foreground mb-5">This is the workspace your whole team will share.</p>
-            <Field label="Studio name"><input className={inputCls} value={studio} onChange={e => setStudio(e.target.value)} placeholder="e.g. Alloy" autoFocus /></Field>
-            <Field label="Your name"><input className={inputCls} value={yourName} onChange={e => setYourName(e.target.value)} placeholder="Alex Dangerfield" /></Field>
+            <Field label="Studio name"><Input value={studio} onChange={e => setStudio(e.target.value)} placeholder="e.g. Alloy" autoFocus /></Field>
+            <Field label="Your name"><Input value={yourName} onChange={e => setYourName(e.target.value)} placeholder="Alex Dangerfield" /></Field>
             <Field label="What will you use it for?">
               <div className="space-y-1.5">{USAGE_OPTIONS.map(o => (
                 <label key={o.key} className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer ${usage === o.key ? "border-primary bg-primary/10" : "border-border"}`}>
                   <input type="radio" name="usage" checked={usage === o.key} onChange={() => setUsage(o.key)} className="mt-0.5" />
                   <span><span className="text-sm font-medium text-foreground">{o.label}</span><span className="block text-xs text-muted-foreground">{o.blurb}</span></span>
                 </label>))}</div>
-              {usage === "other" && <input className={inputCls + " mt-2"} value={usageOther} onChange={e => setUsageOther(e.target.value)} placeholder="How would you describe it?" />}
+              {usage === "other" && <Input className="mt-2" value={usageOther} onChange={e => setUsageOther(e.target.value)} placeholder="How would you describe it?" />}
               <p className="text-[11px] text-muted-foreground/70 mt-1.5">This tailors the wording (e.g. “clients” vs “teams”). You can change it any time in Settings.</p>
             </Field>
             {err && <div className="text-xs text-destructive mb-3">{err}</div>}
-            <Btn variant="dark" className="w-full" onClick={createOrg} disabled={busy}>{busy ? "Creating…" : "Continue"}</Btn>
+            <Button variant="secondary" className="w-full" onClick={createOrg} disabled={busy}>{busy ? "Creating…" : "Continue"}</Button>
           </>)}
 
           {step === 2 && (<>
@@ -151,7 +153,7 @@ export default function Onboarding({ user, onDone }) {
             <div className="space-y-2 mb-3">
               {rows.map((r, i) => (
                 <div key={i} className="flex gap-2">
-                  <input className={inputCls + " flex-1"} value={r.email} placeholder="name@studio.com"
+                  <Input className="flex-1" value={r.email} placeholder="name@studio.com"
                     onChange={e => setRows(rows.map((x, j) => j === i ? { ...x, email: e.target.value } : x))} />
                   <NativeSelect className="w-44" value={r.role}
                     onChange={e => setRows(rows.map((x, j) => j === i ? { ...x, role: e.target.value } : x))}>
@@ -165,19 +167,19 @@ export default function Onboarding({ user, onDone }) {
             <p className="text-xs text-muted-foreground/70 mb-4">{ROLES[rows[0]?.role]?.blurb}</p>
             {err && <div className="text-xs text-amber-700 mb-3">{err}</div>}
             <div className="flex gap-2">
-              <Btn variant="outline" onClick={() => setStep(3)}>Skip for now</Btn>
-              <Btn variant="dark" className="flex-1" onClick={sendInvites} disabled={busy}>{busy ? "Sending…" : "Send invitations"}</Btn>
+              <Button variant="outline" onClick={() => setStep(3)}>Skip for now</Button>
+              <Button variant="secondary" className="flex-1" onClick={sendInvites} disabled={busy}>{busy ? "Sending…" : "Send invitations"}</Button>
             </div>
           </>)}
 
           {step === 3 && (<>
             <h1 className="text-lg font-bold text-foreground mb-1">Add your first project</h1>
             <p className="text-sm text-muted-foreground mb-5">Optional — you can do this later. {invited > 0 && <Pill color="#27ae60">{invited} invitation{invited > 1 ? "s" : ""} sent</Pill>}</p>
-            <Field label="Client name"><input className={inputCls} value={clientName} onChange={e => setClientName(e.target.value)} placeholder="e.g. Clear-Com" /></Field>
-            <Field label="Project name"><input className={inputCls} value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="e.g. MARS Rack" /></Field>
+            <Field label="Client name"><Input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="e.g. Clear-Com" /></Field>
+            <Field label="Project name"><Input value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="e.g. MARS Rack" /></Field>
             <div className="flex gap-2">
-              <Btn variant="outline" onClick={() => setStep(4)}>Skip</Btn>
-              <Btn variant="dark" className="flex-1" onClick={saveFirstProject} disabled={busy}>{busy ? "Saving…" : "Continue"}</Btn>
+              <Button variant="outline" onClick={() => setStep(4)}>Skip</Button>
+              <Button variant="secondary" className="flex-1" onClick={saveFirstProject} disabled={busy}>{busy ? "Saving…" : "Continue"}</Button>
             </div>
           </>)}
 

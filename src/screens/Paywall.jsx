@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
-import { Btn } from "../ui.jsx";
+
 import { can } from "../lib/permissions.js";
 import { PlanCard } from "./PlanCard.jsx";
 import { ChevronDown } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 
 /** Shown when the active studio has no active subscription. Owners/admins can subscribe here; others are told to ask an owner. */
 export default function Paywall({ org, me, memberships, onPickOrg, onSignOut }) {
@@ -38,8 +38,8 @@ export default function Paywall({ org, me, memberships, onPickOrg, onSignOut }) 
       const res = await fetch("/api/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: org.id, priceId, accessToken: token }) });
       const body = await res.json();
       if (body.url) { window.location.href = body.url; return; }
-      toast.error(body.error || "Couldn't start checkout.");
-    } catch (_) { toast.error("Couldn't reach checkout."); }
+      toast.add({ title: body.error || "Couldn't start checkout.", type: "error" });
+    } catch (_) { toast.add({ title: "Couldn't reach checkout.", type: "error" }); }
     setBusy(false);
   };
 
@@ -50,8 +50,8 @@ export default function Paywall({ org, me, memberships, onPickOrg, onSignOut }) 
       const res = await fetch("/api/billing-portal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: org.id, accessToken: token }) });
       const body = await res.json();
       if (body.url) { window.location.href = body.url; return; }
-      toast.error(body.error || "Billing portal isn't available yet.");
-    } catch (_) { toast.error("Couldn't reach the billing portal."); }
+      toast.add({ title: body.error || "Billing portal isn't available yet.", type: "error" });
+    } catch (_) { toast.add({ title: "Couldn't reach the billing portal.", type: "error" }); }
     setBusy(false);
   };
 

@@ -3,7 +3,7 @@ import { sb, CONFIGURED, DEMO } from "./lib/supabase.js";
 import DemoSwitcher from "./lib/DemoSwitcher.jsx";
 import { loadOrgData, memberName } from "./lib/api.js";
 import { can } from "./lib/permissions.js";
-import { Avatar, Spinner, Btn } from "./ui.jsx";
+import { Avatar, Spinner } from "./ui.jsx";
 import Auth from "./screens/Auth.jsx";
 import Onboarding from "./screens/Onboarding.jsx";
 import FeedbackModal from "./screens/Feedback.jsx";
@@ -24,6 +24,7 @@ import { makeTerms } from "./lib/terms.js";
 import { CalendarDays, Table2, LayoutGrid, Landmark, Users, Settings as Cog, Clock, FolderKanban, Shield, ChevronDown } from "lucide-react";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Button } from "@/components/ui/button";
 
 const PRODUCT = "Huddle";
 
@@ -218,7 +219,7 @@ export default function App() {
         <SidebarFooter>
           <div className="rounded-lg p-2.5 text-center bg-muted group-data-[collapsible=icon]:hidden">
             <div className="text-[11px] font-semibold text-foreground/80 leading-snug">Want the chance to receive 1 month free?</div>
-            <Btn onClick={() => setFeedbackOpen(true)} className="mt-2 w-full h-7 text-xs">Leave feedback</Btn>
+            <Button size="sm" onClick={() => setFeedbackOpen(true)} className="mt-2 w-full">Leave feedback</Button>
           </div>
         </SidebarFooter>
         <SidebarRail />

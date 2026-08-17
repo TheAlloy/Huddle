@@ -1,9 +1,9 @@
 import React, { useState } from "react";
 import { sb } from "../lib/supabase.js";
 import { Users, ChevronRight, X, Trash2 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 /* constants */
 export const MS = 86400000;
@@ -102,22 +102,23 @@ export function openFloatingTimer({ getTop, getElapsed, onStop }){
     return window.documentPictureInPicture.requestWindow({width:340,height:64}).then(wire).catch(()=>null);
   }
   const w=(typeof window!=="undefined") ? window.open("","studioTimer","width=340,height=120") : null;
-  if(!w){ toast.error("Pop-out was blocked — allow pop-ups for this site (or use Chrome/Edge for an always-on-top timer)."); return Promise.resolve(null); }
+  if(!w){ toast.add({ title: "Pop-out was blocked — allow pop-ups for this site (or use Chrome/Edge for an always-on-top timer).", type: "error" }); return Promise.resolve(null); }
   return Promise.resolve(wire(w));
 }
 
-/* modal kit — rebuilt on the shadcn Dialog (focus trap, Escape, aria labelling)
-   with the same three-part API the screens already use. */
+/* modal kit — content-pouring shims over the stock Dialog anatomy. Same
+   three-part API the screens already use; every visual decision is the stock
+   component's (built-in close button, stock header/footer). */
 export function ModalShell({ children, onClose }){
   return (<Dialog open onOpenChange={(o)=>{ if(!o) onClose?.(); }}>
-    <DialogContent showCloseButton={false} className="p-0 gap-0 sm:max-w-lg max-h-[92vh] overflow-y-auto text-base">
+    <DialogContent className="sm:max-w-lg max-h-[92svh] overflow-y-auto">
       {children}
     </DialogContent>
   </Dialog>);
 }
-export function ModalHead({ title, onClose }){ return <div className="flex items-center justify-between px-5 py-3.5 border-b"><h3 className="font-heading font-medium">{title}</h3><button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X size={16}/></button></div>; }
-export function ModalFoot({ onSave, onDelete, saveLabel="Save", disabled }){ return <div className="flex items-center gap-2 px-5 py-4 border-t bg-muted/50 rounded-b-xl">{onDelete&&<Button variant="ghost" onClick={onDelete} className="text-destructive hover:bg-destructive/10 hover:text-destructive"><Trash2 size={15}/> Delete</Button>}<Button className="ml-auto" onClick={onSave} disabled={disabled}>{saveLabel}</Button></div>; }
-export function ToolBtn({ icon:Icon, label, onClick, primary }){ return <button onClick={onClick} className={`flex items-center gap-1.5 text-sm px-2.5 h-8 rounded-lg border transition-colors ${primary?"bg-primary text-primary-foreground border-primary hover:bg-primary/90":"border-input text-muted-foreground hover:bg-accent hover:text-accent-foreground"}`}><Icon size={15}/> <span className="hidden sm:inline">{label}</span></button>; }
+export function ModalHead({ title }){ return <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>; }
+export function ModalFoot({ onSave, onDelete, saveLabel="Save", disabled }){ return <DialogFooter>{onDelete&&<Button variant="destructive" onClick={onDelete}><Trash2 data-icon="inline-start" /> Delete</Button>}<Button onClick={onSave} disabled={disabled}>{saveLabel}</Button></DialogFooter>; }
+export function ToolBtn({ icon:Icon, label, onClick, primary }){ return <Button variant={primary?"default":"outline"} onClick={onClick}><Icon data-icon="inline-start" /> <span className="hidden sm:inline">{label}</span></Button>; }
 
 export function PeoplePicker({ members, teams, value, onChange, me }){
   const [open,setOpen]=useState(false);

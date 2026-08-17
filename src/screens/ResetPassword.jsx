@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { sb } from "../lib/supabase.js";
-import { Btn, Field, inputCls } from "../ui.jsx";
+import { Field } from "../ui.jsx";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 /** Shown when the user arrives via a password-reset link (Supabase PASSWORD_RECOVERY). */
 export default function ResetPassword() {
@@ -34,10 +36,10 @@ export default function ResetPassword() {
           <>
             <h1 className="text-lg font-bold text-foreground text-center mb-1">Set a new password</h1>
             <p className="text-sm text-muted-foreground text-center mb-4">Choose a new password for your account. You'll sign in again afterwards.</p>
-            <Field label="New password"><input type="password" autoComplete="new-password" className={inputCls} value={pw} onChange={e => setPw(e.target.value)} autoFocus /></Field>
-            <Field label="Confirm new password"><input type="password" autoComplete="new-password" className={inputCls} value={pw2} onChange={e => setPw2(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} /></Field>
+            <Field label="New password"><Input type="password" autoComplete="new-password" value={pw} onChange={e => setPw(e.target.value)} autoFocus /></Field>
+            <Field label="Confirm new password"><Input type="password" autoComplete="new-password" value={pw2} onChange={e => setPw2(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} /></Field>
             {err && <div className="text-xs text-destructive my-2">{err}</div>}
-            <Btn variant="dark" className="w-full justify-center mt-3" onClick={submit} disabled={busy}>{busy ? "Saving…" : "Update password"}</Btn>
+            <Button variant="secondary" className="w-full justify-center mt-3" onClick={submit} disabled={busy}>{busy ? "Saving…" : "Update password"}</Button>
           </>
         )}
       </div>

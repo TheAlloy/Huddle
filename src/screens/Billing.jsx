@@ -3,15 +3,14 @@ import { sb } from "../lib/supabase.js";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
 import { ProjectModal } from "./Projects.jsx";
-import {
-  MS, MONTHS, MONTHS_LONG, NAVY, CLIENT_COLORS, uid, pad, toISO, parseISO, startOfDay, addDays, addMonths, startOfMonth, endOfMonth, nextWeekday,
-  money, phaseRanges, pfIncludes, PeoplePicker, ModalShell, ModalHead, ModalFoot, inputCls, mapData, makeHandlers,
-} from "../studio/core.jsx";
+import { MS, MONTHS, MONTHS_LONG, NAVY, CLIENT_COLORS, uid, pad, toISO, parseISO, startOfDay, addDays, addMonths, startOfMonth, endOfMonth, nextWeekday, money, phaseRanges, pfIncludes, PeoplePicker, ModalShell, ModalHead, ModalFoot, mapData, makeHandlers } from "../studio/core.jsx";
 import { Field } from "../ui.jsx";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/toast";
 import { Plus, Minus, Pencil, Trash2, Download, Mail } from "lucide-react";
 import { useConfirm } from "../components/confirm.tsx";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 /* ---- fiscal-year (April → March) ---- */
 const FY_MONTHS = ["Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec","Jan","Feb","Mar"];
@@ -88,8 +87,8 @@ function buildInvoicePdf(JS, { inv, client, project, phase, profile }){
   return doc;
 }
 const invFilename = (inv, client) => `Invoice-${(inv.meta && inv.meta.number) || inv.id}-${String((client && client.name) || inv.client || "client").replace(/[^A-Za-z0-9]/g,"")}.pdf`;
-async function downloadInvoice(args){ const JS = await loadJsPdf(); if (!JS) { toast.error("Couldn't load the PDF engine — check your connection and try again."); return; } const doc = buildInvoicePdf(JS, args); doc.save(invFilename(args.inv, args.client)); }
-async function emailInvoice(args){ const JS = await loadJsPdf(); if (!JS) { toast.error("Couldn't load the PDF engine."); return; } const doc = buildInvoicePdf(JS, args); const fname = invFilename(args.inv, args.client);
+async function downloadInvoice(args){ const JS = await loadJsPdf(); if (!JS) { toast.add({ title: "Couldn't load the PDF engine — check your connection and try again.", type: "error" }); return; } const doc = buildInvoicePdf(JS, args); doc.save(invFilename(args.inv, args.client)); }
+async function emailInvoice(args){ const JS = await loadJsPdf(); if (!JS) { toast.add({ title: "Couldn't load the PDF engine.", type: "error" }); return; } const doc = buildInvoicePdf(JS, args); const fname = invFilename(args.inv, args.client);
   const num = (args.inv.meta && args.inv.meta.number) || args.inv.id; const subject = `Invoice ${num}`;
   const body = `Hi,\n\nPlease find attached invoice ${num}${args.inv.client ? (" for " + args.inv.client) : ""}.\n\nMany thanks`;
   try { const blob = doc.output("blob"); const file = new File([blob], fname, { type:"application/pdf" });
@@ -228,12 +227,19 @@ function BillingPlan(ctx){
   const ohRow=periodMonthsD.map(d=>{ const slot=(d.getMonth()-3+12)%12; return byKind("overhead").reduce((s,b)=>s+ohMonthOf(b,slot),0); }); // period view (timeline)
   const SubTab=({v,l})=>(<button onClick={()=>setSub(v)} className={`text-sm px-3 py-1.5 rounded-lg ${sub===v?"bg-primary text-primary-foreground":"text-muted-foreground hover:bg-muted"}`}>{l}</button>);
   const periodPicker=()=>(<div className="flex items-center gap-2 flex-wrap">
-    <NativeSelect value={pMode} onChange={e=>setPMode(e.target.value)} >
-      <option value="fy">Financial year (Apr–Mar)</option>
-      <option value="cal">Calendar year (Jan–Dec)</option>
-      <option value="custom">Custom range</option>
-    </NativeSelect>
-    {(pMode==="fy"||pMode==="cal") && <NativeSelect value={pYear} onChange={e=>setPYear(Number(e.target.value))} >{Array.from({length:11},(_,i)=>_nowFY.getFullYear()-5+i).map(y=><option key={y} value={y}>{pMode==="fy"?`${y}/${String(y+1).slice(2)}`:y}</option>)}</NativeSelect>}
+    <Select value={pMode} onValueChange={setPMode} items={{fy:"Financial year (Apr–Mar)",cal:"Calendar year (Jan–Dec)",custom:"Custom range"}}>
+      <SelectTrigger size="sm"><SelectValue/></SelectTrigger>
+      <SelectContent><SelectGroup>
+        <SelectItem value="fy">Financial year (Apr–Mar)</SelectItem>
+        <SelectItem value="cal">Calendar year (Jan–Dec)</SelectItem>
+        <SelectItem value="custom">Custom range</SelectItem>
+      </SelectGroup></SelectContent>
+    </Select>
+    {(pMode==="fy"||pMode==="cal") && (()=>{ const years=Array.from({length:11},(_,i)=>_nowFY.getFullYear()-5+i); const label=(y)=>pMode==="fy"?`${y}/${String(y+1).slice(2)}`:String(y); return (
+      <Select value={String(pYear)} onValueChange={(v)=>setPYear(Number(v))} items={Object.fromEntries(years.map(y=>[String(y),label(y)]))}>
+        <SelectTrigger size="sm"><SelectValue/></SelectTrigger>
+        <SelectContent><SelectGroup>{years.map(y=><SelectItem key={y} value={String(y)}>{label(y)}</SelectItem>)}</SelectGroup></SelectContent>
+      </Select>); })()}
     {pMode==="custom" && <><input type="month" value={pFrom} onChange={e=>setPFrom(e.target.value)} className="text-xs rounded-lg border border-border px-2 py-1.5 outline-none"/><span className="text-xs text-muted-foreground/70">→</span><input type="month" value={pTo} onChange={e=>setPTo(e.target.value)} className="text-xs rounded-lg border border-border px-2 py-1.5 outline-none"/></>}
   </div>);
   const Stat=({label,value,tone})=>(<div className="rounded-xl border border-border px-4 py-3"><div className="text-xs text-muted-foreground/70">{label}</div><div className="text-lg font-bold" style={{color:tone||"var(--foreground)"}}>{value}</div></div>);
@@ -461,27 +467,27 @@ function BillingForm({ kind, entry, preset, members, projects=[], me, onSave, on
     else if(kind==="overhead"){ if(month!==""){ const mi=Number(month); meta={...(entry?.meta||{}),months:{...((entry&&entry.meta&&entry.meta.months)||{}),[mi]:amt}}; amt=0; } else meta=(entry?.meta||{}); }
     else meta=(p.meta||entry?.meta||{});
     const b={...(entry||{}),id:entry?.id,kind,title:title.trim(),client:client||"",amount:amt,status:status||null,date:kind==="overhead"?"":(date||""),memberId:memberId||null,projectId:(kind==="expense"?projectId:(p.projectId||entry?.projectId))||null,meta}; onSave(b); };
-  return (<><ModalHead title={(entry?"Edit ":"New ")+({pipeline:"pipeline job",overhead:"overhead",invoice:"invoice",expense:"expense"}[kind]||"entry")} onClose={onClose}/><div className="p-5">
-    <Field label={titleLabel} error={titleErr}><input className={inputCls} value={title} onChange={e=>setTitle(e.target.value)} autoFocus/></Field>
-    {(kind==="pipeline"||kind==="invoice") && <Field label="Client"><input className={inputCls} value={client} onChange={e=>setClient(e.target.value)} placeholder="Client name"/></Field>}
+  return (<><ModalHead title={(entry?"Edit ":"New ")+({pipeline:"pipeline job",overhead:"overhead",invoice:"invoice",expense:"expense"}[kind]||"entry")} onClose={onClose}/><div>
+    <Field label={titleLabel} error={titleErr}><Input value={title} onChange={e=>setTitle(e.target.value)} autoFocus/></Field>
+    {(kind==="pipeline"||kind==="invoice") && <Field label="Client"><Input value={client} onChange={e=>setClient(e.target.value)} placeholder="Client name"/></Field>}
     <div className="grid grid-cols-2 gap-3">
-      <Field label={kind==="overhead"?"£ amount":"Amount (£)"}><input type="number" min="0" className={inputCls} value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0"/></Field>
+      <Field label={kind==="overhead"?"£ amount":"Amount (£)"}><Input type="number" min="0" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0"/></Field>
       {kind==="overhead" && <Field label="Applies to"><NativeSelect className="w-full" value={month} onChange={e=>setMonth(e.target.value)}><option value="">Every month</option>{FY_MONTHS.map((m,i)=><option key={i} value={String(i)}>{m} only</option>)}</NativeSelect></Field>}
       {kind==="pipeline" && <Field label="Status"><NativeSelect className="w-full" value={status} onChange={e=>setStatus(e.target.value)}>{Object.entries(PIPE_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</NativeSelect></Field>}
       {kind==="invoice" && <Field label="Status"><NativeSelect className="w-full" value={status} onChange={e=>setStatus(e.target.value)}>{Object.entries(INV_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</NativeSelect></Field>}
-      {kind==="expense" && <Field label="Miles (if mileage)"><input type="number" min="0" className={inputCls} value={miles} onChange={e=>setMiles(e.target.value)} placeholder="0"/></Field>}
+      {kind==="expense" && <Field label="Miles (if mileage)"><Input type="number" min="0" value={miles} onChange={e=>setMiles(e.target.value)} placeholder="0"/></Field>}
     </div>
     {kind==="expense" && <><div className="grid grid-cols-2 gap-3">
       <Field label="Project"><NativeSelect className="w-full" value={projectId} onChange={e=>setProjectId(e.target.value)}><option value="">— none —</option>{projects.map(pr=><option key={pr.id} value={pr.id}>{pr.index} — {pr.name}</option>)}</NativeSelect></Field>
-      <Field label="Month"><input type="month" className={inputCls} value={month} onChange={e=>setMonth(e.target.value)}/></Field>
+      <Field label="Month"><Input type="month" value={month} onChange={e=>setMonth(e.target.value)}/></Field>
     </div>
     <Field label="Who's owed"><NativeSelect className="w-full" value={memberId} onChange={e=>setMemberId(e.target.value)}><option value="">—</option>{members.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</NativeSelect></Field></>}
     {kind==="pipeline" && <><div className="grid grid-cols-2 gap-3">
-      <Field label="Expected start"><input type="date" className={inputCls} value={pStart} onChange={e=>setPStart(e.target.value)}/></Field>
-      <Field label="Expected end"><input type="date" className={inputCls} value={pEnd} onChange={e=>setPEnd(e.target.value)}/></Field>
+      <Field label="Expected start"><Input type="date" value={pStart} onChange={e=>setPStart(e.target.value)}/></Field>
+      <Field label="Expected end"><Input type="date" value={pEnd} onChange={e=>setPEnd(e.target.value)}/></Field>
     </div>
     <Field label="Likelihood to convert"><NativeSelect className="w-full" value={likely} onChange={e=>setLikely(e.target.value)}><option value="high">Highly likely</option><option value="low">Less likely</option></NativeSelect></Field></>}
-    {kind==="invoice" && <Field label="Invoice date"><input type="date" className={inputCls} value={date} onChange={e=>setDate(e.target.value)}/></Field>}
+    {kind==="invoice" && <Field label="Invoice date"><Input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field>}
   </div><ModalFoot onSave={save} onDelete={onDelete&&entry?()=>onDelete(entry.id):null} saveLabel={entry?"Save":"Add"}/></>);
 }
 

@@ -1,81 +1,79 @@
 import React from "react";
-import { NAVY, AVATAR_BG, inputCls, textareaCls, initials } from "./studio/core.jsx";
+import { NAVY, AVATAR_BG, initials } from "./studio/core.jsx";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Avatar as AvatarRoot, AvatarFallback } from "@/components/ui/avatar";
+import { Field as FieldRoot, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field";
+import { Card as CardRoot, CardHeader, CardTitle, CardAction, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Empty as EmptyRoot, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
+import { Spinner as SpinnerIcon } from "@/components/ui/spinner";
 
-// Shared constants live in studio/core.jsx (CLAUDE.md); re-exported here so the
-// screens that import them from ui.jsx keep working unchanged. They used to be
-// defined in both files and had drifted — see docs/foundations-plan.md, step 3.
-export { NAVY, AVATAR_BG, inputCls, textareaCls, initials };
+export { NAVY, AVATAR_BG, initials };
+
+/*
+ * Content-pouring shims ONLY. Each renders the stock shadcn anatomy untouched —
+ * our side supplies content (labels, options, data colors), never styling.
+ * If something here needs a visual override, it does not belong here: change
+ * the call site to compose the stock components directly instead.
+ * (docs/foundations-plan.md — component adoption rules.)
+ */
 
 export function Field({label, hint, error, children}){
-  return (<label className="block mb-3">
-    <span className="block text-xs font-medium text-muted-foreground mb-1">{label}</span>
+  return (<FieldRoot data-invalid={error ? true : undefined}>
+    <FieldLabel>{label}</FieldLabel>
     {children}
-    {error
-      ? <span className="block text-xs text-destructive mt-1">{error}</span>
-      : hint && <span className="block text-xs text-muted-foreground/70 mt-1">{hint}</span>}
-  </label>);
+    {error ? <FieldError>{error}</FieldError> : hint ? <FieldDescription>{hint}</FieldDescription> : null}
+  </FieldRoot>);
 }
 
-// Thin wrapper over the shadcn Button so all screens pick up its styling
-// without changing their Btn calls. The old variant names map onto shadcn's;
-// "dark" (was an inline NAVY background) becomes secondary.
-const BTN_VARIANT = { primary:"default", dark:"secondary", ghost:"ghost", outline:"outline", danger:"destructive" };
-export function Btn({children, variant="primary", className="", ...rest}){
-  return <Button variant={BTN_VARIANT[variant]||"default"} className={className} {...rest}>{children}</Button>;
+export function Card({title, action, children, className}){
+  return (<CardRoot className={className}>
+    {(title||action) && <CardHeader>
+      {title && <CardTitle>{title}</CardTitle>}
+      {action && <CardAction>{action}</CardAction>}
+    </CardHeader>}
+    <CardContent>{children}</CardContent>
+  </CardRoot>);
 }
 
-export function Card({title, action, children, className=""}){
-  return (<div className={`bg-card text-card-foreground border rounded-xl shadow-xs ${className}`}>
-    {(title||action) && <div className="flex items-center gap-2 px-4 py-3 border-b">
-      <h3 className="text-sm font-medium">{title}</h3>
-      <div className="ml-auto">{action}</div>
-    </div>}
-    <div className="p-4">{children}</div>
-  </div>);
-}
-
-// Same API as before (mount to open), rebuilt on the shadcn Dialog for the
-// focus trap, Escape handling and aria labelling the old overlay never had.
-// The built-in top-right close button replaces the old header X.
+// Same mount-to-open API the screens already use; anatomy is the stock Dialog
+// (built-in close button, stock header/footer spacing).
 export function Modal({title, onClose, children, footer, wide}){
+  // Scrolling lives on DialogContent (like ModalShell) so its stock padding
+  // gives focus rings room — an unpadded scroll wrapper clips them.
   return (<Dialog open onOpenChange={(o)=>{ if(!o) onClose?.(); }}>
-    <DialogContent className={`p-0 gap-0 max-h-[90vh] flex flex-col text-base ${wide?"sm:max-w-3xl":"sm:max-w-lg"}`}>
-      <DialogHeader className="px-5 py-3.5 border-b">
-        <DialogTitle>{title}</DialogTitle>
-      </DialogHeader>
-      <div className="p-5 overflow-y-auto">{children}</div>
-      {footer && <DialogFooter className="mx-0 mb-0 px-5 py-3">{footer}</DialogFooter>}
+    <DialogContent className={`${wide?"sm:max-w-3xl":"sm:max-w-lg"} max-h-[90svh] overflow-y-auto`}>
+      <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+      {children}
+      {footer && <DialogFooter>{footer}</DialogFooter>}
     </DialogContent>
   </Dialog>);
 }
 
-// shadcn Avatar under the hood; same {name, i, size} API. The indexed palette
-// stays — it is data color (member identity), not chrome.
+// Stock Avatar; the indexed palette is data color (member identity).
 export function Avatar({name, i=0, size=28}){
   return (<AvatarRoot style={{width:size, height:size}}>
-    <AvatarFallback className="text-white font-bold" style={{background:AVATAR_BG[i%AVATAR_BG.length], fontSize:size*0.4}}>{initials(name)}</AvatarFallback>
+    <AvatarFallback className="text-white" style={{background:AVATAR_BG[i%AVATAR_BG.length], fontSize:size*0.4}}>{initials(name)}</AvatarFallback>
   </AvatarRoot>);
 }
 
+// Stock Badge; color is data (status, role, priority).
 export function Pill({children, color="#94a3b8"}){
-  return <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{background:color+"22", color}}>{children}</span>;
+  return <Badge style={{background:color+"22", color}}>{children}</Badge>;
 }
 
 export function Empty({title, children}){
-  return (<div className="text-center py-12 px-4">
-    <div className="font-medium mb-1">{title}</div>
-    <div className="text-sm text-muted-foreground max-w-md mx-auto">{children}</div>
-  </div>);
+  return (<EmptyRoot>
+    <EmptyHeader>
+      <EmptyTitle>{title}</EmptyTitle>
+      {children && <EmptyDescription>{children}</EmptyDescription>}
+    </EmptyHeader>
+  </EmptyRoot>);
 }
 
 export function Spinner({label="Loading…"}){
-  return (<div className="h-full grid place-items-center text-muted-foreground text-sm">
-    <div className="text-center">
-      <div className="w-6 h-6 border-2 border-muted border-t-muted-foreground rounded-full animate-spin mx-auto mb-2"/>
-      {label}
-    </div>
+  return (<div className="h-full grid place-items-center">
+    <div className="flex items-center gap-2 text-sm text-muted-foreground"><SpinnerIcon /> {label}</div>
   </div>);
 }

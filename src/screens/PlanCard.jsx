@@ -1,5 +1,6 @@
 import React from "react";
-import { Btn } from "../ui.jsx";
+import { Button } from "@/components/ui/button";
+
 
 export function priceText(p) {
   if (p.amount == null) return "";
@@ -39,7 +40,7 @@ export function PlanCard({ plan, current, onChoose, busy, ctaLabel = "Subscribe"
       <div className="mt-auto pt-3">
         {current
           ? <span className="inline-flex items-center justify-center w-full gap-1.5 text-xs font-semibold text-primary-foreground bg-primary/15 rounded-lg py-2">✓ Current plan</span>
-          : <Btn variant={dark ? "dark" : undefined} className="w-full justify-center" onClick={() => onChoose(plan.priceId)} disabled={busy}>{isTrial ? "Start free trial" : ctaLabel}</Btn>}
+          : <Button variant={dark ? "dark" : undefined} className="w-full justify-center" onClick={() => onChoose(plan.priceId)} disabled={busy}>{isTrial ? "Start free trial" : ctaLabel}</Button>}
       </div>
     </div>
   );

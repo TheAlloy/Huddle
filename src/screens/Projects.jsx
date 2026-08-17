@@ -1,13 +1,16 @@
 import React, { useState } from "react";
 import { sb } from "../lib/supabase.js";
 import { logAudit } from "../lib/api.js";
-import { Btn, Card, Empty, Field, inputCls, textareaCls, Modal, Pill } from "../ui.jsx";
+import { Card, Empty, Field, Modal, Pill } from "../ui.jsx";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
 import { money } from "../lib/dates.js";
 import { Plus, Trash2, Pencil, Layers } from "lucide-react";
 import { useConfirm } from "../components/confirm.tsx";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 const CLIENT_COLORS = ["#2f80ed", "#9b51e0", "#16a0a0", "#eb5757", "#27ae60", "#f2994a", "#2d9cdb", "#eb5757", "#6b7a99", "#b5179e"];
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -25,7 +28,7 @@ export default function Projects({ org, me, data, reload, terms }) {
     <div className="p-4 space-y-4 overflow-y-auto h-full">
       <h2 className="text-base font-bold text-foreground">{T.clients} &amp; {T.projectsLower||"projects"}</h2>
 
-      <Card title={T.clients} action={mayClients && <Btn onClick={() => setModal({ type: "client" })}><Plus size={14} /> Add {T.clientLower}</Btn>}>
+      <Card title={T.clients} action={mayClients && <Button onClick={() => setModal({ type: "client" })}><Plus data-icon="inline-start" /> Add {T.clientLower}</Button>}>
         {data.clients.length === 0 && <Empty title={"No "+T.clientsLower+" yet"}>Add your first {T.clientLower} to start booking work.</Empty>}
         <div className="divide-y divide-border/60">
           {data.clients.map(c => (
@@ -39,7 +42,7 @@ export default function Projects({ org, me, data, reload, terms }) {
         </div>
       </Card>
 
-      <Card title={T.projects} action={mayProjects && <Btn onClick={() => setModal({ type: "project" })}><Plus size={14} /> Add {T.projectLower||"project"}</Btn>}>
+      <Card title={T.projects} action={mayProjects && <Button onClick={() => setModal({ type: "project" })}><Plus data-icon="inline-start" /> Add {T.projectLower||"project"}</Button>}>
         {data.projects.length === 0 && <Empty title={"No "+(T.projectsLower||"projects")+" yet"}>{T.projects} hold the phases you schedule and bill against.</Empty>}
         {(() => {
           const byClient = {};
@@ -95,11 +98,11 @@ function ClientModal({ org, client, onClose, onSaved }) {
   };
   const del = async () => { if (!(await confirm({ title: "Delete this client?", description: "Projects keep working but lose the link.", confirmLabel: "Delete", destructive: true }))) return; await sb.from("clients").delete().eq("id", client.id); onSaved(); };
   return (<Modal title={client ? "Edit client" : "Add client"} onClose={onClose}
-    footer={<>{client && <Btn variant="danger" className="mr-auto" onClick={del}><Trash2 size={14} /> Delete</Btn>}<Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !name.trim()}>Save</Btn></>}>
-    <Field label="Client name"><input className={inputCls} value={name} onChange={e => setName(e.target.value)} autoFocus /></Field>
+    footer={<>{client && <Button variant="destructive" className="mr-auto" onClick={del}><Trash2 size={14} /> Delete</Button>}<Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy || !name.trim()}>Save</Button></>}>
+    <Field label="Client name"><Input value={name} onChange={e => setName(e.target.value)} autoFocus /></Field>
     <Field label="Colour"><div className="flex flex-wrap gap-2">{CLIENT_COLORS.map(c => <button key={c} onClick={() => setColor(c)} className="w-8 h-8 rounded-lg" style={{ background: c, outline: color === c ? "2px solid var(--ring)" : "none", outlineOffset: 2 }} />)}</div></Field>
-    <Field label="Payment terms (days)" hint="Used to estimate when invoices get paid."><input type="number" className={inputCls} value={terms} onChange={e => setTerms(e.target.value)} /></Field>
-    <Field label="Billing address (for invoices)"><textarea className={textareaCls} rows={3} value={addr} onChange={e => setAddr(e.target.value)} placeholder={"Accounts Payable\nClient Ltd\nLondon"} /></Field>
+    <Field label="Payment terms (days)" hint="Used to estimate when invoices get paid."><Input type="number" value={terms} onChange={e => setTerms(e.target.value)} /></Field>
+    <Field label="Billing address (for invoices)"><Textarea rows={3} value={addr} onChange={e => setAddr(e.target.value)} placeholder={"Accounts Payable\nClient Ltd\nLondon"} /></Field>
   </Modal>);
 }
 
@@ -132,12 +135,12 @@ export function ProjectModal({ org, project, clients, onClose, onSaved }) {
   const del = async () => { if (!(await confirm({ title: "Delete this project and its bookings?", confirmLabel: "Delete", destructive: true }))) return; await sb.from("projects").delete().eq("id", project.id); onSaved(); };
 
   return (<Modal wide title={project ? "Edit project" : "Add project"} onClose={onClose}
-    footer={<>{project && <Btn variant="danger" className="mr-auto" onClick={del}><Trash2 size={14} /> Delete</Btn>}<Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !name.trim()}>Save project</Btn></>}>
-    <Field label="Project name"><input className={inputCls} value={name} onChange={e => setName(e.target.value)} autoFocus /></Field>
+    footer={<>{project && <Button variant="destructive" className="mr-auto" onClick={del}><Trash2 size={14} /> Delete</Button>}<Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy || !name.trim()}>Save project</Button></>}>
+    <Field label="Project name"><Input value={name} onChange={e => setName(e.target.value)} autoFocus /></Field>
     <div className="grid grid-cols-3 gap-3">
-      <Field label="Code"><input className={inputCls} value={code} onChange={e => setCode(e.target.value)} placeholder="HID0514" /></Field>
+      <Field label="Code"><Input value={code} onChange={e => setCode(e.target.value)} placeholder="HID0514" /></Field>
       <Field label="Client"><NativeSelect className="w-full" value={clientId} onChange={e => setClientId(e.target.value)}><option value="">— none —</option>{clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</NativeSelect></Field>
-      <Field label="Value (£)"><input type="number" className={inputCls} value={cost} onChange={e => setCost(e.target.value)} /></Field>
+      <Field label="Value (£)"><Input type="number" value={cost} onChange={e => setCost(e.target.value)} /></Field>
     </div>
 
     <div className="flex items-center gap-2 mt-2 mb-2">

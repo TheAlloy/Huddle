@@ -2,7 +2,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.jsx";
 import { ConfirmProvider } from "./components/confirm.tsx";
-import { Toaster } from "./components/ui/sonner.tsx";
+import { Toaster } from "./components/ui/toast.tsx";
 import { Agentation } from "agentation";
 import "./index.css";
 

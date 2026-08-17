@@ -1,8 +1,11 @@
 import React, { useState } from "react";
 import { sb } from "../lib/supabase.js";
-import { Btn, Field, inputCls, textareaCls, Modal } from "../ui.jsx";
+import { Field, Modal } from "../ui.jsx";
 import { Gift, Check } from "lucide-react";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 const USES = ["Scheduling / capacity planning", "Time tracking", "Billing & invoicing", "Task management", "Client / project management", "Internal team planning", "Something else"];
 
@@ -50,7 +53,7 @@ export default function FeedbackModal({ org, me, onClose }) {
     setBusy(false);
   };
 
-  if (done) return (<Modal title="Thank you!" onClose={onClose} footer={<Btn onClick={onClose}>Close</Btn>}>
+  if (done) return (<Modal title="Thank you!" onClose={onClose} footer={<Button onClick={onClose}>Close</Button>}>
     <div className="text-center py-4">
       <div className="w-12 h-12 rounded-full grid place-items-center mx-auto mb-3" style={{ background: "#e9f7ef" }}><Check size={22} color="#27ae60" /></div>
       <p className="text-sm text-foreground/80">Your feedback has been sent. If it qualifies, we'll be in touch at <b>{a.email || me.email}</b> about your free month.</p>
@@ -60,7 +63,7 @@ export default function FeedbackModal({ org, me, onClose }) {
   const req = <span className="text-destructive">*</span>;
 
   return (<Modal wide title={<span className="flex items-center gap-2"><Gift size={16} /> Tell us what you think — earn a free month</span>} onClose={onClose}
-    footer={<><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={submit} disabled={busy}>{busy ? "Sending…" : "Submit feedback"}</Btn></>}>
+    footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? "Sending…" : "Submit feedback"}</Button></>}>
     <p className="text-xs text-muted-foreground mb-4">Every question is required — complete, thoughtful answers give us the insights we need, and put you in line for a month on us.</p>
 
     <Field label={<>What do you use Huddle for? {req}</>}>
@@ -70,7 +73,7 @@ export default function FeedbackModal({ org, me, onClose }) {
     </Field>
 
     <div className="grid sm:grid-cols-2 gap-3">
-      <Field label={<>How many people on your team use it? {req}</>}><input className={inputCls} value={a.teamSize} onChange={e => set("teamSize", e.target.value)} placeholder="e.g. 6" /></Field>
+      <Field label={<>How many people on your team use it? {req}</>}><Input value={a.teamSize} onChange={e => set("teamSize", e.target.value)} placeholder="e.g. 6" /></Field>
       <Field label={<>How often do you use it? {req}</>}>
         <NativeSelect className="w-full" value={a.frequency} onChange={e => set("frequency", e.target.value)}>
           <option value="">Choose…</option><option>Multiple times a day</option><option>Daily</option><option>A few times a week</option><option>Weekly</option><option>Rarely</option>
@@ -79,24 +82,24 @@ export default function FeedbackModal({ org, me, onClose }) {
     </div>
 
     <Field label={<>How did setting up your studio (onboarding) go? {req}</>}><Scale value={a.onboarding} onChange={v => set("onboarding", v)} low="Painful" high="Effortless" /></Field>
-    <Field label={<>What (if anything) was confusing during setup? {req}</>}><textarea className={textareaCls} rows={2} value={a.onboardingText} onChange={e => set("onboardingText", e.target.value)} /></Field>
+    <Field label={<>What (if anything) was confusing during setup? {req}</>}><Textarea rows={2} value={a.onboardingText} onChange={e => set("onboardingText", e.target.value)} /></Field>
 
     <Field label={<>How easy was inviting other people? {req}</>}><Scale value={a.inviting} onChange={v => set("inviting", v)} low="Hard" high="Easy" /></Field>
-    <Field label={<>Anything that made inviting people harder than it should be? {req}</>}><textarea className={textareaCls} rows={2} value={a.invitingText} onChange={e => set("invitingText", e.target.value)} /></Field>
+    <Field label={<>Anything that made inviting people harder than it should be? {req}</>}><Textarea rows={2} value={a.invitingText} onChange={e => set("invitingText", e.target.value)} /></Field>
 
-    <Field label={<>If you could change one thing, what would it be? {req}</>}><textarea className={textareaCls} rows={3} value={a.biggestChange} onChange={e => set("biggestChange", e.target.value)} placeholder="Be specific — this is the most useful answer for us." /></Field>
-    <Field label={<>What features would most benefit your team? {req}</>}><textarea className={textareaCls} rows={3} value={a.features} onChange={e => set("features", e.target.value)} /></Field>
+    <Field label={<>If you could change one thing, what would it be? {req}</>}><Textarea rows={3} value={a.biggestChange} onChange={e => set("biggestChange", e.target.value)} placeholder="Be specific — this is the most useful answer for us." /></Field>
+    <Field label={<>What features would most benefit your team? {req}</>}><Textarea rows={3} value={a.features} onChange={e => set("features", e.target.value)} /></Field>
 
     <Field label={<>How well does it fit the way your studio actually works? {req}</>}><Scale value={a.fit} onChange={v => set("fit", v)} low="Poorly" high="Perfectly" /></Field>
-    <Field label={<>What would you want to be able to customise or rename to fit your workflow? {req}</>}><textarea className={textareaCls} rows={2} value={a.customise} onChange={e => set("customise", e.target.value)} /></Field>
+    <Field label={<>What would you want to be able to customise or rename to fit your workflow? {req}</>}><Textarea rows={2} value={a.customise} onChange={e => set("customise", e.target.value)} /></Field>
 
-    <Field label={<>What almost stopped you signing up, or nearly made you stop using it? {req}</>}><textarea className={textareaCls} rows={2} value={a.almostLeft} onChange={e => set("almostLeft", e.target.value)} /></Field>
-    <Field label={<>Walk us through how it fits your typical day. {req}</>}><textarea className={textareaCls} rows={2} value={a.dailyUse} onChange={e => set("dailyUse", e.target.value)} /></Field>
+    <Field label={<>What almost stopped you signing up, or nearly made you stop using it? {req}</>}><Textarea rows={2} value={a.almostLeft} onChange={e => set("almostLeft", e.target.value)} /></Field>
+    <Field label={<>Walk us through how it fits your typical day. {req}</>}><Textarea rows={2} value={a.dailyUse} onChange={e => set("dailyUse", e.target.value)} /></Field>
 
     <Field label={<>How likely are you to recommend Huddle to another studio? (0–10) {req}</>}><Scale value={a.nps} onChange={v => set("nps", v)} max={11} low="Not at all" high="Absolutely" /></Field>
 
-    <Field label={<>Anything else you'd like us to know? {req}</>}><textarea className={textareaCls} rows={2} value={a.anythingElse} onChange={e => set("anythingElse", e.target.value)} /></Field>
-    <Field label={<>Email for your free month {req}</>}><input className={inputCls} value={a.email} onChange={e => set("email", e.target.value)} /></Field>
+    <Field label={<>Anything else you'd like us to know? {req}</>}><Textarea rows={2} value={a.anythingElse} onChange={e => set("anythingElse", e.target.value)} /></Field>
+    <Field label={<>Email for your free month {req}</>}><Input value={a.email} onChange={e => set("email", e.target.value)} /></Field>
 
     {err && <div className="text-xs text-destructive mb-2">{err}</div>}
   </Modal>);

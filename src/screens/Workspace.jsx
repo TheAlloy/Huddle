@@ -1,9 +1,11 @@
 import React, { useState } from "react";
 import { sb } from "../lib/supabase.js";
-import { Btn, Card, Empty, Avatar, Pill, Field, inputCls, Modal } from "../ui.jsx";
+import { Card, Empty, Avatar, Pill, Field, Modal } from "../ui.jsx";
 import { can } from "../lib/permissions.js";
 import { Plus, Lock } from "lucide-react";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 /** Shown wherever someone's permissions don't allow a screen. */
 export function NoAccess({ what }) {
@@ -28,7 +30,7 @@ export function ProjectsScreen({ org, me, data, reload }) {
   return (<div className="p-4 space-y-4 overflow-y-auto h-full">
     <h2 className="text-base font-bold text-foreground">Clients &amp; projects</h2>
 
-    <Card title="Clients" action={mayClients && <Btn onClick={() => setModal({ type: "client" })}><Plus size={14} /> Add client</Btn>}>
+    <Card title="Clients" action={mayClients && <Button onClick={() => setModal({ type: "client" })}><Plus data-icon="inline-start" /> Add client</Button>}>
       {data.clients.length === 0 && <Empty title="No clients yet">Add your first client to start booking work.</Empty>}
       <div className="divide-y divide-border/60">
         {data.clients.map(c => (
@@ -41,7 +43,7 @@ export function ProjectsScreen({ org, me, data, reload }) {
       </div>
     </Card>
 
-    <Card title="Projects" action={mayProjects && <Btn onClick={() => setModal({ type: "project" })}><Plus size={14} /> Add project</Btn>}>
+    <Card title="Projects" action={mayProjects && <Button onClick={() => setModal({ type: "project" })}><Plus data-icon="inline-start" /> Add project</Button>}>
       {data.projects.length === 0 && <Empty title="No projects yet">Projects hold the phases you schedule and bill against.</Empty>}
       <div className="divide-y divide-border/60">
         {data.projects.map(p => (
@@ -64,9 +66,9 @@ export function ProjectsScreen({ org, me, data, reload }) {
 function ClientModal({ org, onClose, onSaved }) {
   const [name, setName] = useState(""); const [terms, setTerms] = useState(30); const [busy, setBusy] = useState(false);
   const save = async () => { setBusy(true); await sb.from("clients").insert({ org_id: org.id, name: name.trim(), color: "#2f80ed", payment_terms: Number(terms) || 30 }); setBusy(false); onSaved(); };
-  return (<Modal title="Add client" onClose={onClose} footer={<><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !name.trim()}>Add</Btn></>}>
-    <Field label="Client name"><input className={inputCls} value={name} onChange={e => setName(e.target.value)} autoFocus /></Field>
-    <Field label="Payment terms (days)"><input type="number" className={inputCls} value={terms} onChange={e => setTerms(e.target.value)} /></Field>
+  return (<Modal title="Add client" onClose={onClose} footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy || !name.trim()}>Add</Button></>}>
+    <Field label="Client name"><Input value={name} onChange={e => setName(e.target.value)} autoFocus /></Field>
+    <Field label="Payment terms (days)"><Input type="number" value={terms} onChange={e => setTerms(e.target.value)} /></Field>
   </Modal>);
 }
 
@@ -78,11 +80,11 @@ function ProjectModal({ org, clients, onClose, onSaved }) {
     await sb.from("projects").insert({ org_id: org.id, name: name.trim(), code: code.trim() || name.trim().slice(0, 6).toUpperCase(), client_id: clientId || null, cost: Number(cost) || 0, phases: [] });
     setBusy(false); onSaved();
   };
-  return (<Modal title="Add project" onClose={onClose} footer={<><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy || !name.trim()}>Add</Btn></>}>
-    <Field label="Project name"><input className={inputCls} value={name} onChange={e => setName(e.target.value)} autoFocus /></Field>
+  return (<Modal title="Add project" onClose={onClose} footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy || !name.trim()}>Add</Button></>}>
+    <Field label="Project name"><Input value={name} onChange={e => setName(e.target.value)} autoFocus /></Field>
     <div className="grid grid-cols-2 gap-3">
-      <Field label="Code"><input className={inputCls} value={code} onChange={e => setCode(e.target.value)} placeholder="HID0514" /></Field>
-      <Field label="Value (£)"><input type="number" className={inputCls} value={cost} onChange={e => setCost(e.target.value)} /></Field>
+      <Field label="Code"><Input value={code} onChange={e => setCode(e.target.value)} placeholder="HID0514" /></Field>
+      <Field label="Value (£)"><Input type="number" value={cost} onChange={e => setCost(e.target.value)} /></Field>
     </div>
     <Field label="Client"><NativeSelect className="w-full" value={clientId} onChange={e => setClientId(e.target.value)}>
       <option value="">— none —</option>{clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -128,7 +130,7 @@ export function TrackerScreen({ org, me, data, reload }) {
       {running ? (<div className="flex items-center gap-3">
         <div className="text-2xl font-bold tabular-nums" style={{ color: "#1f2d4e" }}>{clock(elapsed)}</div>
         <div className="text-sm text-muted-foreground">{(data.projects.find(p => p.id === running.projectId) || {}).name || "No project"}</div>
-        <Btn variant="danger" className="ml-auto" onClick={stop}>Stop &amp; log</Btn>
+        <Button variant="destructive" className="ml-auto" onClick={stop}>Stop &amp; log</Button>
       </div>) : (<div className="flex items-center gap-2 flex-wrap">
         <NativeSelect className="w-56" onChange={e => e.target.value && setRunning({ projectId: e.target.value, startedAt: Date.now() })} defaultValue="">
           <option value="">Choose a project…</option>

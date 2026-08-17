@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { sb, DEMO } from "../lib/supabase.js";
-import { Btn, Field, inputCls } from "../ui.jsx";
+import { Field } from "../ui.jsx";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function Auth({ inviteToken, inviteError, productName }) {
   const [mode, setMode] = useState(inviteToken ? "signup" : "signin");
@@ -78,20 +80,20 @@ export default function Auth({ inviteToken, inviteError, productName }) {
           )}
 
           {mode === "signup" && (
-            <Field label="Your name"><input className={inputCls} value={name} onChange={e => setName(e.target.value)} placeholder="Alex Dangerfield" /></Field>
+            <Field label="Your name"><Input value={name} onChange={e => setName(e.target.value)} placeholder="Alex Dangerfield" /></Field>
           )}
-          <Field label="Work email"><input className={inputCls} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@studio.com" autoComplete="email" /></Field>
+          <Field label="Work email"><Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@studio.com" autoComplete="email" /></Field>
           <Field label="Password">
-            <input className={inputCls} type="password" value={password} onChange={e => setPassword(e.target.value)}
+            <Input type="password" value={password} onChange={e => setPassword(e.target.value)}
               onKeyDown={e => e.key === "Enter" && submit()} autoComplete={mode === "signup" ? "new-password" : "current-password"} placeholder={mode === "signup" ? "At least 8 characters" : ""} />
           </Field>
 
           {err && <div className="text-xs text-destructive bg-destructive/10 border border-destructive/30 rounded-lg px-3 py-2 mb-3">{err}</div>}
           {msg && <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2 mb-3">{msg}</div>}
 
-          <Btn variant="dark" className="w-full" onClick={submit} disabled={busy}>
+          <Button variant="secondary" className="w-full" onClick={submit} disabled={busy}>
             {busy ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}
-          </Btn>
+          </Button>
 
           <div className="mt-3 text-center text-xs text-muted-foreground">
             {mode === "signin" ? (

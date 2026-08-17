@@ -7,7 +7,8 @@ import { NoAccess } from "./Workspace.jsx";
 import { money } from "../lib/dates.js";
 import { Plus, Trash2, Pencil, Layers } from "lucide-react";
 import { useConfirm } from "../components/confirm.tsx";
-import { NativeSelect } from "@/components/ui/native-select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FieldGroup } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,8 +27,8 @@ export default function Projects({ org, me, data, reload, terms }) {
   const clientById = (id) => data.clients.find(c => c.id === id);
 
   return (
-    <ScrollArea className="h-full"><div className="p-4 space-y-4">
-      <h2 className="text-base font-bold text-foreground">{T.clients} &amp; {T.projectsLower||"projects"}</h2>
+    <ScrollArea className="h-full"><div className="p-4 flex flex-col gap-4">
+      <h2 className="text-base font-medium text-foreground">{T.clients} &amp; {T.projectsLower||"projects"}</h2>
 
       <Card title={T.clients} action={mayClients && <Button onClick={() => setModal({ type: "client" })}><Plus data-icon="inline-start" /> Add {T.clientLower}</Button>}>
         {data.clients.length === 0 && <Empty title={"No "+T.clientsLower+" yet"}>Add your first {T.clientLower} to start booking work.</Empty>}
@@ -36,8 +37,8 @@ export default function Projects({ org, me, data, reload, terms }) {
             <div key={c.id} className="flex items-center gap-3 py-2 text-sm group">
               <span className="w-3.5 h-3.5 rounded-xs" style={{ background: c.color || "#94a3b8" }} />
               <span className="text-foreground">{c.name}</span>
-              <span className="ml-auto text-xs text-muted-foreground/70">{c.payment_terms || 30} day terms</span>
-              {mayClients && <button className="text-muted-foreground/40 hover:text-primary-foreground" onClick={() => setModal({ type: "client", c })}><Pencil size={14} /></button>}
+              <span className="ml-auto text-xs text-muted-foreground">{c.payment_terms || 30} day terms</span>
+              {mayClients && <Button variant="ghost" size="icon-sm" title="Edit client" onClick={() => setModal({ type: "client", c })}><Pencil /></Button>}
             </div>
           ))}
         </div>
@@ -56,8 +57,8 @@ export default function Projects({ org, me, data, reload, terms }) {
             <div key={g.client ? g.client.id : "none"} className="mb-4 last:mb-0">
               <div className="flex items-center gap-2 mb-1">
                 <span className="w-3.5 h-3.5 rounded-xs shrink-0" style={{ background: g.client ? g.client.color : "#94a3b8" }} />
-                <span className="text-sm font-semibold text-foreground/80">{g.client ? g.client.name : ("No "+T.clientLower)}</span>
-                <span className="text-xs text-muted-foreground/70">· {g.projects.length} project{g.projects.length === 1 ? "" : "s"}</span>
+                <span className="text-sm font-medium text-foreground">{g.client ? g.client.name : ("No "+T.clientLower)}</span>
+                <span className="text-xs text-muted-foreground">· {g.projects.length} project{g.projects.length === 1 ? "" : "s"}</span>
               </div>
               <div className="divide-y divide-border/60 pl-5 border-l-2" style={{ borderColor: (g.client ? g.client.color : "#e2e8f0") + "55" }}>
                 {g.projects.map(p => {
@@ -65,10 +66,10 @@ export default function Projects({ org, me, data, reload, terms }) {
                   return (<div key={p.id} className="flex items-center gap-3 py-2 text-sm">
                     <div className="min-w-0 flex-1">
                       <div className="text-foreground truncate">{p.code ? p.code + " · " : ""}{p.name}</div>
-                      <div className="text-xs text-muted-foreground/70">{(p.phases || []).length} phase{(p.phases || []).length === 1 ? "" : "s"}{phaseDays ? ` · ${phaseDays} days` : ""}</div>
+                      <div className="text-xs text-muted-foreground">{(p.phases || []).length} phase{(p.phases || []).length === 1 ? "" : "s"}{phaseDays ? ` · ${phaseDays} days` : ""}</div>
                     </div>
                     <span className="text-xs text-muted-foreground shrink-0">{money(p.cost)}</span>
-                    {mayProjects && <button className="text-muted-foreground/40 hover:text-primary-foreground shrink-0" onClick={() => setModal({ type: "project", p })}><Pencil size={14} /></button>}
+                    {mayProjects && <Button variant="ghost" size="icon-sm" className="shrink-0" title="Edit project" onClick={() => setModal({ type: "project", p })}><Pencil /></Button>}
                   </div>);
                 })}
               </div>
@@ -100,10 +101,12 @@ function ClientModal({ org, client, onClose, onSaved }) {
   const del = async () => { if (!(await confirm({ title: "Delete this client?", description: "Projects keep working but lose the link.", confirmLabel: "Delete", destructive: true }))) return; await sb.from("clients").delete().eq("id", client.id); onSaved(); };
   return (<Modal title={client ? "Edit client" : "Add client"} onClose={onClose}
     footer={<>{client && <Button variant="destructive" className="mr-auto" onClick={del}><Trash2 size={14} /> Delete</Button>}<Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy || !name.trim()}>Save</Button></>}>
+    <FieldGroup>
     <Field label="Client name"><Input value={name} onChange={e => setName(e.target.value)} autoFocus /></Field>
     <Field label="Colour"><div className="flex flex-wrap gap-2">{CLIENT_COLORS.map(c => <button key={c} onClick={() => setColor(c)} className="w-8 h-8 rounded-lg" style={{ background: c, outline: color === c ? "2px solid var(--ring)" : "none", outlineOffset: 2 }} />)}</div></Field>
     <Field label="Payment terms (days)" hint="Used to estimate when invoices get paid."><Input type="number" value={terms} onChange={e => setTerms(e.target.value)} /></Field>
     <Field label="Billing address (for invoices)"><Textarea rows={3} value={addr} onChange={e => setAddr(e.target.value)} placeholder={"Accounts Payable\nClient Ltd\nLondon"} /></Field>
+    </FieldGroup>
   </Modal>);
 }
 
@@ -137,31 +140,36 @@ export function ProjectModal({ org, project, clients, onClose, onSaved }) {
 
   return (<Modal wide title={project ? "Edit project" : "Add project"} onClose={onClose}
     footer={<>{project && <Button variant="destructive" className="mr-auto" onClick={del}><Trash2 size={14} /> Delete</Button>}<Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy || !name.trim()}>Save project</Button></>}>
+    <FieldGroup>
     <Field label="Project name"><Input value={name} onChange={e => setName(e.target.value)} autoFocus /></Field>
     <div className="grid grid-cols-3 gap-3">
       <Field label="Code"><Input value={code} onChange={e => setCode(e.target.value)} placeholder="HID0514" /></Field>
-      <Field label="Client"><NativeSelect className="w-full" value={clientId} onChange={e => setClientId(e.target.value)}><option value="">— none —</option>{clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</NativeSelect></Field>
+      <Field label="Client"><Select value={clientId} onValueChange={setClientId} items={{"":"— none —",...Object.fromEntries(clients.map(c=>[c.id,c.name]))}}>
+        <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
+        <SelectContent><SelectGroup><SelectItem value="">— none —</SelectItem>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectGroup></SelectContent>
+      </Select></Field>
       <Field label="Value (£)"><Input type="number" value={cost} onChange={e => setCost(e.target.value)} /></Field>
     </div>
 
-    <div className="flex items-center gap-2 mt-2 mb-2">
-      <Layers size={14} className="text-muted-foreground/70" /><span className="text-xs font-semibold text-muted-foreground">Phases</span>
-      <button className="ml-auto text-xs font-semibold text-primary-foreground flex items-center gap-1" onClick={addPhase}><Plus size={13} /> Add phase</button>
+    <div className="flex items-center gap-2">
+      <Layers size={14} className="text-muted-foreground" /><span className="text-sm font-medium">Phases</span>
+      <Button variant="ghost" size="sm" className="ml-auto" onClick={addPhase}><Plus data-icon="inline-start" /> Add phase</Button>
     </div>
     <div className="border border-border rounded-xl overflow-hidden">
-      <div className="grid gap-1 px-2 py-1.5 bg-muted/50 text-[11px] font-semibold text-muted-foreground/70" style={{ gridTemplateColumns: "1fr 70px 70px 90px 28px" }}>
+      <div className="grid gap-1 px-2 py-1.5 bg-muted/50 text-[11px] font-medium text-muted-foreground" style={{ gridTemplateColumns: "1fr 80px 80px 100px 32px" }}>
         <span>Name</span><span className="text-right">Days</span><span className="text-right">Hrs budget</span><span className="text-right">Fee £</span><span />
       </div>
       {phases.map((p, i) => (
-        <div key={p.id} className="grid gap-1 px-2 py-1.5 border-t border-border/60 items-center" style={{ gridTemplateColumns: "1fr 70px 70px 90px 28px" }}>
-          <input className="text-sm outline-none border border-border rounded px-2 py-1" value={p.name} onChange={e => setPhase(i, "name", e.target.value)} />
-          <input type="number" className="text-sm text-right outline-none border border-border rounded px-1 py-1" value={p.days} onChange={e => setPhase(i, "days", e.target.value)} />
-          <input type="number" className="text-sm text-right outline-none border border-border rounded px-1 py-1" value={p.hours ?? ""} placeholder="—" onChange={e => setPhase(i, "hours", e.target.value)} />
-          <input type="number" className="text-sm text-right outline-none border border-border rounded px-1 py-1" value={p.fee ?? ""} placeholder="—" onChange={e => setPhase(i, "fee", e.target.value)} />
-          <button className="text-muted-foreground/40 hover:text-destructive justify-self-center" onClick={() => rmPhase(i)}><Trash2 size={14} /></button>
+        <div key={p.id} className="grid gap-1 px-2 py-1.5 border-t border-border/60 items-center" style={{ gridTemplateColumns: "1fr 80px 80px 100px 32px" }}>
+          <Input value={p.name} onChange={e => setPhase(i, "name", e.target.value)} />
+          <Input type="number" className="text-right px-1" value={p.days} onChange={e => setPhase(i, "days", e.target.value)} />
+          <Input type="number" className="text-right px-1" value={p.hours ?? ""} placeholder="—" onChange={e => setPhase(i, "hours", e.target.value)} />
+          <Input type="number" className="text-right px-1" value={p.fee ?? ""} placeholder="—" onChange={e => setPhase(i, "fee", e.target.value)} />
+          <Button variant="ghost" size="icon-sm" className="justify-self-center" title="Remove phase" onClick={() => rmPhase(i)}><Trash2 /></Button>
         </div>
       ))}
     </div>
-    <p className="text-[11px] text-muted-foreground/70 mt-2">Days = working days scheduled. Hrs budget & Fee are optional — they power the Summary "hours vs budget" and the billing plan.</p>
+    <p className="text-xs text-muted-foreground">Days = working days scheduled. Hrs budget & Fee are optional — they power the Summary "hours vs budget" and the billing plan.</p>
+    </FieldGroup>
   </Modal>);
 }

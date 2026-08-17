@@ -306,20 +306,6 @@ function HeaderTracker({ me, active, onOpen }) {
   );
 }
 
-function ComingSoonBilling() {
-  return (<div className="p-4 h-full overflow-y-auto">
-    <div className="bg-card border border-border rounded-xl p-5 max-w-xl">
-      <h3 className="text-sm font-semibold text-foreground/80 mb-2">Billing</h3>
-      <p className="text-sm text-muted-foreground mb-3">The April–March billing plan, invoices and expenses are the next screen to come across from the studio tool.</p>
-      <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-1">
-        <li>Phase-by-phase income timeline</li><li>Prospective work — likely vs less likely</li>
-        <li>Overheads and predicted net</li><li>Invoice PDFs with your branding</li>
-      </ul>
-      <p className="text-xs text-muted-foreground/70 mt-4">Billing is permission-gated already — only people with "see billing" reach this page, and only "edit billing" can change it.</p>
-    </div>
-  </div>);
-}
-
 function Fatal({ title, msg }) {
   return (<div className="h-full grid place-items-center p-6 text-center">
     <div><div className="font-bold text-foreground mb-1">{title}</div><p className="text-sm text-muted-foreground max-w-sm">{msg}</p></div>

@@ -546,10 +546,19 @@ neutral + `tabular-nums`; both money tables sit on the stock `Table`
 (sticky label column, colgroup, band rows and dense sizing ride on top as
 className); expense Paid toggle → stock `Switch`. *Kept custom:* the
 MiniGantt drag bars — data-viz; the overheads grid micro-inputs — too small
-for stock controls, like Summary's cell editor) → next: Projects/Workspace →
-Settings → Onboarding/Auth/Paywall/Admin → Schedule chrome (board timeline
-stays custom viz inside stock chrome; ClientPicker → stock DropdownMenu;
-PeoplePicker already done).
+for stock controls, like Summary's cell editor) → **Projects/Workspace ✓** (ghost pencil row actions; `FieldGroup` modals;
+client selects → popup Select; the phase editor grid on stock Inputs with
+ghost add/remove; Workspace's lite tracker select → popup action-Select; last
+inline NAVY in TrackerScreen removed) → **Settings ✓** (usage options → stock `RadioGroup`; desktop warnings +
+letterhead flag → `Checkbox`; letterhead upload → outline Button with hidden
+input; inline green "Saved." labels → success toasts; subscription status →
+`Badge` variants; plans notice → `Alert`; transfer-ownership select → popup
+Select; invoice form in `FieldGroup`; account modals on default-primary CTAs)
+→ **dead code deleted**: Workspace.jsx cut from 169 → 28 lines (only
+`NoAccess` + `TeamLite` were ever imported) and `ComingSoonBilling` removed
+from App.jsx, per the UX brief's cut list → next: Onboarding/Auth/Paywall/
+Admin → Schedule chrome (board timeline stays custom viz inside stock chrome;
+ClientPicker → stock DropdownMenu; PeoplePicker already done).
 
 ## Risks
 

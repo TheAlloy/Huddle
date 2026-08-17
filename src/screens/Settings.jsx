@@ -1,11 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { sb } from "../lib/supabase.js";
-import { Card, Field, Pill, Modal } from "../ui.jsx";
+import { Card, Field, Modal } from "../ui.jsx";
 import { can } from "../lib/permissions.js";
 import { USAGE_OPTIONS } from "../lib/terms.js";
 import { PlanCard } from "./PlanCard.jsx";
 import { toast } from "@/components/ui/toast";
-import { NativeSelect } from "@/components/ui/native-select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { FieldGroup } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,15 +18,16 @@ import { Textarea } from "@/components/ui/textarea";
 export default function Settings({ org, me, members, reload }) {
   const [name, setName] = useState(org.name);
   const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState(false);
+
   const [inv, setInv] = useState(org.settings?.invoice || {});
-  const [invSaved, setInvSaved] = useState(false);
+
   const setF = (k, v) => setInv(p => ({ ...p, [k]: v }));
   const admin = can(me, "org.admin");
   const [plans, setPlans] = useState(null);
   const [plansMsg, setPlansMsg] = useState("");
   const [liveSub, setLiveSub] = useState(null);
   const [accountModal, setAccountModal] = useState(null);
+  const letterheadRef = useRef(null);
   const currentPriceId = (liveSub && liveSub.priceId) || org.settings?.stripe_price_id || null;
 
   useEffect(() => {
@@ -84,94 +90,90 @@ export default function Settings({ org, me, members, reload }) {
   const saveInvoice = async () => {
     setBusy(true);
     await sb.from("organizations").update({ settings: { ...(org.settings || {}), invoice: inv } }).eq("id", org.id);
-    setBusy(false); setInvSaved(true); reload();
-    setTimeout(() => setInvSaved(false), 2500);
+    setBusy(false); reload(); toast.add({ title: "Invoice details saved", type: "success" });
   };
 
   const [usage, setUsage] = useState(org.settings?.usage || "consultancy");
   const [usageOther, setUsageOther] = useState(org.settings?.usageOther || "");
-  const [usageSaved, setUsageSaved] = useState(false);
+
   const saveUsage = async () => {
     setBusy(true);
     await sb.from("organizations").update({ settings: { ...(org.settings || {}), usage, ...(usage === "other" ? { usageOther } : {}) } }).eq("id", org.id);
-    setBusy(false); setUsageSaved(true); reload();
-    setTimeout(() => setUsageSaved(false), 2500);
+    setBusy(false); reload(); toast.add({ title: "Saved", type: "success" });
   };
 
   const dw = org.settings?.desktopWarnings || {};
   const [closeWarn, setCloseWarn] = useState(dw.closeWarn !== false);
   const [minWarn, setMinWarn] = useState(dw.minimizeWarn !== false);
-  const [dwSaved, setDwSaved] = useState(false);
+
   const saveDesktop = async () => {
     setBusy(true);
     await sb.from("organizations").update({ settings: { ...(org.settings || {}), desktopWarnings: { closeWarn, minimizeWarn: minWarn } } }).eq("id", org.id);
-    setBusy(false); setDwSaved(true); reload();
-    setTimeout(() => setDwSaved(false), 2500);
+    setBusy(false); reload(); toast.add({ title: "Saved", type: "success" });
   };
 
   const save = async () => {
     setBusy(true);
     await sb.from("organizations").update({ name: name.trim() }).eq("id", org.id);
-    setBusy(false); setSaved(true); reload();
-    setTimeout(() => setSaved(false), 2500);
+    setBusy(false); reload(); toast.add({ title: "Saved", type: "success" });
   };
 
   return (
-    <div className="p-4 space-y-4 overflow-y-auto h-full w-full">
-      <h2 className="text-base font-bold text-foreground">Settings</h2>
-      <div className="space-y-4">
+    <div className="p-4 flex flex-col gap-4 overflow-y-auto h-full w-full">
+      <h2 className="text-base font-medium">Settings</h2>
+      <div className="flex flex-col gap-4">
 
       <Card title="Studio">
         <Field label="Studio name">
           <Input value={name} disabled={!admin} onChange={e => setName(e.target.value)} />
         </Field>
-        {admin && <div className="flex items-center gap-2">
+        {admin && <div className="mt-3">
           <Button onClick={save} disabled={busy || !name.trim()}>{busy ? "Saving…" : "Save changes"}</Button>
-          {saved && <span className="text-xs text-green-600">Saved.</span>}
         </div>}
-        {!admin && <p className="text-xs text-muted-foreground/70">Only owners and administrators can change these.</p>}
+        {!admin && <p className="text-xs text-muted-foreground mt-3">Only owners and administrators can change these.</p>}
       </Card>
 
       {can(me, "billing.view") && <Card title="Subscription">
         <div className="flex items-center gap-3 flex-wrap">
           <div>
-            <div className="text-lg font-bold text-foreground">{currentPlan ? currentPlan.name : (org.plan && org.plan !== "trial" ? org.plan : "No plan")} {currentPlan && <span className="text-sm font-normal text-muted-foreground/70">{fmtPrice(currentPlan)}{perInterval(currentPlan)}</span>}</div>
+            <div className="text-lg font-medium text-foreground">{currentPlan ? currentPlan.name : (org.plan && org.plan !== "trial" ? org.plan : "No plan")} {currentPlan && <span className="text-sm font-normal text-muted-foreground">{fmtPrice(currentPlan)}{perInterval(currentPlan)}</span>}</div>
             <div className="text-xs text-muted-foreground">{currentPlan?.description || ""}</div>
           </div>
           {liveSub?.status === "trialing"
-            ? <Pill color="#2f80ed">Free trial{liveSub.trialEnd ? " — " + Math.max(0, Math.ceil((liveSub.trialEnd * 1000 - Date.now()) / 86400000)) + " days left" : ""}</Pill>
-            : <Pill color={org.status === "active" ? "#27ae60" : org.status === "past_due" ? "#f59e0b" : "#eb5757"}>{org.status}</Pill>}
+            ? <Badge variant="secondary">Free trial{liveSub.trialEnd ? " — " + Math.max(0, Math.ceil((liveSub.trialEnd * 1000 - Date.now()) / 86400000)) + " days left" : ""}</Badge>
+            : <Badge variant={["active","trialing"].includes(org.status) ? "secondary" : "destructive"}>{org.status}</Badge>}
           {admin && <Button variant="outline" className="ml-auto" onClick={openBillingPortal} disabled={busy}>Manage billing</Button>}
         </div>
-        <div className="text-xs text-muted-foreground/70 mt-3">
+        <div className="text-xs text-muted-foreground mt-3">
           {liveSub?.status === "trialing" && liveSub.trialEnd
             ? <>Your free trial ends on {new Date(liveSub.trialEnd * 1000).toISOString().slice(0, 10)}, then billing starts automatically. Cancel any time before then through Manage billing.</>
             : <>Seats: {org.seats >= 9999 ? "Unlimited" : org.seats}. Update your card or cancel through Manage billing.</>}
         </div>
 
         {admin && <div className="mt-4 pt-4 border-t border-border/60">
-          <div className="text-xs font-semibold text-muted-foreground mb-2">{currentPlan ? "Switch plan" : "Choose a plan"}</div>
-          {plans === null && <div className="text-xs text-muted-foreground/70">Loading plans from Stripe…</div>}
-          {plans !== null && plans.length === 0 && <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">{plansMsg || "No active plans found in Stripe. Create products with recurring prices in your Stripe dashboard and they'll appear here automatically."}</div>}
+          <div className="text-xs font-medium text-muted-foreground mb-2">{currentPlan ? "Switch plan" : "Choose a plan"}</div>
+          {plans === null && <div className="text-xs text-muted-foreground">Loading plans from Stripe…</div>}
+          {plans !== null && plans.length === 0 && <Alert><AlertDescription>{plansMsg || "No active plans found in Stripe. Create products with recurring prices in your Stripe dashboard and they'll appear here automatically."}</AlertDescription></Alert>}
           {plans !== null && plans.length > 0 && <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))" }}>
             {plans.map(p => {
               const current = p.priceId === currentPriceId && ["active", "trialing", "past_due"].includes(org.status);
               return <PlanCard key={p.priceId} plan={p} current={current} onChoose={subscribe} busy={busy} ctaLabel={currentPlan ? "Switch to this" : "Subscribe"} />;
             })}
           </div>}
-          <p className="text-[11px] text-muted-foreground/70 mt-2">These come straight from your Stripe products. Subscribing opens Stripe Checkout. To change or cancel an existing subscription, use <button onClick={openBillingPortal} className="underline">Manage billing</button> so Stripe prorates it correctly.</p>
+          <p className="text-[11px] text-muted-foreground mt-2">These come straight from your Stripe products. Subscribing opens Stripe Checkout. To change or cancel an existing subscription, use <button onClick={openBillingPortal} className="underline">Manage billing</button> so Stripe prorates it correctly.</p>
         </div>}
       </Card>}
 
       {admin && <Card title="Invoice details">
         <p className="text-xs text-muted-foreground mb-3">These print on the PDF invoices you download from Billing. Leave anything blank to omit it.</p>
+        <FieldGroup>
         <div className="grid sm:grid-cols-2 gap-3">
           <Field label="Company name"><Input value={inv.company || ""} onChange={e => setF("company", e.target.value)} placeholder={org.name} /></Field>
           <Field label="VAT number"><Input value={inv.vat || ""} onChange={e => setF("vat", e.target.value)} placeholder="GB 000 0000 00" /></Field>
         </div>
         <Field label="Company address (one line each)"><Textarea rows={3} value={inv.address || ""} onChange={e => setF("address", e.target.value)} placeholder={"Building 2\nYour Street\nTown, Postcode"} /></Field>
         <Field label="Contact email(s) for invoice queries"><Input value={inv.emails || ""} onChange={e => setF("emails", e.target.value)} placeholder="accounts@yourstudio.com" /></Field>
-        <div className="text-xs font-semibold text-muted-foreground mt-2 mb-1">Bank details (printed under “pay by transfer”)</div>
+        <div className="text-xs font-medium text-muted-foreground mt-2 mb-1">Bank details (printed under “pay by transfer”)</div>
         <div className="grid sm:grid-cols-2 gap-3">
           <Field label="Account name"><Input value={inv.bankName || ""} onChange={e => setF("bankName", e.target.value)} /></Field>
           <Field label="Bank / branch"><Input value={inv.bankBranch || ""} onChange={e => setF("bankBranch", e.target.value)} /></Field>
@@ -185,61 +187,60 @@ export default function Settings({ org, me, members, reload }) {
           <Field label="Short logo text (top of invoice)"><Input value={inv.logoText || ""} onChange={e => setF("logoText", e.target.value)} placeholder={org.name?.split(" ")[0] || "Studio"} /></Field>
         </div>
 
-        <div className="mt-2 mb-3 rounded-xl border border-border p-3">
-          <div className="text-xs font-semibold text-muted-foreground mb-1.5">Letterhead / template image</div>
-          <p className="text-[11px] text-muted-foreground/70 mb-2">Upload a PNG or JPG of your header (or a full A4 letterhead). It's placed on every invoice PDF, so downloads look like your own template. Keep it under ~600&nbsp;KB.</p>
-          {inv.letterhead && <div className="mb-2"><img src={inv.letterhead} alt="letterhead" style={{ maxHeight: 80, maxWidth: "100%", border: "1px solid #e2e8f0", borderRadius: 6 }} /></div>}
+        <div className="rounded-xl border border-border p-3">
+          <div className="text-xs font-medium text-muted-foreground mb-1.5">Letterhead / template image</div>
+          <p className="text-[11px] text-muted-foreground mb-2">Upload a PNG or JPG of your header (or a full A4 letterhead). It's placed on every invoice PDF, so downloads look like your own template. Keep it under ~600&nbsp;KB.</p>
+          {inv.letterhead && <div className="mb-2"><img src={inv.letterhead} alt="letterhead" className="max-h-20 max-w-full border rounded-md" /></div>}
           <div className="flex items-center gap-2 flex-wrap">
-            <label className="text-xs font-semibold text-primary-foreground hover:text-primary-foreground cursor-pointer border border-primary/40 rounded-lg px-2.5 py-1.5">
-              {inv.letterhead ? "Replace image" : "Upload image"}
-              <input type="file" accept="image/png,image/jpeg" className="hidden" onChange={e => {
-                const f = e.target.files && e.target.files[0]; if (!f) return;
-                if (f.size > 900000) { toast.add({ title: "That image is a bit large — please use one under ~600–900 KB so invoices stay quick to generate.", type: "error" }); return; }
-                const r = new FileReader(); r.onload = () => setF("letterhead", r.result); r.readAsDataURL(f);
-              }} />
-            </label>
-            {inv.letterhead && <button onClick={() => setInv(p => { const n = { ...p }; delete n.letterhead; return n; })} className="text-xs text-destructive hover:bg-destructive/10 rounded-lg px-2 py-1.5">Remove</button>}
-            {inv.letterhead && <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer ml-1"><input type="checkbox" checked={!!inv.letterheadFull} onChange={e => setF("letterheadFull", e.target.checked)} /> It's a full-page background</label>}
+            <input ref={letterheadRef} type="file" accept="image/png,image/jpeg" className="hidden" onChange={e => {
+              const f = e.target.files && e.target.files[0]; if (!f) return;
+              if (f.size > 900000) { toast.add({ title: "That image is a bit large — please use one under ~600–900 KB so invoices stay quick to generate.", type: "error" }); return; }
+              const r = new FileReader(); r.onload = () => setF("letterhead", r.result); r.readAsDataURL(f);
+            }} />
+            <Button variant="outline" size="sm" onClick={() => letterheadRef.current?.click()}>{inv.letterhead ? "Replace image" : "Upload image"}</Button>
+            {inv.letterhead && <Button variant="destructive" size="sm" onClick={() => setInv(p => { const n = { ...p }; delete n.letterhead; return n; })}>Remove</Button>}
+            {inv.letterhead && <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer ml-1"><Checkbox checked={!!inv.letterheadFull} onCheckedChange={(v) => setF("letterheadFull", !!v)} /> It's a full-page background</label>}
           </div>
-          <p className="text-[11px] text-muted-foreground/70 mt-2">Banner mode (default) sits your header across the top and prints the invoice below it. Tick "full-page background" only if your image is a complete A4 template with space left in the middle for the invoice text.</p>
+          <p className="text-[11px] text-muted-foreground mt-2">Banner mode (default) sits your header across the top and prints the invoice below it. Tick "full-page background" only if your image is a complete A4 template with space left in the middle for the invoice text.</p>
         </div>
 
-        <div className="flex items-center gap-2"><Button onClick={saveInvoice} disabled={busy}>Save invoice details</Button>{invSaved && <span className="text-xs text-green-600">Saved.</span>}</div>
+        </FieldGroup>
+        <div className="mt-3"><Button onClick={saveInvoice} disabled={busy}>Save invoice details</Button></div>
       </Card>}
 
       {admin && <Card title="How you use Huddle">
         <p className="text-xs text-muted-foreground mb-3">This tailors the wording across the app (for example “clients” vs “teams”).</p>
-        <div className="space-y-1.5">{USAGE_OPTIONS.map(o => (
-          <label key={o.key} className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer ${usage === o.key ? "border-primary bg-primary/10" : "border-border"}`}>
-            <input type="radio" name="usage-settings" checked={usage === o.key} onChange={() => setUsage(o.key)} className="mt-0.5" />
-            <span><span className="text-sm font-medium text-foreground">{o.label}</span><span className="block text-xs text-muted-foreground">{o.blurb}</span></span>
-          </label>))}</div>
+        <RadioGroup value={usage} onValueChange={setUsage} className="flex flex-col gap-1.5">{USAGE_OPTIONS.map(o => (
+          <label key={o.key} className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer ${usage === o.key ? "border-primary bg-primary/10" : ""}`}>
+            <RadioGroupItem value={o.key} className="mt-0.5" />
+            <span><span className="text-sm font-medium">{o.label}</span><span className="block text-xs text-muted-foreground">{o.blurb}</span></span>
+          </label>))}</RadioGroup>
         {usage === "other" && <Input className="mt-2" value={usageOther} onChange={e => setUsageOther(e.target.value)} placeholder="How would you describe it?" />}
-        <div className="flex items-center gap-2 mt-3"><Button onClick={saveUsage} disabled={busy}>Save</Button>{usageSaved && <span className="text-xs text-green-600">Saved.</span>}</div>
+        <div className="mt-3"><Button onClick={saveUsage} disabled={busy}>Save</Button></div>
       </Card>}
 
       {admin && <Card title="Desktop app warnings">
         <p className="text-xs text-muted-foreground mb-3">Controls the reminders shown in the installed desktop app for everyone on your team.</p>
         <label className="flex items-start gap-2 py-1.5 cursor-pointer">
-          <input type="checkbox" checked={closeWarn} onChange={e => setCloseWarn(e.target.checked)} className="mt-0.5" />
-          <span><span className="text-sm font-medium text-foreground">Ask before closing</span><span className="block text-xs text-muted-foreground">Shows “Have you recorded all your time?” when someone quits the app.</span></span>
+          <Checkbox checked={closeWarn} onCheckedChange={(v) => setCloseWarn(!!v)} className="mt-0.5" />
+          <span><span className="text-sm font-medium">Ask before closing</span><span className="block text-xs text-muted-foreground">Shows “Have you recorded all your time?” when someone quits the app.</span></span>
         </label>
         <label className="flex items-start gap-2 py-1.5 cursor-pointer">
-          <input type="checkbox" checked={minWarn} onChange={e => setMinWarn(e.target.checked)} className="mt-0.5" />
-          <span><span className="text-sm font-medium text-foreground">Remind on minimise</span><span className="block text-xs text-muted-foreground">If the tracker isn't running when they minimise, remind them to start recording.</span></span>
+          <Checkbox checked={minWarn} onCheckedChange={(v) => setMinWarn(!!v)} className="mt-0.5" />
+          <span><span className="text-sm font-medium">Remind on minimise</span><span className="block text-xs text-muted-foreground">If the tracker isn't running when they minimise, remind them to start recording.</span></span>
         </label>
-        <div className="flex items-center gap-2 mt-3"><Button onClick={saveDesktop} disabled={busy}>Save</Button>{dwSaved && <span className="text-xs text-green-600">Saved.</span>}</div>
+        <div className="mt-3"><Button onClick={saveDesktop} disabled={busy}>Save</Button></div>
       </Card>}
 
       <Card title="Your account">
         <div className="text-sm text-muted-foreground">{me.email}</div>
-        <div className="text-xs text-muted-foreground/70 mt-1">Signed in · role: {me.role}</div>
+        <div className="text-xs text-muted-foreground mt-1">Signed in · role: {me.role}</div>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setAccountModal("email")}>Change email</Button>
           <Button variant="outline" onClick={() => setAccountModal("password")}>Change password</Button>
           <Button variant="outline" onClick={async () => { await sb.auth.signOut(); window.location.reload(); }}>Sign out</Button>
+          {can(me, "account.close") && <Button variant="destructive" onClick={() => setAccountModal("delete")}>Delete account</Button>}
         </div>
-        {can(me, "account.close") && <button onClick={() => setAccountModal("delete")} className="mt-3 text-xs text-destructive hover:text-destructive hover:underline">Delete account</button>}
       </Card>
 
       {accountModal === "email" && <ChangeEmailModal currentEmail={me.email} onClose={() => setAccountModal(null)} />}
@@ -273,16 +274,18 @@ function ChangeEmailModal({ currentEmail, onClose }) {
 
   return (
     <Modal title="Change email" onClose={onClose}
-      footer={done ? <Button variant="secondary" onClick={onClose}>Done</Button> : <><Button variant="ghost" onClick={onClose}>Cancel</Button><Button variant="secondary" onClick={submit} disabled={busy}>{busy ? "Saving…" : "Change email"}</Button></>}>
+      footer={done ? <Button variant="secondary" onClick={onClose}>Done</Button> : <><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? "Saving…" : "Change email"}</Button></>}>
       {done ? (
         <p className="text-sm text-muted-foreground">Almost there — we've emailed a confirmation link to <b>{email}</b>. Click it to finish changing your address. Until then, keep signing in with your current email.</p>
       ) : (
         <>
-          <p className="text-xs text-muted-foreground mb-3">Enter the new address and your current password (twice) to confirm it's you.</p>
+          <p className="text-sm text-muted-foreground mb-3">Enter the new address and your current password (twice) to confirm it's you.</p>
+          <FieldGroup>
           <Field label="New email address"><Input autoComplete="off" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@studio.com" autoFocus /></Field>
           <Field label="Current password"><Input type="password" autoComplete="new-password" value={pw} onChange={e => setPw(e.target.value)} /></Field>
           <Field label="Confirm current password"><Input type="password" autoComplete="new-password" value={pw2} onChange={e => setPw2(e.target.value)} /></Field>
-          {err && <div className="text-xs text-destructive mt-1">{err}</div>}
+          </FieldGroup>
+          {err && <div className="text-sm text-destructive mt-1">{err}</div>}
         </>
       )}
     </Modal>
@@ -308,7 +311,7 @@ function ChangePasswordModal({ currentEmail, onClose }) {
 
   return (
     <Modal title="Change password" onClose={onClose}
-      footer={done ? <Button variant="secondary" onClick={onClose}>Done</Button> : <><Button variant="ghost" onClick={onClose}>Cancel</Button><Button variant="secondary" onClick={submit} disabled={busy}>{busy ? "Sending…" : "Send reset link"}</Button></>}>
+      footer={done ? <Button variant="secondary" onClick={onClose}>Done</Button> : <><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? "Sending…" : "Send reset link"}</Button></>}>
       {done ? (
         <p className="text-sm text-muted-foreground">We've emailed a reset link to <b>{currentEmail}</b>. Open it, set a new password, and you'll be signed out to sign back in with it.</p>
       ) : (
@@ -347,11 +350,11 @@ function DeleteAccountModal({ org, me, members, onClose }) {
       <p className="text-sm text-muted-foreground mb-3">What would you like to do with <b>{org.name}</b>?</p>
       <div className="space-y-2">
         <button onClick={() => setStep("transfer")} disabled={others.length === 0} className={`w-full text-left border rounded-xl p-3 ${others.length === 0 ? "opacity-50 cursor-not-allowed border-border" : "border-border hover:border-primary hover:bg-primary/10"}`}>
-          <div className="text-sm font-semibold text-foreground">Transfer ownership &amp; leave</div>
+          <div className="text-sm font-medium text-foreground">Transfer ownership &amp; leave</div>
           <div className="text-xs text-muted-foreground">Hand the studio to someone else. It keeps running; you're removed.{others.length === 0 ? " (No other members to transfer to.)" : ""}</div>
         </button>
         <button onClick={() => setStep("confirmDelete")} className="w-full text-left border border-destructive/30 rounded-xl p-3 hover:bg-destructive/10">
-          <div className="text-sm font-semibold text-destructive">Delete the whole team</div>
+          <div className="text-sm font-medium text-destructive">Delete the whole team</div>
           <div className="text-xs text-muted-foreground">Permanently removes the studio and everyone's data. This can't be undone.</div>
         </button>
       </div>
@@ -360,12 +363,12 @@ function DeleteAccountModal({ org, me, members, onClose }) {
 
   if (step === "transfer") return (
     <Modal title="Transfer ownership" onClose={onClose}
-      footer={<><Button variant="ghost" onClick={() => setStep("choose")} disabled={busy}>Back</Button><Button variant="secondary" onClick={() => newOwner ? call({ action: "transfer", newOwnerId: newOwner }) : setErr("Choose a new owner.")} disabled={busy}>{busy ? "Transferring…" : "Transfer & leave"}</Button></>}>
+      footer={<><Button variant="ghost" onClick={() => setStep("choose")} disabled={busy}>Back</Button><Button onClick={() => newOwner ? call({ action: "transfer", newOwnerId: newOwner }) : setErr("Choose a new owner.")} disabled={busy}>{busy ? "Transferring…" : "Transfer & leave"}</Button></>}>
       <p className="text-sm text-muted-foreground mb-3">Choose who becomes the new owner of <b>{org.name}</b>. You'll be removed from the team and signed out.</p>
-      <NativeSelect className="w-full" value={newOwner} onChange={e => setNewOwner(e.target.value)}>
-        <option value="">Select a team member…</option>
-        {others.map(m => <option key={m.id} value={m.id}>{m.display_name || m.email}</option>)}
-      </NativeSelect>
+      <Select value={newOwner} onValueChange={setNewOwner} items={{"":"Select a team member…",...Object.fromEntries(others.map(m=>[m.id,m.display_name||m.email]))}}>
+        <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
+        <SelectContent><SelectGroup><SelectItem value="">Select a team member…</SelectItem>{others.map(m => <SelectItem key={m.id} value={m.id}>{m.display_name || m.email}</SelectItem>)}</SelectGroup></SelectContent>
+      </Select>
       {err && <div className="text-xs text-destructive mt-2">{err}</div>}
     </Modal>
   );

@@ -564,10 +564,36 @@ Feedback scales + uses-chips → `ToggleGroup` (single via value-array, multi
 via `toggleMultiple`); Admin search → `InputGroup` with Search addon; Pills →
 `Badge` variants; Paywall org menu → stock `DropdownMenu`; PlanCard on stock
 Card anatomy — also fixed its phantom `variant="dark"` Button, which isn't a
-stock variant and rendered unstyled) → next: Schedule chrome (board timeline
-stays custom viz inside stock chrome; ClientPicker → stock DropdownMenu;
-PeoplePicker already done; Summary calendar micro-editor NativeSelect
-deliberately deferred).
+stock variant and rendered unstyled) → **Schedule chrome ✓** (local
+PeoplePicker deleted in favour of core.jsx's stock-DropdownMenu one;
+ClientPicker recomposed the same way with colour swatches; toolbar search →
+`InputGroup`; AssignForm kind tabs → `ToggleGroup`, all five NativeSelects →
+popup `Select` — the project select uses `SelectGroup`/`SelectLabel` per
+client with a "+ New project / client…" action item, and "__invite__"-style
+action values are intercepted in onValueChange; part-day → `Checkbox`; edit
+badge → `Badge`; DashTracker start/manual/edit rows → popup Selects + h/m
+`InputGroup` suffixes + stock Buttons (green Start → default primary), row
+actions ghost icon-sm; ProposalForm violet accents dropped for stock primary,
+client-mode + assign-people → ToggleGroups, phases rows on stock Inputs,
+confidence note → `Alert`; MemberForm teams → multiple ToggleGroup. Board
+timeline stays custom viz. **Gotcha:** Base UI ToggleGroup's multi-select
+prop is `multiple`, NOT `toggleMultiple` — the latter leaks to the DOM and
+silently leaves the group single-select; fixed here and in Feedback.
+Review-round polish on the Schedule modals: (1) all four form bodies
+(Assign/Client/Member/Proposal) wrapped in `FieldGroup` — Fields have no
+outer margin, so pouring them into a bare div reads cramped; ad-hoc negative
+margins removed and field-attached hints moved into the Field `hint` prop
+(stock `FieldDescription`); (2) every native `<Input type="date">` (5 across
+the file) → screen-local `DatePicker` (stock Popover + Calendar, same
+composition as Tracker's) — time inputs stay stock Inputs, no stock time
+picker exists; (3) mode switchers (Assign kind, Proposal client-mode) →
+stock `Tabs` — they switch what the form *is*, so tab semantics beat toggle
+semantics; multi-select chips stay ToggleGroups; (4) the Assign dialog's
+body gets `min-h-[30rem]` pinned to the tallest tab so switching kinds
+doesn't resize the modal (create mode only — edit mode has no tabs).
+**Rollout complete** — every screen is on stock shadcn. Remaining
+NativeSelects: Summary's calendar-cell micro-editor (deliberate) and core.jsx's
+export (its last consumer).
 
 ## Risks
 

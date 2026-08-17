@@ -70,7 +70,7 @@ export default function FeedbackModal({ org, me, onClose }) {
 
     <FieldGroup>
       <Field label={<>What do you use Huddle for? {req}</>}>
-        <ToggleGroup toggleMultiple variant="outline" size="sm" className="flex-wrap"
+        <ToggleGroup multiple variant="outline" size="sm" className="flex-wrap"
           value={a.uses} onValueChange={(v) => set("uses", v)}>
           {USES.map(u => <ToggleGroupItem key={u} value={u}>{u}</ToggleGroupItem>)}
         </ToggleGroup>

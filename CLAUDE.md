@@ -25,8 +25,17 @@ Desktop (from `desktop/`): `npm start` runs Electron locally, `npm run dist` bui
 installers. CI equivalent is `.github/workflows/desktop-build.yml` (manual dispatch or
 `v*` tags).
 
-There are no tests, no linter, and no TypeScript — plain JSX, verified by running the
-app.
+There are no tests and no linter. Screens are plain JSX; the shadcn/ui registry
+components (`src/components/ui/*.tsx`) and `src/components/confirm.tsx` are
+TypeScript. `npm run typecheck` runs `tsc --noEmit`; beyond that, changes are
+verified by running the app.
+
+**UI is stock shadcn/ui (base-nova style on Base UI, preset `b7Uc5YiUE`).**
+`src/components/ui/` must stay registry-pristine — never edit those files; restyle
+nothing. Screens pour content into the stock components (see
+`docs/foundations-plan.md` for the pattern rules: one size tier per control row,
+FieldGroup forms, popup Select with `items` map, ghost icon-sm row actions,
+Badge/semantic tokens for status colors, data colors kept for clients/leave/avatars).
 
 ## Architecture
 

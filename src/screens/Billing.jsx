@@ -11,6 +11,7 @@ import { Field } from "../ui.jsx";
 import { toast } from "sonner";
 import { Plus, Minus, Pencil, Trash2, Download, Mail } from "lucide-react";
 import { useConfirm } from "../components/confirm.tsx";
+import { NativeSelect } from "@/components/ui/native-select";
 
 /* ---- fiscal-year (April → March) ---- */
 const FY_MONTHS = ["Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec","Jan","Feb","Mar"];
@@ -105,7 +106,7 @@ function MiniGantt({ items, empty, minHeight=110, rangeStart, rangeEnd, onBarMov
   const withDates=(items||[]).filter(i=>i.s&&i.e&&i.e>=i.s);
   let minS=rangeStart, maxE=rangeEnd;
   if(!minS||!maxE){ if(withDates.length){ minS=minS||withDates[0].s; maxE=maxE||withDates[0].e; withDates.forEach(i=>{ if(i.s<minS)minS=i.s; if(i.e>maxE)maxE=i.e; }); } }
-  if(!minS||!maxE) return <div ref={dropRef} className={`px-3 text-sm text-slate-400 border rounded-xl flex items-center ${highlight?"border-blue-400 bg-blue-50":"border-slate-200"}`} style={{minHeight}}>{empty||"Nothing with dates yet."}</div>;
+  if(!minS||!maxE) return <div ref={dropRef} className={`px-3 text-sm text-muted-foreground/70 border rounded-xl flex items-center ${highlight?"border-primary bg-primary/10":"border-border"}`} style={{minHeight}}>{empty||"Nothing with dates yet."}</div>;
   const start=startOfMonth(parseISO(minS)); const end=endOfMonth(parseISO(maxE));
   const dayOf=(iso)=> (parseISO(iso)-start)/MS;
   const totalDays=Math.max(1,(end-start)/MS+1);
@@ -125,12 +126,12 @@ function MiniGantt({ items, empty, minHeight=110, rangeStart, rangeEnd, onBarMov
   };
   const canResize=!!onBarResize;
   return (
-    <div ref={dropRef} className={`border rounded-xl overflow-hidden ${highlight?"border-blue-400 ring-2 ring-blue-200":"border-slate-200"}`}>
-      <div ref={trackRef} className="relative h-6 bg-slate-50 border-b border-slate-200 text-[10px] text-slate-400">
-        {months.map((m,i)=>(<div key={i} className="absolute top-0 bottom-0 border-l border-slate-200 pl-1 flex items-center" style={{left:pct(dayOf(toISO(m)))+"%"}}>{MONTHS[m.getMonth()]} {String(m.getFullYear()).slice(2)}</div>))}
+    <div ref={dropRef} className={`border rounded-xl overflow-hidden ${highlight?"border-primary ring-2 ring-ring/50":"border-border"}`}>
+      <div ref={trackRef} className="relative h-6 bg-muted/50 border-b border-border text-[10px] text-muted-foreground/70">
+        {months.map((m,i)=>(<div key={i} className="absolute top-0 bottom-0 border-l border-border pl-1 flex items-center" style={{left:pct(dayOf(toISO(m)))+"%"}}>{MONTHS[m.getMonth()]} {String(m.getFullYear()).slice(2)}</div>))}
       </div>
       <div className="relative py-2" style={{minHeight:minHeight-24}}>
-        {months.map((m,i)=> i>0 && <div key={"g"+i} className="absolute top-0 bottom-0 border-l border-slate-100" style={{left:pct(dayOf(toISO(m)))+"%"}}/>)}
+        {months.map((m,i)=> i>0 && <div key={"g"+i} className="absolute top-0 bottom-0 border-l border-border/60" style={{left:pct(dayOf(toISO(m)))+"%"}}/>)}
         {withDates.map((i,idx)=>{ const id=i.key||i.label; const ds=(dragState&&dragState.id===id)?dragState:null;
           let leftDays=dayOf(i.s), widthDays=(dayOf(i.e)-dayOf(i.s)+1);
           if(ds){ if(ds.mode==="move") leftDays+=ds.delta; else if(ds.mode==="l"){ leftDays+=ds.delta; widthDays-=ds.delta; } else widthDays+=ds.delta; }
@@ -225,80 +226,80 @@ function BillingPlan(ctx){
   const ohMonthOf=(b,i)=> (b.meta&&b.meta.months&&b.meta.months[i]!=null&&b.meta.months[i]!=="")?Number(b.meta.months[i]):(b.amount||0);
   const ohRowFY=z12().map((_,i)=>byKind("overhead").reduce((s,b)=>s+ohMonthOf(b,i),0)); // FY view (overheads tab)
   const ohRow=periodMonthsD.map(d=>{ const slot=(d.getMonth()-3+12)%12; return byKind("overhead").reduce((s,b)=>s+ohMonthOf(b,slot),0); }); // period view (timeline)
-  const SubTab=({v,l})=>(<button onClick={()=>setSub(v)} className={`text-sm px-3 py-1.5 rounded-lg ${sub===v?"bg-slate-800 text-white":"text-slate-600 hover:bg-slate-100"}`}>{l}</button>);
+  const SubTab=({v,l})=>(<button onClick={()=>setSub(v)} className={`text-sm px-3 py-1.5 rounded-lg ${sub===v?"bg-primary text-primary-foreground":"text-muted-foreground hover:bg-muted"}`}>{l}</button>);
   const periodPicker=()=>(<div className="flex items-center gap-2 flex-wrap">
-    <select value={pMode} onChange={e=>setPMode(e.target.value)} className="text-xs rounded-lg border border-slate-200 px-2 py-1.5 outline-none">
+    <NativeSelect value={pMode} onChange={e=>setPMode(e.target.value)} >
       <option value="fy">Financial year (Apr–Mar)</option>
       <option value="cal">Calendar year (Jan–Dec)</option>
       <option value="custom">Custom range</option>
-    </select>
-    {(pMode==="fy"||pMode==="cal") && <select value={pYear} onChange={e=>setPYear(Number(e.target.value))} className="text-xs rounded-lg border border-slate-200 px-2 py-1.5 outline-none">{Array.from({length:11},(_,i)=>_nowFY.getFullYear()-5+i).map(y=><option key={y} value={y}>{pMode==="fy"?`${y}/${String(y+1).slice(2)}`:y}</option>)}</select>}
-    {pMode==="custom" && <><input type="month" value={pFrom} onChange={e=>setPFrom(e.target.value)} className="text-xs rounded-lg border border-slate-200 px-2 py-1.5 outline-none"/><span className="text-xs text-slate-400">→</span><input type="month" value={pTo} onChange={e=>setPTo(e.target.value)} className="text-xs rounded-lg border border-slate-200 px-2 py-1.5 outline-none"/></>}
+    </NativeSelect>
+    {(pMode==="fy"||pMode==="cal") && <NativeSelect value={pYear} onChange={e=>setPYear(Number(e.target.value))} >{Array.from({length:11},(_,i)=>_nowFY.getFullYear()-5+i).map(y=><option key={y} value={y}>{pMode==="fy"?`${y}/${String(y+1).slice(2)}`:y}</option>)}</NativeSelect>}
+    {pMode==="custom" && <><input type="month" value={pFrom} onChange={e=>setPFrom(e.target.value)} className="text-xs rounded-lg border border-border px-2 py-1.5 outline-none"/><span className="text-xs text-muted-foreground/70">→</span><input type="month" value={pTo} onChange={e=>setPTo(e.target.value)} className="text-xs rounded-lg border border-border px-2 py-1.5 outline-none"/></>}
   </div>);
-  const Stat=({label,value,tone})=>(<div className="rounded-xl border border-slate-200 px-4 py-3"><div className="text-xs text-slate-400">{label}</div><div className="text-lg font-bold" style={{color:tone||NAVY}}>{value}</div></div>);
-  const Actions=(b)=> canEditKind(b.kind) ? <div className="ml-auto flex items-center gap-2 shrink-0"><button onClick={()=>openForm(b.kind,b)} className="text-slate-300 hover:text-blue-600"><Pencil size={14}/></button><button onClick={async ()=>{ if(await confirm({title:"Delete this entry?", confirmLabel:"Delete", destructive:true})) delBilling(b.id); }} className="text-slate-300 hover:text-red-500"><Trash2 size={14}/></button></div> : null;
-  const Head=({title,onAdd,can=true})=>(<div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-slate-700">{title}</h3>{can&&onAdd&&<button onClick={onAdd} className="ml-auto flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700"><Plus size={13}/> Add</button>}</div>);
+  const Stat=({label,value,tone})=>(<div className="rounded-xl border border-border px-4 py-3"><div className="text-xs text-muted-foreground/70">{label}</div><div className="text-lg font-bold" style={{color:tone||"var(--foreground)"}}>{value}</div></div>);
+  const Actions=(b)=> canEditKind(b.kind) ? <div className="ml-auto flex items-center gap-2 shrink-0"><button onClick={()=>openForm(b.kind,b)} className="text-muted-foreground/40 hover:text-primary-foreground"><Pencil size={14}/></button><button onClick={async ()=>{ if(await confirm({title:"Delete this entry?", confirmLabel:"Delete", destructive:true})) delBilling(b.id); }} className="text-muted-foreground/40 hover:text-destructive"><Trash2 size={14}/></button></div> : null;
+  const Head=({title,onAdd,can=true})=>(<div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-foreground/80">{title}</h3>{can&&onAdd&&<button onClick={onAdd} className="ml-auto flex items-center gap-1 text-xs font-semibold text-primary-foreground hover:text-primary-foreground"><Plus size={13}/> Add</button>}</div>);
   const money0=(n)=> n?("£"+Math.round(n).toLocaleString()):"";
   return (
-    <div className="h-full flex flex-col bg-white">
-      <div className="shrink-0 flex items-center gap-2 px-4 py-2.5 border-b border-slate-100 flex-wrap">
+    <div className="h-full flex flex-col bg-card">
+      <div className="shrink-0 flex items-center gap-2 px-4 py-2.5 border-b border-border/60 flex-wrap">
         <SubTab v="timeline" l="Timeline"/><SubTab v="overview" l="Overview"/><SubTab v="overheads" l="Overheads"/><SubTab v="invoices" l="Invoices"/><SubTab v="expenses" l="Expenses & mileage"/>
         {sub==="invoices" && !isLeadership && <span className="ml-auto text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">Invoices are managed by team leadership</span>}
       </div>
       <div className="flex-1 min-h-0 overflow-auto p-4 space-y-6">
-        {sub==="timeline" && (()=>{ const cell="px-1.5 py-1 text-right border-l border-slate-100 align-top"; const lab="px-2 py-1 text-left sticky left-0 bg-white z-10 align-top"; const mrow=(arr)=>arr.map((v,i)=><td key={i} className={cell}>{money0(v)}</td>); const confirmedNet=monthConfirmed.map((v,i)=>v-ohRow[i]); const predictedNet=bestCase.map((v,i)=>v-ohRow[i]);
+        {sub==="timeline" && (()=>{ const cell="px-1.5 py-1 text-right border-l border-border/60 align-top"; const lab="px-2 py-1 text-left sticky left-0 bg-card z-10 align-top"; const mrow=(arr)=>arr.map((v,i)=><td key={i} className={cell}>{money0(v)}</td>); const confirmedNet=monthConfirmed.map((v,i)=>v-ohRow[i]); const predictedNet=bestCase.map((v,i)=>v-ohRow[i]);
           return (<div className="text-xs">
-            <div className="flex items-center gap-2 mb-2 flex-wrap"><h3 className="text-sm font-semibold text-slate-700">Billing timeline</h3><span className="text-xs text-slate-400">{periodLabel}</span><div className="ml-auto">{periodPicker()}</div></div>
+            <div className="flex items-center gap-2 mb-2 flex-wrap"><h3 className="text-sm font-semibold text-foreground/80">Billing timeline</h3><span className="text-xs text-muted-foreground/70">{periodLabel}</span><div className="ml-auto">{periodPicker()}</div></div>
             <table className="border-collapse w-full table-fixed">
               <colgroup><col style={{width:"22%"}}/>{periodLabels.map((m,i)=><col key={i}/>)}<col style={{width:"8%"}}/></colgroup>
-              <thead><tr className="text-[11px] text-slate-400 border-b border-slate-200">
-                <th className={lab+" font-semibold text-slate-500"}>Client / phase</th>
+              <thead><tr className="text-[11px] text-muted-foreground/70 border-b border-border">
+                <th className={lab+" font-semibold text-muted-foreground"}>Client / phase</th>
                 {periodLabels.map((m,i)=><th key={i} className={cell+" font-semibold"}>{m}</th>)}
-                <th className={cell+" font-semibold text-slate-500"}>Total</th>
+                <th className={cell+" font-semibold text-muted-foreground"}>Total</th>
               </tr></thead>
               <tbody>
-                {clientRows.length===0 && <tr><td className={lab+" text-slate-400"} colSpan={monthsCount+2}>No projects with phase fees yet — add a fee to each phase in the project editor.</td></tr>}
+                {clientRows.length===0 && <tr><td className={lab+" text-muted-foreground/70"} colSpan={monthsCount+2}>No projects with phase fees yet — add a fee to each phase in the project editor.</td></tr>}
                 {clientRows.map(({cl,rows,total})=>(<React.Fragment key={cl.id}>
-                  <tr className="bg-slate-50 border-t border-slate-200"><td className={lab+" bg-slate-50 font-semibold text-slate-700"}>{cl.name}</td>{periodLabels.map((m,i)=><td key={i} className={cell}></td>)}<td className={cell+" font-bold text-slate-700"}>{money0(total)}</td></tr>
-                  {rows.map((r,ri)=>(<tr key={ri} className="border-t border-slate-50 hover:bg-slate-50/50 align-top">
-                    <td className={lab+" text-slate-600 pl-4"}>{r.p.index} · {r.ph.name}</td>
+                  <tr className="bg-muted/50 border-t border-border"><td className={lab+" bg-muted/50 font-semibold text-foreground/80"}>{cl.name}</td>{periodLabels.map((m,i)=><td key={i} className={cell}></td>)}<td className={cell+" font-bold text-foreground/80"}>{money0(total)}</td></tr>
+                  {rows.map((r,ri)=>(<tr key={ri} className="border-t border-border/50 hover:bg-muted/30 align-top">
+                    <td className={lab+" text-muted-foreground pl-4"}>{r.p.index} · {r.ph.name}</td>
                     {periodLabels.map((m,i)=><td key={i} className={cell}>{r.mi===i && <div className="leading-tight">
-                      <div className="text-slate-700 font-medium">{money0(r.fee)}</div>
+                      <div className="text-foreground/80 font-medium">{money0(r.fee)}</div>
                       {r.inv?<div className="mt-0.5 inline-block text-[9px] text-green-700 bg-green-50 border border-green-200 rounded px-1">Inv #{(r.inv.meta&&r.inv.meta.number)||"—"}</div>
-                        :(isLeadership&&r.ended?<button onClick={()=>generateInvoice({p:r.p,cl,ph:r.ph,amount:r.fee})} className="mt-0.5 text-[9px] text-blue-600 hover:underline">+ invoice</button>:null)}
+                        :(isLeadership&&r.ended?<button onClick={()=>generateInvoice({p:r.p,cl,ph:r.ph,amount:r.fee})} className="mt-0.5 text-[9px] text-primary-foreground hover:underline">+ invoice</button>:null)}
                     </div>}</td>)}
-                    <td className={cell+" text-slate-500"}>{money0(r.fee)}</td>
+                    <td className={cell+" text-muted-foreground"}>{money0(r.fee)}</td>
                   </tr>))}
                 </React.Fragment>))}
 
                 {/* ---- CONFIRMED (money that's actually booked) ---- */}
-                <tr className="border-t-2 border-slate-400"><td className={lab+" font-bold text-slate-800"}>Confirmed income</td>{monthConfirmed.map((v,i)=><td key={i} className={cell+" font-semibold text-slate-800"}>{money0(v)}</td>)}<td className={cell+" font-bold text-slate-800"}>{money0(sum(monthConfirmed))}</td></tr>
-                <tr className="text-red-500"><td className={lab}>Overheads</td>{mrow(ohRow)}<td className={cell}>{money0(sum(ohRow))}</td></tr>
+                <tr className="border-t-2 border-input"><td className={lab+" font-bold text-foreground"}>Confirmed income</td>{monthConfirmed.map((v,i)=><td key={i} className={cell+" font-semibold text-foreground"}>{money0(v)}</td>)}<td className={cell+" font-bold text-foreground"}>{money0(sum(monthConfirmed))}</td></tr>
+                <tr className="text-destructive"><td className={lab}>Overheads</td>{mrow(ohRow)}<td className={cell}>{money0(sum(ohRow))}</td></tr>
                 <tr className="font-bold" style={{background:"#e9f7ef"}}><td className={lab} style={{color:NAVY,background:"#e9f7ef"}}>Confirmed net</td>{confirmedNet.map((v,i)=><td key={i} className={cell} style={{color:v<0?"#eb5757":"#1e874b",background:"#e9f7ef"}}>{money0(v)}</td>)}<td className={cell} style={{color:sum(confirmedNet)<0?"#eb5757":"#1e874b",background:"#e9f7ef"}}>{money0(sum(confirmedNet))}</td></tr>
 
-                <tr><td colSpan={monthsCount+2} className="py-2 border-b-2 border-slate-300"></td></tr>
+                <tr><td colSpan={monthsCount+2} className="py-2 border-b-2 border-input"></td></tr>
                 <tr><td colSpan={monthsCount+2} className="py-1"></td></tr>
 
                 {/* ---- PIPELINE ---- */}
                 <tr style={{background:"#eafaf0"}}><td className={lab+" font-bold"} style={{background:"#eafaf0",color:"#1e874b"}}><span className="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style={{background:"#27ae60"}}/>Highly likely to convert</td>{periodLabels.map((m,i)=><td key={i} className={cell} style={{background:"#eafaf0"}}></td>)}<td className={cell+" font-semibold"} style={{background:"#eafaf0",color:"#1e874b"}}>{money0(sum(highRows.map(h=>h.b.amount||0)))}</td></tr>
-                {highRows.length===0 && <tr><td className={lab+" text-slate-300 pl-4"} colSpan={monthsCount+2}>—</td></tr>}
-                {highRows.map(({b,mi},i)=>(<tr key={"h"+i} className="hover:bg-green-50/40"><td className={lab+" pl-4 text-slate-600"}>{b.client?b.client+" · ":""}{b.title}</td>{periodLabels.map((m,j)=><td key={j} className={cell} style={{color:"#1e874b"}}>{mi===j?money0(b.amount):""}</td>)}<td className={cell+" text-slate-500"}>{money0(b.amount)}</td></tr>))}
+                {highRows.length===0 && <tr><td className={lab+" text-muted-foreground/40 pl-4"} colSpan={monthsCount+2}>—</td></tr>}
+                {highRows.map(({b,mi},i)=>(<tr key={"h"+i} className="hover:bg-green-50/40"><td className={lab+" pl-4 text-muted-foreground"}>{b.client?b.client+" · ":""}{b.title}</td>{periodLabels.map((m,j)=><td key={j} className={cell} style={{color:"#1e874b"}}>{mi===j?money0(b.amount):""}</td>)}<td className={cell+" text-muted-foreground"}>{money0(b.amount)}</td></tr>))}
                 <tr style={{background:"#fff5e6"}}><td className={lab+" font-bold"} style={{background:"#fff5e6",color:"#b26b00"}}><span className="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style={{background:"#f59e0b"}}/>Less likely to convert</td>{periodLabels.map((m,i)=><td key={i} className={cell} style={{background:"#fff5e6"}}></td>)}<td className={cell+" font-semibold"} style={{background:"#fff5e6",color:"#b26b00"}}>{money0(sum(lowRows.map(l=>l.b.amount||0)))}</td></tr>
-                {lowRows.length===0 && <tr><td className={lab+" text-slate-300 pl-4"} colSpan={monthsCount+2}>—</td></tr>}
-                {lowRows.map(({b,mi},i)=>(<tr key={"l"+i} className="hover:bg-amber-50/40"><td className={lab+" pl-4 text-slate-500"}>{b.client?b.client+" · ":""}{b.title}</td>{periodLabels.map((m,j)=><td key={j} className={cell} style={{color:"#b26b00"}}>{mi===j?money0(b.amount):""}</td>)}<td className={cell+" text-slate-400"}>{money0(b.amount)}</td></tr>))}
+                {lowRows.length===0 && <tr><td className={lab+" text-muted-foreground/40 pl-4"} colSpan={monthsCount+2}>—</td></tr>}
+                {lowRows.map(({b,mi},i)=>(<tr key={"l"+i} className="hover:bg-amber-50/40"><td className={lab+" pl-4 text-muted-foreground"}>{b.client?b.client+" · ":""}{b.title}</td>{periodLabels.map((m,j)=><td key={j} className={cell} style={{color:"#b26b00"}}>{mi===j?money0(b.amount):""}</td>)}<td className={cell+" text-muted-foreground/70"}>{money0(b.amount)}</td></tr>))}
 
                 {/* ---- PREDICTION ---- */}
-                <tr className="border-t-2 border-slate-300 font-semibold text-blue-700 bg-blue-50/40"><td className={lab+" bg-blue-50/40"}>Proposals total</td>{mrow(proposals)}<td className={cell+" font-bold"}>{money0(sum(proposals))}</td></tr>
-                <tr className="font-semibold text-slate-700"><td className={lab}>Best case total</td>{mrow(bestCase)}<td className={cell+" font-bold"}>{money0(sum(bestCase))}</td></tr>
-                <tr className="text-red-500"><td className={lab}>Predicted overheads</td>{mrow(ohRow)}<td className={cell}>{money0(sum(ohRow))}</td></tr>
-                <tr className="font-bold" style={{background:"#eef2fb"}}><td className={lab} style={{color:NAVY,background:"#eef2fb"}}>Predicted net (best case)</td>{predictedNet.map((v,i)=><td key={i} className={cell} style={{color:v<0?"#eb5757":"#27ae60",background:"#eef2fb"}}>{money0(v)}</td>)}<td className={cell} style={{color:sum(predictedNet)<0?"#eb5757":"#27ae60",background:"#eef2fb"}}>{money0(sum(predictedNet))}</td></tr>
+                <tr className="border-t-2 border-input font-semibold text-primary-foreground bg-primary/5"><td className={lab+" bg-primary/5"}>Proposals total</td>{mrow(proposals)}<td className={cell+" font-bold"}>{money0(sum(proposals))}</td></tr>
+                <tr className="font-semibold text-foreground/80"><td className={lab}>Best case total</td>{mrow(bestCase)}<td className={cell+" font-bold"}>{money0(sum(bestCase))}</td></tr>
+                <tr className="text-destructive"><td className={lab}>Predicted overheads</td>{mrow(ohRow)}<td className={cell}>{money0(sum(ohRow))}</td></tr>
+                <tr className="font-bold" style={{background:"var(--muted)"}}><td className={lab} style={{color:"var(--foreground)",background:"var(--muted)"}}>Predicted net (best case)</td>{predictedNet.map((v,i)=><td key={i} className={cell} style={{color:v<0?"#eb5757":"#27ae60",background:"var(--muted)"}}>{money0(v)}</td>)}<td className={cell} style={{color:sum(predictedNet)<0?"#eb5757":"#27ae60",background:"var(--muted)"}}>{money0(sum(predictedNet))}</td></tr>
               </tbody>
             </table>
-            <p className="text-[11px] text-slate-400 mt-2">Phase fees are set per phase in the project editor; each sits in the month its phase ends. Once a phase has finished, leadership can hit "invoice" to raise it (with an auto number) — that feeds the Invoices tab.</p>
+            <p className="text-[11px] text-muted-foreground/70 mt-2">Phase fees are set per phase in the project editor; each sits in the month its phase ends. Once a phase has finished, leadership can hit "invoice" to raise it (with an auto number) — that feeds the Invoices tab.</p>
           </div>); })()}
 
         {sub==="overview" && <>
-          <div className="flex items-center gap-2 mb-1 flex-wrap"><h3 className="text-sm font-semibold text-slate-700">Overview</h3><span className="text-xs text-slate-400">{periodLabel}</span><div className="ml-auto">{periodPicker()}</div></div>
+          <div className="flex items-center gap-2 mb-1 flex-wrap"><h3 className="text-sm font-semibold text-foreground/80">Overview</h3><span className="text-xs text-muted-foreground/70">{periodLabel}</span><div className="ml-auto">{periodPicker()}</div></div>
           <div className="grid gap-3" style={{gridTemplateColumns:"repeat(auto-fill,minmax(170px,1fr))"}}>
             <Stat label="Overheads / month" value={money(overheadTotal)}/>
             <Stat label="Pipeline (potential)" value={money(pipelineTotal)} tone="#2f80ed"/>
@@ -307,96 +308,96 @@ function BillingPlan(ctx){
             <Stat label="Expenses owed" value={money(expensesTotal)}/>
           </div>
           <div>
-            <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-slate-700">Confirmed work — timeline</h3><span className="text-[11px] text-slate-400">drag to move · drag an edge to stretch the start/end</span></div>
+            <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-foreground/80">Confirmed work — timeline</h3><span className="text-[11px] text-muted-foreground/70">drag to move · drag an edge to stretch the start/end</span></div>
             <MiniGantt rangeStart={periodStartISO} rangeEnd={periodEndISO} onBarMove={isLeadership?moveConfirmed:null} onBarResize={isLeadership?resizeConfirmed:null} onBarClick={(item)=>ctx.openProjectEditor&&ctx.openProjectEditor(item.pid)} minHeight={150} items={confirmedItems} empty="No scheduled projects yet — book work on the schedule, or confirm a prospective job below."/>
           </div>
           <div>
-            <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-slate-700">Prospective work — timeline</h3><div className="ml-auto flex items-center gap-2">{byKind("pipeline").length===0 && <button onClick={seedPipeline} className="text-xs font-semibold text-slate-500 hover:text-slate-700 border border-slate-200 rounded-lg px-2 py-1">Add examples</button>}<button onClick={()=>openForm("pipeline")} className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700"><Plus size={13}/> Add</button></div></div>
+            <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-foreground/80">Prospective work — timeline</h3><div className="ml-auto flex items-center gap-2">{byKind("pipeline").length===0 && <button onClick={seedPipeline} className="text-xs font-semibold text-muted-foreground hover:text-foreground border border-border rounded-lg px-2 py-1">Add examples</button>}<button onClick={()=>openForm("pipeline")} className="flex items-center gap-1 text-xs font-semibold text-primary-foreground hover:text-primary-foreground"><Plus size={13}/> Add</button></div></div>
             <MiniGantt rangeStart={periodStartISO} rangeEnd={periodEndISO} onBarMove={moveProspective} onBarResize={resizeProspective} onBarClick={(item)=>item.entry&&openForm("pipeline",item.entry)} minHeight={150} items={prospectiveItems} empty="Add prospective jobs with expected dates to see them here."/>
-            <p className="text-[11px] text-slate-400 mt-1">Both timelines cover the full financial year (April → March). Drag a bar to move it, or drag either end to change its start/end. Use "→ Confirm" below to turn a prospect into a scheduled project.</p>
-            <div className="rounded-xl border border-slate-200 overflow-hidden mt-2">
-              {byKind("pipeline").length===0 && <div className="px-3 py-3 text-sm text-slate-400">Nothing in the pipeline yet.</div>}
-              {byKind("pipeline").map(b=>{ const low=b.meta&&b.meta.likelihood==="low"; return (<div key={b.id} className="flex items-center gap-3 px-3 py-2 border-t border-slate-100 first:border-t-0 text-sm">
+            <p className="text-[11px] text-muted-foreground/70 mt-1">Both timelines cover the full financial year (April → March). Drag a bar to move it, or drag either end to change its start/end. Use "→ Confirm" below to turn a prospect into a scheduled project.</p>
+            <div className="rounded-xl border border-border overflow-hidden mt-2">
+              {byKind("pipeline").length===0 && <div className="px-3 py-3 text-sm text-muted-foreground/70">Nothing in the pipeline yet.</div>}
+              {byKind("pipeline").map(b=>{ const low=b.meta&&b.meta.likelihood==="low"; return (<div key={b.id} className="flex items-center gap-3 px-3 py-2 border-t border-border/60 first:border-t-0 text-sm">
                 <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0" style={{background:(low?"#f59e0b":"#27ae60")+"22",color:low?"#b26b00":"#1e874b"}}>{low?"Less likely":"Highly likely"}</span>
-                <span className="text-slate-700 truncate">{b.client?b.client+" · ":""}{b.title}</span>
-                {b.status!=="won" && <button onClick={async ()=>{ if(await confirm({title:"Convert to a confirmed project?", description:"It'll be added to the schedule.", confirmLabel:"Convert"})) convertPipeline(b); }} className="shrink-0 text-[11px] font-semibold text-blue-600 hover:underline">→ Confirm</button>}
-                <span className="ml-auto font-medium text-slate-700 shrink-0">{money(b.amount)}</span>{Actions(b)}
+                <span className="text-foreground/80 truncate">{b.client?b.client+" · ":""}{b.title}</span>
+                {b.status!=="won" && <button onClick={async ()=>{ if(await confirm({title:"Convert to a confirmed project?", description:"It'll be added to the schedule.", confirmLabel:"Convert"})) convertPipeline(b); }} className="shrink-0 text-[11px] font-semibold text-primary-foreground hover:underline">→ Confirm</button>}
+                <span className="ml-auto font-medium text-foreground/80 shrink-0">{money(b.amount)}</span>{Actions(b)}
               </div>);})}
             </div>
           </div>
           <div>
             <Head title="Money coming in — sent invoices"/>
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
-              {byKind("invoice").filter(b=>b.status==="sent").length===0 && <div className="px-3 py-3 text-sm text-slate-400">Nothing awaiting payment. Mark an invoice "Sent out" and it appears here with its due date.</div>}
-              {byKind("invoice").filter(b=>b.status==="sent").map(b=>{ const due=dueDate(b); return (<div key={b.id} className="flex items-center gap-3 px-3 py-2 border-t border-slate-100 first:border-t-0 text-sm">
-                <span className="text-slate-700 truncate">{b.client?b.client+" · ":""}{b.title}</span>
-                {due&&<span className="text-slate-400 shrink-0 hidden sm:inline">due {due}</span>}
-                <span className="ml-auto font-medium text-slate-700 shrink-0">{money(b.amount)}</span>
+            <div className="rounded-xl border border-border overflow-hidden">
+              {byKind("invoice").filter(b=>b.status==="sent").length===0 && <div className="px-3 py-3 text-sm text-muted-foreground/70">Nothing awaiting payment. Mark an invoice "Sent out" and it appears here with its due date.</div>}
+              {byKind("invoice").filter(b=>b.status==="sent").map(b=>{ const due=dueDate(b); return (<div key={b.id} className="flex items-center gap-3 px-3 py-2 border-t border-border/60 first:border-t-0 text-sm">
+                <span className="text-foreground/80 truncate">{b.client?b.client+" · ":""}{b.title}</span>
+                {due&&<span className="text-muted-foreground/70 shrink-0 hidden sm:inline">due {due}</span>}
+                <span className="ml-auto font-medium text-foreground/80 shrink-0">{money(b.amount)}</span>
               </div>);})}
-              {comingIn>0 && <div className="flex items-center gap-3 px-3 py-2 border-t border-slate-200 bg-slate-50 text-sm font-semibold"><span>Total expected</span><span className="ml-auto text-green-700">{money(comingIn)}</span></div>}
+              {comingIn>0 && <div className="flex items-center gap-3 px-3 py-2 border-t border-border bg-muted/50 text-sm font-semibold"><span>Total expected</span><span className="ml-auto text-green-700">{money(comingIn)}</span></div>}
             </div>
           </div>
         </>}
 
-        {sub==="overheads" && (()=>{ const cell="px-1.5 py-1 text-right whitespace-nowrap border-l border-slate-100"; const lab="px-2 py-1 text-left sticky left-0 bg-white z-10 whitespace-nowrap";
+        {sub==="overheads" && (()=>{ const cell="px-1.5 py-1 text-right whitespace-nowrap border-l border-border/60"; const lab="px-2 py-1 text-left sticky left-0 bg-card z-10 whitespace-nowrap";
           const setBase=(b,v)=>editBilling({...b,amount:v===""?0:Number(v)});
           const setMonth=(b,i,v)=>{ const months={...(b.meta&&b.meta.months||{})}; if(v==="") delete months[i]; else months[i]=Number(v); editBilling({...b,meta:{...(b.meta||{}),months}}); };
           const rowTotal=(b)=>z12().reduce((s,_,i)=>s+ohMonthOf(b,i),0);
           const addExamples=()=>{ const ex=[["Studio rent",6500],["Salaries & wages",18000],["Software & subscriptions",1200],["Utilities & internet",700],["Insurance",300],["Accounting & legal",450]]; ex.forEach(([t,a])=>addBilling({kind:"overhead",title:t,amount:a,meta:{}})); };
           return (<div>
-            <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-slate-700">Monthly overheads</h3><span className="text-xs text-slate-400">edit the "All" column to set every month, or override a single month</span><div className="ml-auto flex items-center gap-2">{byKind("overhead").length===0 && <button onClick={addExamples} className="text-xs font-semibold text-slate-500 hover:text-slate-700 border border-slate-200 rounded-lg px-2 py-1">Add examples</button>}<button onClick={()=>openForm("overhead")} className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700"><Plus size={13}/> Add</button></div></div>
+            <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-foreground/80">Monthly overheads</h3><span className="text-xs text-muted-foreground/70">edit the "All" column to set every month, or override a single month</span><div className="ml-auto flex items-center gap-2">{byKind("overhead").length===0 && <button onClick={addExamples} className="text-xs font-semibold text-muted-foreground hover:text-foreground border border-border rounded-lg px-2 py-1">Add examples</button>}<button onClick={()=>openForm("overhead")} className="flex items-center gap-1 text-xs font-semibold text-primary-foreground hover:text-primary-foreground"><Plus size={13}/> Add</button></div></div>
             <div className="overflow-auto"><table className="border-collapse text-xs w-full" style={{minWidth:1100}}>
-              <thead><tr className="text-[11px] text-slate-400 border-b border-slate-200"><th className={lab+" font-semibold"}>Overhead</th><th className={cell+" font-semibold text-slate-500"}>All</th>{FY_MONTHS.map((m,i)=><th key={i} className={cell+" font-semibold"}>{m}</th>)}<th className={cell+" font-semibold text-slate-500"}>Year</th><th className="w-6"></th></tr></thead>
+              <thead><tr className="text-[11px] text-muted-foreground/70 border-b border-border"><th className={lab+" font-semibold"}>Overhead</th><th className={cell+" font-semibold text-muted-foreground"}>All</th>{FY_MONTHS.map((m,i)=><th key={i} className={cell+" font-semibold"}>{m}</th>)}<th className={cell+" font-semibold text-muted-foreground"}>Year</th><th className="w-6"></th></tr></thead>
               <tbody>
-                {byKind("overhead").length===0 && <tr><td className={lab+" text-slate-400"} colSpan={16}>No overheads yet — add your own or click "Add examples".</td></tr>}
-                {byKind("overhead").map(b=>(<tr key={b.id} className="border-t border-slate-50">
-                  <td className={lab+" text-slate-700"}>{b.title}</td>
-                  <td className={cell}><input type="number" value={b.amount||""} onChange={e=>setBase(b,e.target.value)} className="w-16 text-right bg-slate-50 rounded px-1 py-0.5 outline-none"/></td>
-                  {FY_MONTHS.map((m,i)=>{ const ov=b.meta&&b.meta.months&&b.meta.months[i]; return <td key={i} className={cell}><input type="number" value={ov??""} placeholder={String(b.amount||0)} onChange={e=>setMonth(b,i,e.target.value)} className="w-14 text-right bg-white rounded px-1 py-0.5 outline-none border border-transparent hover:border-slate-200 focus:border-blue-300"/></td>; })}
-                  <td className={cell+" font-medium text-slate-600"}>{money0(rowTotal(b))}</td>
-                  <td className="text-center"><button onClick={async ()=>{ if(await confirm({title:"Delete this overhead?", confirmLabel:"Delete", destructive:true})) delBilling(b.id); }} className="text-slate-300 hover:text-red-500"><Trash2 size={13}/></button></td>
+                {byKind("overhead").length===0 && <tr><td className={lab+" text-muted-foreground/70"} colSpan={16}>No overheads yet — add your own or click "Add examples".</td></tr>}
+                {byKind("overhead").map(b=>(<tr key={b.id} className="border-t border-border/50">
+                  <td className={lab+" text-foreground/80"}>{b.title}</td>
+                  <td className={cell}><input type="number" value={b.amount||""} onChange={e=>setBase(b,e.target.value)} className="w-16 text-right bg-muted/50 rounded px-1 py-0.5 outline-none"/></td>
+                  {FY_MONTHS.map((m,i)=>{ const ov=b.meta&&b.meta.months&&b.meta.months[i]; return <td key={i} className={cell}><input type="number" value={ov??""} placeholder={String(b.amount||0)} onChange={e=>setMonth(b,i,e.target.value)} className="w-14 text-right bg-card rounded px-1 py-0.5 outline-none border border-transparent hover:border-border focus:border-primary/40"/></td>; })}
+                  <td className={cell+" font-medium text-muted-foreground"}>{money0(rowTotal(b))}</td>
+                  <td className="text-center"><button onClick={async ()=>{ if(await confirm({title:"Delete this overhead?", confirmLabel:"Delete", destructive:true})) delBilling(b.id); }} className="text-muted-foreground/40 hover:text-destructive"><Trash2 size={13}/></button></td>
                 </tr>))}
-                {byKind("overhead").length>0 && <tr className="border-t-2 border-slate-300 font-bold bg-slate-50"><td className={lab+" bg-slate-50"}>Total</td><td className={cell}></td>{ohRowFY.map((v,i)=><td key={i} className={cell}>{money0(v)}</td>)}<td className={cell}>{money0(sum(ohRowFY))}</td><td></td></tr>}
+                {byKind("overhead").length>0 && <tr className="border-t-2 border-input font-bold bg-muted/50"><td className={lab+" bg-muted/50"}>Total</td><td className={cell}></td>{ohRowFY.map((v,i)=><td key={i} className={cell}>{money0(v)}</td>)}<td className={cell}>{money0(sum(ohRowFY))}</td><td></td></tr>}
               </tbody>
             </table></div>
-            <p className="text-[11px] text-slate-400 mt-2">Blank month = uses the "All" figure. These feed the "Predicted overheads" and net rows on the timeline.</p>
+            <p className="text-[11px] text-muted-foreground/70 mt-2">Blank month = uses the "All" figure. These feed the "Predicted overheads" and net rows on the timeline.</p>
           </div>); })()}
 
         {sub==="invoices" && <div className="space-y-5">
           {isLeadership && <div>
-            <h3 className="text-sm font-semibold text-slate-700 mb-2">Ready to invoice <span className="text-xs font-normal text-slate-400">— phases that have finished</span></h3>
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
-              {readyPhases.length===0 && <div className="px-3 py-3 text-sm text-slate-400">Nothing ready — a phase appears here once its end date passes.</div>}
-              {readyPhases.map((rp,i)=>(<div key={i} className="flex items-center gap-3 px-3 py-2 border-t border-slate-100 first:border-t-0 text-sm">
+            <h3 className="text-sm font-semibold text-foreground/80 mb-2">Ready to invoice <span className="text-xs font-normal text-muted-foreground/70">— phases that have finished</span></h3>
+            <div className="rounded-xl border border-border overflow-hidden">
+              {readyPhases.length===0 && <div className="px-3 py-3 text-sm text-muted-foreground/70">Nothing ready — a phase appears here once its end date passes.</div>}
+              {readyPhases.map((rp,i)=>(<div key={i} className="flex items-center gap-3 px-3 py-2 border-t border-border/60 first:border-t-0 text-sm">
                 <span className="w-2.5 h-2.5 rounded-xs shrink-0" style={{background:rp.cl?rp.cl.color:"#94a3b8"}}/>
-                <span className="text-slate-700 truncate">{rp.cl?rp.cl.name+" · ":""}{rp.p.name} <span className="text-slate-400">· {rp.ph.name}</span></span>
-                <span className="text-slate-400 shrink-0 hidden sm:inline">ended {rp.end}</span>
-                <span className="font-medium text-slate-700 shrink-0">{money(rp.amount)}</span>
-                <button onClick={()=>generateInvoice(rp)} className="shrink-0 text-xs font-semibold text-white bg-blue-600 px-2.5 py-1 rounded-lg hover:bg-blue-700">Generate</button>
+                <span className="text-foreground/80 truncate">{rp.cl?rp.cl.name+" · ":""}{rp.p.name} <span className="text-muted-foreground/70">· {rp.ph.name}</span></span>
+                <span className="text-muted-foreground/70 shrink-0 hidden sm:inline">ended {rp.end}</span>
+                <span className="font-medium text-foreground/80 shrink-0">{money(rp.amount)}</span>
+                <button onClick={()=>generateInvoice(rp)} className="shrink-0 text-xs font-semibold text-primary-foreground bg-primary px-2.5 py-1 rounded-lg hover:bg-primary/80">Generate</button>
               </div>))}
             </div>
           </div>}
           <div>
-            <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-slate-700">Invoices</h3>{isLeadership&&<div className="ml-auto flex items-center gap-2">
-              <select onChange={e=>{ const p=data.projects.find(x=>x.id===e.target.value); if(p){ const cl=clientById(p.clientId); openForm("invoice",null,{title:p.name,client:cl?cl.name:"",amount:p.cost||0,projectId:p.id}); } e.target.value=""; }} className="text-xs rounded-lg border border-slate-200 px-2 py-1.5 outline-none" defaultValue=""><option value="">Generate from project…</option>{data.projects.map(p=><option key={p.id} value={p.id}>{p.index} — {p.name}</option>)}</select>
-              {byKind("invoice").length===0 && <button onClick={seedInvoices} className="text-xs font-semibold text-slate-500 hover:text-slate-700 border border-slate-200 rounded-lg px-2 py-1">Examples</button>}
-              <button onClick={()=>openForm("invoice")} className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700"><Plus size={13}/> Add</button></div>}</div>
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
-              {byKind("invoice").length===0 && <div className="px-3 py-3 text-sm text-slate-400">No invoices yet.</div>}
-              {byKind("invoice").map(b=>{ const st=INV_STATUS[b.status]||INV_STATUS.pending; return (<div key={b.id} className="flex items-center gap-3 px-3 py-2 border-t border-slate-100 first:border-t-0 text-sm">
+            <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-foreground/80">Invoices</h3>{isLeadership&&<div className="ml-auto flex items-center gap-2">
+              <NativeSelect onChange={e=>{ const p=data.projects.find(x=>x.id===e.target.value); if(p){ const cl=clientById(p.clientId); openForm("invoice",null,{title:p.name,client:cl?cl.name:"",amount:p.cost||0,projectId:p.id}); } e.target.value=""; }}  defaultValue=""><option value="">Generate from project…</option>{data.projects.map(p=><option key={p.id} value={p.id}>{p.index} — {p.name}</option>)}</NativeSelect>
+              {byKind("invoice").length===0 && <button onClick={seedInvoices} className="text-xs font-semibold text-muted-foreground hover:text-foreground border border-border rounded-lg px-2 py-1">Examples</button>}
+              <button onClick={()=>openForm("invoice")} className="flex items-center gap-1 text-xs font-semibold text-primary-foreground hover:text-primary-foreground"><Plus size={13}/> Add</button></div>}</div>
+            <div className="rounded-xl border border-border overflow-hidden">
+              {byKind("invoice").length===0 && <div className="px-3 py-3 text-sm text-muted-foreground/70">No invoices yet.</div>}
+              {byKind("invoice").map(b=>{ const st=INV_STATUS[b.status]||INV_STATUS.pending; return (<div key={b.id} className="flex items-center gap-3 px-3 py-2 border-t border-border/60 first:border-t-0 text-sm">
                 {isLeadership
-                  ? <select value={b.status||"pending"} onChange={e=>editBilling({...b,status:e.target.value})} className="text-[11px] rounded border border-slate-200 px-1 py-0.5 outline-none shrink-0" style={{color:st.color}}>{Object.entries(INV_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select>
+                  ? <NativeSelect value={b.status||"pending"} onChange={e=>editBilling({...b,status:e.target.value})} className="shrink-0" style={{color:st.color}}>{Object.entries(INV_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</NativeSelect>
                   : <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0" style={{background:st.color+"22",color:st.color}}>{st.label}</span>}
-                <span className="text-slate-700 truncate flex-1">{b.meta&&b.meta.number?<span className="text-slate-400">#{b.meta.number} </span>:""}{b.client?b.client+" · ":""}{b.title}</span>
-                <span className="font-medium text-slate-700 shrink-0">{money(b.amount)}</span>
+                <span className="text-foreground/80 truncate flex-1">{b.meta&&b.meta.number?<span className="text-muted-foreground/70">#{b.meta.number} </span>:""}{b.client?b.client+" · ":""}{b.title}</span>
+                <span className="font-medium text-foreground/80 shrink-0">{money(b.amount)}</span>
                 {(()=>{ const project=data.projects.find(p=>p.id===b.projectId); const cl=(data.clients.find(c=>c.name===b.client))||(project&&clientById(project.clientId)); const phase=project&&b.meta&&b.meta.phaseId&&(project.phases||[]).find(p=>p.id===b.meta.phaseId); const args={inv:b,client:cl,project,phase,profile:ctx.invoiceProfile}; return (<span className="flex items-center gap-1.5 shrink-0">
-                  <button title="Download PDF invoice" onClick={()=>downloadInvoice(args)} className="text-slate-400 hover:text-blue-600"><Download size={15}/></button>
-                  <button title="Email / share this invoice" onClick={()=>emailInvoice(args)} className="text-slate-400 hover:text-blue-600"><Mail size={15}/></button>
+                  <button title="Download PDF invoice" onClick={()=>downloadInvoice(args)} className="text-muted-foreground/70 hover:text-primary-foreground"><Download size={15}/></button>
+                  <button title="Email / share this invoice" onClick={()=>emailInvoice(args)} className="text-muted-foreground/70 hover:text-primary-foreground"><Mail size={15}/></button>
                 </span>); })()}
                 {Actions(b)}
               </div>);})}
             </div>
-            <p className="text-xs text-slate-400 mt-2">Each invoice has a <b>Download</b> (PDF) and <b>Email/share</b> button. VAT is added at 20% on the PDF. Set your studio's details in Settings → Invoice details, and each client's billing address on the client.</p>
+            <p className="text-xs text-muted-foreground/70 mt-2">Each invoice has a <b>Download</b> (PDF) and <b>Email/share</b> button. VAT is added at 20% on the PDF. Set your studio's details in Settings → Invoice details, and each client's billing address on the client.</p>
           </div>
         </div>}
 
@@ -410,27 +411,27 @@ function BillingPlan(ctx){
           return (<div className="space-y-5">
           <div className="flex items-center gap-3 flex-wrap">
             <PeoplePicker members={data.members} teams={teamList} value={expPeople} onChange={setExpPeople} me={myMemberId}/>
-            <select value={expMonth} onChange={e=>setExpMonth(e.target.value)} className="text-sm rounded-lg border border-slate-200 px-2 py-1.5 outline-none"><option value="">All months</option>{monthsPresent.map(m=><option key={m} value={m}>{m}</option>)}</select>
-            <span className="ml-auto text-sm text-slate-500">Showing <span className="font-semibold text-slate-700">{money(shownTotal)}</span>{paidTotal>0&&<span className="text-slate-400"> · {money(paidTotal)} paid</span>}</span>
+            <NativeSelect value={expMonth} onChange={e=>setExpMonth(e.target.value)} ><option value="">All months</option>{monthsPresent.map(m=><option key={m} value={m}>{m}</option>)}</NativeSelect>
+            <span className="ml-auto text-sm text-muted-foreground">Showing <span className="font-semibold text-foreground/80">{money(shownTotal)}</span>{paidTotal>0&&<span className="text-muted-foreground/70"> · {money(paidTotal)} paid</span>}</span>
           </div>
           {Object.keys(fowed).length>0 && <div>
-            <h3 className="text-sm font-semibold text-slate-700 mb-2">Who's owed <span className="text-xs font-normal text-slate-400">(unpaid, for the current filter)</span></h3>
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
-              {Object.entries(fowed).sort((a,b)=>b[1]-a[1]).map(([mid,amt])=>(<div key={mid} className="flex items-center gap-3 px-3 py-2 border-t border-slate-100 first:border-t-0 text-sm"><span className="text-slate-700">{mid==="?"?"Unassigned":memberName(mid)}</span><span className="ml-auto font-medium text-slate-700">{money(amt)}</span></div>))}
+            <h3 className="text-sm font-semibold text-foreground/80 mb-2">Who's owed <span className="text-xs font-normal text-muted-foreground/70">(unpaid, for the current filter)</span></h3>
+            <div className="rounded-xl border border-border overflow-hidden">
+              {Object.entries(fowed).sort((a,b)=>b[1]-a[1]).map(([mid,amt])=>(<div key={mid} className="flex items-center gap-3 px-3 py-2 border-t border-border/60 first:border-t-0 text-sm"><span className="text-foreground/80">{mid==="?"?"Unassigned":memberName(mid)}</span><span className="ml-auto font-medium text-foreground/80">{money(amt)}</span></div>))}
             </div>
           </div>}
           <div>
-            <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-slate-700">Expenses & mileage</h3><div className="ml-auto flex items-center gap-2">{allExp.length===0 && <button onClick={seedExpenses} className="text-xs font-semibold text-slate-500 hover:text-slate-700 border border-slate-200 rounded-lg px-2 py-1">Add examples</button>}<button onClick={()=>openForm("expense")} className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700"><Plus size={13}/> Add</button></div></div>
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
-              {shown.length===0 && <div className="px-3 py-3 text-sm text-slate-400">No expenses match this filter.</div>}
-              {shown.map(b=>{ const miles=b.meta&&b.meta.miles; const mo=b.meta&&b.meta.month; const pr=b.projectId&&data.projects.find(p=>p.id===b.projectId); const paid=b.status==="paid"; return (<div key={b.id} className="flex items-center gap-3 px-3 py-2 border-t border-slate-100 first:border-t-0 text-sm">
+            <div className="flex items-center gap-2 mb-2"><h3 className="text-sm font-semibold text-foreground/80">Expenses & mileage</h3><div className="ml-auto flex items-center gap-2">{allExp.length===0 && <button onClick={seedExpenses} className="text-xs font-semibold text-muted-foreground hover:text-foreground border border-border rounded-lg px-2 py-1">Add examples</button>}<button onClick={()=>openForm("expense")} className="flex items-center gap-1 text-xs font-semibold text-primary-foreground hover:text-primary-foreground"><Plus size={13}/> Add</button></div></div>
+            <div className="rounded-xl border border-border overflow-hidden">
+              {shown.length===0 && <div className="px-3 py-3 text-sm text-muted-foreground/70">No expenses match this filter.</div>}
+              {shown.map(b=>{ const miles=b.meta&&b.meta.miles; const mo=b.meta&&b.meta.month; const pr=b.projectId&&data.projects.find(p=>p.id===b.projectId); const paid=b.status==="paid"; return (<div key={b.id} className="flex items-center gap-3 px-3 py-2 border-t border-border/60 first:border-t-0 text-sm">
                 <button onClick={()=>editBilling({...b,status:paid?"pending":"paid"})} title="Toggle paid" className="text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0" style={{background:(paid?"#27ae60":"#94a3b8")+"22",color:paid?"#1e874b":"#64748b"}}>{paid?"Paid":"Unpaid"}</button>
-                <span className="flex-1 min-w-0 text-slate-700 truncate">{b.title}</span>
-                <span className="text-slate-400 shrink-0 hidden sm:inline">{b.memberId?memberName(b.memberId):""}{pr?" · "+pr.name:""}{mo?" · "+mo:""}{miles?" · "+miles+" mi":""}</span>
-                <span className="w-24 text-right font-medium text-slate-700 shrink-0">{money(b.amount)}</span>
+                <span className="flex-1 min-w-0 text-foreground/80 truncate">{b.title}</span>
+                <span className="text-muted-foreground/70 shrink-0 hidden sm:inline">{b.memberId?memberName(b.memberId):""}{pr?" · "+pr.name:""}{mo?" · "+mo:""}{miles?" · "+miles+" mi":""}</span>
+                <span className="w-24 text-right font-medium text-foreground/80 shrink-0">{money(b.amount)}</span>
                 <span className="w-12 flex justify-end shrink-0">{Actions(b)}</span>
               </div>);})}
-              {shown.length>0 && <div className="flex items-center gap-3 px-3 py-2 border-t border-slate-200 bg-slate-50 text-sm font-semibold"><span className="flex-1">Total shown</span><span className="w-24 text-right shrink-0">{money(shownTotal)}</span><span className="w-12 shrink-0"></span></div>}
+              {shown.length>0 && <div className="flex items-center gap-3 px-3 py-2 border-t border-border bg-muted/50 text-sm font-semibold"><span className="flex-1">Total shown</span><span className="w-24 text-right shrink-0">{money(shownTotal)}</span><span className="w-12 shrink-0"></span></div>}
             </div>
           </div>
         </div>); })()}
@@ -465,21 +466,21 @@ function BillingForm({ kind, entry, preset, members, projects=[], me, onSave, on
     {(kind==="pipeline"||kind==="invoice") && <Field label="Client"><input className={inputCls} value={client} onChange={e=>setClient(e.target.value)} placeholder="Client name"/></Field>}
     <div className="grid grid-cols-2 gap-3">
       <Field label={kind==="overhead"?"£ amount":"Amount (£)"}><input type="number" min="0" className={inputCls} value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0"/></Field>
-      {kind==="overhead" && <Field label="Applies to"><select className={inputCls} value={month} onChange={e=>setMonth(e.target.value)}><option value="">Every month</option>{FY_MONTHS.map((m,i)=><option key={i} value={String(i)}>{m} only</option>)}</select></Field>}
-      {kind==="pipeline" && <Field label="Status"><select className={inputCls} value={status} onChange={e=>setStatus(e.target.value)}>{Object.entries(PIPE_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select></Field>}
-      {kind==="invoice" && <Field label="Status"><select className={inputCls} value={status} onChange={e=>setStatus(e.target.value)}>{Object.entries(INV_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select></Field>}
+      {kind==="overhead" && <Field label="Applies to"><NativeSelect className="w-full" value={month} onChange={e=>setMonth(e.target.value)}><option value="">Every month</option>{FY_MONTHS.map((m,i)=><option key={i} value={String(i)}>{m} only</option>)}</NativeSelect></Field>}
+      {kind==="pipeline" && <Field label="Status"><NativeSelect className="w-full" value={status} onChange={e=>setStatus(e.target.value)}>{Object.entries(PIPE_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</NativeSelect></Field>}
+      {kind==="invoice" && <Field label="Status"><NativeSelect className="w-full" value={status} onChange={e=>setStatus(e.target.value)}>{Object.entries(INV_STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</NativeSelect></Field>}
       {kind==="expense" && <Field label="Miles (if mileage)"><input type="number" min="0" className={inputCls} value={miles} onChange={e=>setMiles(e.target.value)} placeholder="0"/></Field>}
     </div>
     {kind==="expense" && <><div className="grid grid-cols-2 gap-3">
-      <Field label="Project"><select className={inputCls} value={projectId} onChange={e=>setProjectId(e.target.value)}><option value="">— none —</option>{projects.map(pr=><option key={pr.id} value={pr.id}>{pr.index} — {pr.name}</option>)}</select></Field>
+      <Field label="Project"><NativeSelect className="w-full" value={projectId} onChange={e=>setProjectId(e.target.value)}><option value="">— none —</option>{projects.map(pr=><option key={pr.id} value={pr.id}>{pr.index} — {pr.name}</option>)}</NativeSelect></Field>
       <Field label="Month"><input type="month" className={inputCls} value={month} onChange={e=>setMonth(e.target.value)}/></Field>
     </div>
-    <Field label="Who's owed"><select className={inputCls} value={memberId} onChange={e=>setMemberId(e.target.value)}><option value="">—</option>{members.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></Field></>}
+    <Field label="Who's owed"><NativeSelect className="w-full" value={memberId} onChange={e=>setMemberId(e.target.value)}><option value="">—</option>{members.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</NativeSelect></Field></>}
     {kind==="pipeline" && <><div className="grid grid-cols-2 gap-3">
       <Field label="Expected start"><input type="date" className={inputCls} value={pStart} onChange={e=>setPStart(e.target.value)}/></Field>
       <Field label="Expected end"><input type="date" className={inputCls} value={pEnd} onChange={e=>setPEnd(e.target.value)}/></Field>
     </div>
-    <Field label="Likelihood to convert"><select className={inputCls} value={likely} onChange={e=>setLikely(e.target.value)}><option value="high">Highly likely</option><option value="low">Less likely</option></select></Field></>}
+    <Field label="Likelihood to convert"><NativeSelect className="w-full" value={likely} onChange={e=>setLikely(e.target.value)}><option value="high">Highly likely</option><option value="low">Less likely</option></NativeSelect></Field></>}
     {kind==="invoice" && <Field label="Invoice date"><input type="date" className={inputCls} value={date} onChange={e=>setDate(e.target.value)}/></Field>}
   </div><ModalFoot onSave={save} onDelete={onDelete&&entry?()=>onDelete(entry.id):null} saveLabel={entry?"Save":"Add"}/></>);
 }

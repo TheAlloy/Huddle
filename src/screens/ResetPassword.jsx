@@ -22,21 +22,21 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="min-h-screen grid place-items-center p-4" style={{ background: "#f1f5f9" }}>
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow p-6">
+    <div className="min-h-screen grid place-items-center p-4 bg-background">
+      <div className="w-full max-w-sm bg-card rounded-2xl shadow p-6">
         <img src="/huddle-icon.png" alt="Huddle" className="w-12 h-12 rounded-xl mx-auto mb-3" />
         {done ? (
           <div className="text-center">
-            <h1 className="text-lg font-bold text-slate-800 mb-1">Password updated</h1>
-            <p className="text-sm text-slate-500">Signing you out — please sign in again with your new password.</p>
+            <h1 className="text-lg font-bold text-foreground mb-1">Password updated</h1>
+            <p className="text-sm text-muted-foreground">Signing you out — please sign in again with your new password.</p>
           </div>
         ) : (
           <>
-            <h1 className="text-lg font-bold text-slate-800 text-center mb-1">Set a new password</h1>
-            <p className="text-sm text-slate-500 text-center mb-4">Choose a new password for your account. You'll sign in again afterwards.</p>
+            <h1 className="text-lg font-bold text-foreground text-center mb-1">Set a new password</h1>
+            <p className="text-sm text-muted-foreground text-center mb-4">Choose a new password for your account. You'll sign in again afterwards.</p>
             <Field label="New password"><input type="password" autoComplete="new-password" className={inputCls} value={pw} onChange={e => setPw(e.target.value)} autoFocus /></Field>
             <Field label="Confirm new password"><input type="password" autoComplete="new-password" className={inputCls} value={pw2} onChange={e => setPw2(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} /></Field>
-            {err && <div className="text-xs text-red-600 my-2">{err}</div>}
+            {err && <div className="text-xs text-destructive my-2">{err}</div>}
             <Btn variant="dark" className="w-full justify-center mt-3" onClick={submit} disabled={busy}>{busy ? "Saving…" : "Update password"}</Btn>
           </>
         )}

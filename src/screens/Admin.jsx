@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
 import { Btn, Card, Pill, Modal, Field, inputCls, Empty, Spinner } from "../ui.jsx";
 import { Search, Building2, Users, CreditCard } from "lucide-react";
+import { NativeSelect } from "@/components/ui/native-select";
 
 const PLANS = ["trial", "starter", "studio", "enterprise"];
 const STATUSES = ["active", "past_due", "suspended", "cancelled"];
@@ -38,10 +39,10 @@ export default function Admin() {
   return (
     <div className="p-4 space-y-4 overflow-y-auto h-full">
       <div>
-        <h2 className="text-base font-bold text-slate-800">Subscribers</h2>
-        <p className="text-xs text-slate-500">Every studio using the product. Only you can see this.</p>
+        <h2 className="text-base font-bold text-foreground">Subscribers</h2>
+        <p className="text-xs text-muted-foreground">Every studio using the product. Only you can see this.</p>
       </div>
-      {err && <div className="text-xs bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2">{err}</div>}
+      {err && <div className="text-xs bg-destructive/10 border border-destructive/30 text-destructive rounded-lg px-3 py-2">{err}</div>}
 
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(170px,1fr))" }}>
         <Stat icon={<Building2 size={14} />} label="Studios" value={orgs.length} />
@@ -51,8 +52,8 @@ export default function Admin() {
       </div>
 
       <div className="flex items-center gap-2">
-        <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-2.5 h-9 bg-white flex-1 max-w-sm">
-          <Search size={14} className="text-slate-400" />
+        <div className="flex items-center gap-2 border border-border rounded-lg px-2.5 h-9 bg-card flex-1 max-w-sm">
+          <Search size={14} className="text-muted-foreground/70" />
           <input className="text-sm outline-none flex-1" placeholder="Search studios…" value={q} onChange={e => setQ(e.target.value)} />
         </div>
         <Btn variant="outline" onClick={load}>Refresh</Btn>
@@ -60,12 +61,12 @@ export default function Admin() {
 
       <Card title={`Studios (${shown.length})`}>
         {shown.length === 0 && <Empty title="No studios yet">Subscribers appear here as they sign up.</Empty>}
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-border/60">
           {shown.map(o => (
             <div key={o.id} className="flex items-center gap-3 py-2.5 text-sm">
               <div className="min-w-0 flex-1">
-                <div className="font-medium text-slate-800 truncate">{o.name}</div>
-                <div className="text-xs text-slate-400">{o.member_count} member{o.member_count === 1 ? "" : "s"} · {o.seats} seats · joined {String(o.created_at).slice(0, 10)}</div>
+                <div className="font-medium text-foreground truncate">{o.name}</div>
+                <div className="text-xs text-muted-foreground/70">{o.member_count} member{o.member_count === 1 ? "" : "s"} · {o.seats} seats · joined {String(o.created_at).slice(0, 10)}</div>
               </div>
               <Pill color="#2f80ed">{o.plan}</Pill>
               <Pill color={STATUS_COLOR[o.status] || "#94a3b8"}>{o.status}</Pill>
@@ -81,8 +82,8 @@ export default function Admin() {
 }
 
 function Stat({ icon, label, value, tone }) {
-  return (<div className="bg-white rounded-xl border border-slate-200 px-4 py-3">
-    <div className="text-xs text-slate-400 flex items-center gap-1.5">{icon}{label}</div>
+  return (<div className="bg-card rounded-xl border border-border px-4 py-3">
+    <div className="text-xs text-muted-foreground/70 flex items-center gap-1.5">{icon}{label}</div>
     <div className="text-lg font-bold" style={{ color: tone || "#1f2d4e" }}>{value}</div>
   </div>);
 }
@@ -100,15 +101,15 @@ function OrgModal({ o, onClose, onSaved }) {
   return (<Modal title={o.name} onClose={onClose}
     footer={<><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</Btn></>}>
     <div className="grid grid-cols-2 gap-3">
-      <Field label="Plan"><select className={inputCls} value={plan} onChange={e => setPlan(e.target.value)}>{PLANS.map(p => <option key={p} value={p}>{p}</option>)}</select></Field>
+      <Field label="Plan"><NativeSelect className="w-full" value={plan} onChange={e => setPlan(e.target.value)}>{PLANS.map(p => <option key={p} value={p}>{p}</option>)}</NativeSelect></Field>
       <Field label="Seats"><input type="number" min="1" className={inputCls} value={seats} onChange={e => setSeats(e.target.value)} /></Field>
     </div>
     <Field label="Status" hint="Suspending blocks the studio's team from using the app.">
-      <select className={inputCls} value={status} onChange={e => setStatus(e.target.value)}>{STATUSES.map(s => <option key={s} value={s}>{s}</option>)}</select>
+      <NativeSelect className="w-full" value={status} onChange={e => setStatus(e.target.value)}>{STATUSES.map(s => <option key={s} value={s}>{s}</option>)}</NativeSelect>
     </Field>
-    <div className="text-xs text-slate-400 space-y-1 mt-2">
-      <div>Organization ID: <code className="text-slate-500">{o.id}</code></div>
-      {o.stripe_customer_id && <div>Stripe customer: <code className="text-slate-500">{o.stripe_customer_id}</code></div>}
+    <div className="text-xs text-muted-foreground/70 space-y-1 mt-2">
+      <div>Organization ID: <code className="text-muted-foreground">{o.id}</code></div>
+      {o.stripe_customer_id && <div>Stripe customer: <code className="text-muted-foreground">{o.stripe_customer_id}</code></div>}
       <div>Trial ends: {o.trial_ends_at ? String(o.trial_ends_at).slice(0, 10) : "—"}</div>
     </div>
   </Modal>);

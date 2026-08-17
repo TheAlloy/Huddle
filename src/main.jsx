@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App.jsx";
 import { ConfirmProvider } from "./components/confirm.tsx";
 import { Toaster } from "./components/ui/sonner.tsx";
+import { Agentation } from "agentation";
 import "./index.css";
 
 // Catches any render error and shows a recovery screen instead of a blank page.
@@ -40,5 +41,5 @@ class ErrorBoundary extends React.Component {
 }
 
 createRoot(document.getElementById("root")).render(
-  <React.StrictMode><ErrorBoundary><ConfirmProvider><App /><Toaster /></ConfirmProvider></ErrorBoundary></React.StrictMode>
+  <React.StrictMode><ErrorBoundary><ConfirmProvider><App /><Toaster />{import.meta.env.DEV && <Agentation />}</ConfirmProvider></ErrorBoundary></React.StrictMode>
 );

@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { sb } from "../lib/supabase.js";
 import { Users, ChevronRight, X, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 /* constants */
 export const MS = 86400000;
@@ -17,7 +19,12 @@ export const CLIENT_COLORS = ["#2f80ed","#9b51e0","#16a0a0","#eb5757","#27ae60",
 export const AVATAR_BG = ["#2f80ed","#9b51e0","#16a0a0","#eb5757","#27ae60","#f2994a","#2d9cdb","#6b7a99"];
 export const LEAVE_TYPES = { vacation:{label:"Holiday",color:"#f2994a"}, parental:{label:"Parental Leave",color:"#e67e22"}, sick:{label:"Sick Leave",color:"#c0563f"}, holiday:{label:"Public Holiday",color:"#7f8fa6"} };
 export const TASK_PRI = { high:{label:"High",color:"#eb5757"}, med:{label:"Medium",color:"#f59e0b"}, low:{label:"Low",color:"#94a3b8"} };
-export const inputCls = "w-full text-sm rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-400";
+// shadcn's Input styling as a class string for the screens that still render
+// raw <input>s. h-8 matches Button / SelectTrigger / NativeSelect exactly —
+// every control row sits at 32px. Textareas can't take a fixed height, so they
+// get their own string below.
+export const inputCls = "h-8 w-full min-w-0 text-sm rounded-lg border border-input bg-transparent px-2.5 py-1 transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50";
+export const textareaCls = "w-full min-w-0 text-sm rounded-lg border border-input bg-transparent px-2.5 py-1.5 transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50";
 
 /* pure helpers */
 export const pad = (n) => String(n).padStart(2,"0");
@@ -99,15 +106,18 @@ export function openFloatingTimer({ getTop, getElapsed, onStop }){
   return Promise.resolve(wire(w));
 }
 
-/* modal kit */
+/* modal kit — rebuilt on the shadcn Dialog (focus trap, Escape, aria labelling)
+   with the same three-part API the screens already use. */
 export function ModalShell({ children, onClose }){
-  return (<div className="fixed inset-0 z-50 bg-black/40 grid place-items-center p-4" onClick={onClose}>
-    <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[92vh] overflow-y-auto" onClick={e=>e.stopPropagation()}>{children}</div>
-  </div>);
+  return (<Dialog open onOpenChange={(o)=>{ if(!o) onClose?.(); }}>
+    <DialogContent showCloseButton={false} className="p-0 gap-0 sm:max-w-lg max-h-[92vh] overflow-y-auto text-base">
+      {children}
+    </DialogContent>
+  </Dialog>);
 }
-export function ModalHead({ title, onClose }){ return <div className="flex items-center justify-between px-5 py-3.5 rounded-t-xl text-white" style={{background:NAVY}}><h3 className="font-semibold">{title}</h3><button onClick={onClose} className="opacity-80 hover:opacity-100"><X size={18}/></button></div>; }
-export function ModalFoot({ onSave, onDelete, saveLabel="Save" }){ return <div className="flex items-center gap-2 px-5 py-4 border-t border-slate-100">{onDelete&&<button onClick={onDelete} className="flex items-center gap-1 text-sm text-red-600 hover:bg-red-50 px-2.5 py-2 rounded-lg"><Trash2 size={15}/> Delete</button>}<button onClick={onSave} className="ml-auto text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">{saveLabel}</button></div>; }
-export function ToolBtn({ icon:Icon, label, onClick, primary }){ return <button onClick={onClick} className={`flex items-center gap-1.5 text-sm px-2.5 h-8 rounded-lg border transition ${primary?"bg-blue-600 text-white border-blue-600 hover:bg-blue-700":"border-slate-200 text-slate-600 hover:bg-slate-50"}`}><Icon size={15}/> <span className="hidden sm:inline">{label}</span></button>; }
+export function ModalHead({ title, onClose }){ return <div className="flex items-center justify-between px-5 py-3.5 border-b"><h3 className="font-heading font-medium">{title}</h3><button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X size={16}/></button></div>; }
+export function ModalFoot({ onSave, onDelete, saveLabel="Save", disabled }){ return <div className="flex items-center gap-2 px-5 py-4 border-t bg-muted/50 rounded-b-xl">{onDelete&&<Button variant="ghost" onClick={onDelete} className="text-destructive hover:bg-destructive/10 hover:text-destructive"><Trash2 size={15}/> Delete</Button>}<Button className="ml-auto" onClick={onSave} disabled={disabled}>{saveLabel}</Button></div>; }
+export function ToolBtn({ icon:Icon, label, onClick, primary }){ return <button onClick={onClick} className={`flex items-center gap-1.5 text-sm px-2.5 h-8 rounded-lg border transition-colors ${primary?"bg-primary text-primary-foreground border-primary hover:bg-primary/90":"border-input text-muted-foreground hover:bg-accent hover:text-accent-foreground"}`}><Icon size={15}/> <span className="hidden sm:inline">{label}</span></button>; }
 
 export function PeoplePicker({ members, teams, value, onChange, me }){
   const [open,setOpen]=useState(false);
@@ -122,18 +132,18 @@ export function PeoplePicker({ members, teams, value, onChange, me }){
   const ungrouped=members.filter(m=>!(m.teams&&m.teams.length));
   const summary=isAll?"Everyone":(sel.size===0?"No one":(sel.size===1?((members.find(m=>m.id===[...sel][0])||{}).name||"1 person"):`${sel.size} people`));
   return (<div className="relative">
-    <button onClick={()=>setOpen(o=>!o)} className="flex items-center gap-1.5 text-sm outline-none text-slate-700"><Users size={14} className="text-slate-400"/>{summary}<ChevronRight size={13} className="text-slate-400" style={{transform:open?"rotate(90deg)":"none",transition:"transform .15s"}}/></button>
+    <button onClick={()=>setOpen(o=>!o)} className="flex items-center gap-1.5 text-sm outline-none text-foreground/80"><Users size={14} className="text-muted-foreground/70"/>{summary}<ChevronRight size={13} className="text-muted-foreground/70" style={{transform:open?"rotate(90deg)":"none",transition:"transform .15s"}}/></button>
     {open && <><div className="fixed inset-0 z-30" onClick={()=>setOpen(false)}/>
-      <div className="absolute z-40 mt-1 left-0 w-60 bg-white border border-slate-200 rounded-xl shadow-lg p-2 max-h-96 overflow-y-auto text-sm">
+      <div className="absolute z-40 mt-1 left-0 w-60 bg-card border border-border rounded-xl shadow-lg p-2 max-h-96 overflow-y-auto text-sm">
         <div className="flex gap-1 mb-1.5">
-          <button onClick={()=>onChange("all")} className={`flex-1 text-xs py-1 rounded ${isAll?"bg-slate-800 text-white":"bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>Everyone</button>
-          {me && <button onClick={()=>onChange([me])} className="flex-1 text-xs py-1 rounded bg-slate-100 text-slate-600 hover:bg-slate-200">Just me</button>}
+          <button onClick={()=>onChange("all")} className={`flex-1 text-xs py-1 rounded ${isAll?"bg-primary text-primary-foreground":"bg-muted text-muted-foreground hover:bg-muted"}`}>Everyone</button>
+          {me && <button onClick={()=>onChange([me])} className="flex-1 text-xs py-1 rounded bg-muted text-muted-foreground hover:bg-muted">Just me</button>}
         </div>
         {teams.map(t=>(<div key={t} className="mb-1">
-          <label className="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-slate-50 cursor-pointer font-semibold text-slate-700"><input type="checkbox" checked={teamOn(t)} onChange={()=>toggleTeam(t)} className="w-3.5 h-3.5"/>{t}</label>
-          <div className="pl-5">{members.filter(m=>(m.teams||[]).includes(t)).map(m=><label key={m.id} className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-slate-50 cursor-pointer text-slate-600"><input type="checkbox" checked={sel.has(m.id)} onChange={()=>togglePerson(m.id)} className="w-3.5 h-3.5"/>{m.name}</label>)}</div>
+          <label className="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-muted/50 cursor-pointer font-semibold text-foreground/80"><input type="checkbox" checked={teamOn(t)} onChange={()=>toggleTeam(t)} className="w-3.5 h-3.5"/>{t}</label>
+          <div className="pl-5">{members.filter(m=>(m.teams||[]).includes(t)).map(m=><label key={m.id} className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-muted/50 cursor-pointer text-muted-foreground"><input type="checkbox" checked={sel.has(m.id)} onChange={()=>togglePerson(m.id)} className="w-3.5 h-3.5"/>{m.name}</label>)}</div>
         </div>))}
-        {ungrouped.length>0 && <div className="pl-1 pt-1 border-t border-slate-100">{ungrouped.map(m=><label key={m.id} className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-slate-50 cursor-pointer text-slate-600"><input type="checkbox" checked={sel.has(m.id)} onChange={()=>togglePerson(m.id)} className="w-3.5 h-3.5"/>{m.name}</label>)}</div>}
+        {ungrouped.length>0 && <div className="pl-1 pt-1 border-t border-border/60">{ungrouped.map(m=><label key={m.id} className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-muted/50 cursor-pointer text-muted-foreground"><input type="checkbox" checked={sel.has(m.id)} onChange={()=>togglePerson(m.id)} className="w-3.5 h-3.5"/>{m.name}</label>)}</div>}
       </div></>}
   </div>);
 }

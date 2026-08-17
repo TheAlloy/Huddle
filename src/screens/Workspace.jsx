@@ -3,14 +3,15 @@ import { sb } from "../lib/supabase.js";
 import { Btn, Card, Empty, Avatar, Pill, Field, inputCls, Modal } from "../ui.jsx";
 import { can } from "../lib/permissions.js";
 import { Plus, Lock } from "lucide-react";
+import { NativeSelect } from "@/components/ui/native-select";
 
 /** Shown wherever someone's permissions don't allow a screen. */
 export function NoAccess({ what }) {
   return (<div className="h-full grid place-items-center p-6">
     <div className="text-center max-w-sm">
-      <Lock size={28} className="mx-auto text-slate-300 mb-3" />
-      <div className="font-semibold text-slate-700 mb-1">You don't have access to {what}</div>
-      <p className="text-sm text-slate-400">Ask an owner or administrator in your studio to give you access on the People page.</p>
+      <Lock size={28} className="mx-auto text-muted-foreground/40 mb-3" />
+      <div className="font-semibold text-foreground/80 mb-1">You don't have access to {what}</div>
+      <p className="text-sm text-muted-foreground/70">Ask an owner or administrator in your studio to give you access on the People page.</p>
     </div>
   </div>);
 }
@@ -25,16 +26,16 @@ export function ProjectsScreen({ org, me, data, reload }) {
   const clientName = (id) => (data.clients.find(c => c.id === id) || {}).name || "—";
 
   return (<div className="p-4 space-y-4 overflow-y-auto h-full">
-    <h2 className="text-base font-bold text-slate-800">Clients &amp; projects</h2>
+    <h2 className="text-base font-bold text-foreground">Clients &amp; projects</h2>
 
     <Card title="Clients" action={mayClients && <Btn onClick={() => setModal({ type: "client" })}><Plus size={14} /> Add client</Btn>}>
       {data.clients.length === 0 && <Empty title="No clients yet">Add your first client to start booking work.</Empty>}
-      <div className="divide-y divide-slate-100">
+      <div className="divide-y divide-border/60">
         {data.clients.map(c => (
           <div key={c.id} className="flex items-center gap-3 py-2 text-sm">
             <span className="w-3 h-3 rounded-xs" style={{ background: c.color || "#94a3b8" }} />
-            <span className="text-slate-800">{c.name}</span>
-            <span className="ml-auto text-xs text-slate-400">{c.payment_terms || 30} day terms</span>
+            <span className="text-foreground">{c.name}</span>
+            <span className="ml-auto text-xs text-muted-foreground/70">{c.payment_terms || 30} day terms</span>
           </div>
         ))}
       </div>
@@ -42,14 +43,14 @@ export function ProjectsScreen({ org, me, data, reload }) {
 
     <Card title="Projects" action={mayProjects && <Btn onClick={() => setModal({ type: "project" })}><Plus size={14} /> Add project</Btn>}>
       {data.projects.length === 0 && <Empty title="No projects yet">Projects hold the phases you schedule and bill against.</Empty>}
-      <div className="divide-y divide-slate-100">
+      <div className="divide-y divide-border/60">
         {data.projects.map(p => (
           <div key={p.id} className="flex items-center gap-3 py-2 text-sm">
             <div className="min-w-0">
-              <div className="text-slate-800 truncate">{p.code ? p.code + " · " : ""}{p.name}</div>
-              <div className="text-xs text-slate-400">{clientName(p.client_id)} · {(p.phases || []).length} phase{(p.phases || []).length === 1 ? "" : "s"}</div>
+              <div className="text-foreground truncate">{p.code ? p.code + " · " : ""}{p.name}</div>
+              <div className="text-xs text-muted-foreground/70">{clientName(p.client_id)} · {(p.phases || []).length} phase{(p.phases || []).length === 1 ? "" : "s"}</div>
             </div>
-            <span className="ml-auto text-xs text-slate-500">£{Number(p.cost || 0).toLocaleString()}</span>
+            <span className="ml-auto text-xs text-muted-foreground">£{Number(p.cost || 0).toLocaleString()}</span>
           </div>
         ))}
       </div>
@@ -83,9 +84,9 @@ function ProjectModal({ org, clients, onClose, onSaved }) {
       <Field label="Code"><input className={inputCls} value={code} onChange={e => setCode(e.target.value)} placeholder="HID0514" /></Field>
       <Field label="Value (£)"><input type="number" className={inputCls} value={cost} onChange={e => setCost(e.target.value)} /></Field>
     </div>
-    <Field label="Client"><select className={inputCls} value={clientId} onChange={e => setClientId(e.target.value)}>
+    <Field label="Client"><NativeSelect className="w-full" value={clientId} onChange={e => setClientId(e.target.value)}>
       <option value="">— none —</option>{clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-    </select></Field>
+    </NativeSelect></Field>
   </Modal>);
 }
 
@@ -93,9 +94,9 @@ function ProjectModal({ org, clients, onClose, onSaved }) {
 export function ComingSoon({ title, blurb, bullets }) {
   return (<div className="p-4 h-full overflow-y-auto">
     <Card title={title}>
-      <p className="text-sm text-slate-600 mb-3">{blurb}</p>
-      <ul className="text-sm text-slate-500 list-disc pl-5 space-y-1">{(bullets || []).map((b, i) => <li key={i}>{b}</li>)}</ul>
-      <p className="text-xs text-slate-400 mt-4">
+      <p className="text-sm text-muted-foreground mb-3">{blurb}</p>
+      <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-1">{(bullets || []).map((b, i) => <li key={i}>{b}</li>)}</ul>
+      <p className="text-xs text-muted-foreground/70 mt-4">
         The platform layer around this screen — logins, permissions, your studio's data separation — is already live.
       </p>
     </Card>
@@ -122,28 +123,28 @@ export function TrackerScreen({ org, me, data, reload }) {
   };
 
   return (<div className="p-4 space-y-4 overflow-y-auto h-full max-w-2xl">
-    <h2 className="text-base font-bold text-slate-800">Time tracker</h2>
+    <h2 className="text-base font-bold text-foreground">Time tracker</h2>
     <Card title={running ? "Tracking now" : "Start tracking"}>
       {running ? (<div className="flex items-center gap-3">
         <div className="text-2xl font-bold tabular-nums" style={{ color: "#1f2d4e" }}>{clock(elapsed)}</div>
-        <div className="text-sm text-slate-500">{(data.projects.find(p => p.id === running.projectId) || {}).name || "No project"}</div>
+        <div className="text-sm text-muted-foreground">{(data.projects.find(p => p.id === running.projectId) || {}).name || "No project"}</div>
         <Btn variant="danger" className="ml-auto" onClick={stop}>Stop &amp; log</Btn>
       </div>) : (<div className="flex items-center gap-2 flex-wrap">
-        <select className={inputCls + " w-56"} onChange={e => e.target.value && setRunning({ projectId: e.target.value, startedAt: Date.now() })} defaultValue="">
+        <NativeSelect className="w-56" onChange={e => e.target.value && setRunning({ projectId: e.target.value, startedAt: Date.now() })} defaultValue="">
           <option value="">Choose a project…</option>
           {data.projects.map(p => <option key={p.id} value={p.id}>{p.code ? p.code + " · " : ""}{p.name}</option>)}
-        </select>
-        <span className="text-xs text-slate-400">Pick a project to start the timer.</span>
+        </NativeSelect>
+        <span className="text-xs text-muted-foreground/70">Pick a project to start the timer.</span>
       </div>)}
     </Card>
 
     <Card title={`Logged today — ${Math.floor(total / 60)}h ${total % 60}m`}>
       {mine.length === 0 && <Empty title="Nothing logged yet today">Start the timer above, and your hours will appear here.</Empty>}
-      <div className="divide-y divide-slate-100">
+      <div className="divide-y divide-border/60">
         {mine.map(l => (<div key={l.id} className="flex items-center gap-3 py-2 text-sm">
-          <span className="text-slate-700">{(data.projects.find(p => p.id === l.project_id) || {}).name || "—"}</span>
+          <span className="text-foreground/80">{(data.projects.find(p => p.id === l.project_id) || {}).name || "—"}</span>
           <Pill>{l.source}</Pill>
-          <span className="ml-auto font-medium text-slate-700">{Math.floor(l.minutes / 60)}h {l.minutes % 60}m</span>
+          <span className="ml-auto font-medium text-foreground/80">{Math.floor(l.minutes / 60)}h {l.minutes % 60}m</span>
         </div>))}
       </div>
     </Card>
@@ -154,10 +155,10 @@ export function TrackerScreen({ org, me, data, reload }) {
 export function TeamLite({ members }) {
   return (<div className="p-4 overflow-y-auto h-full">
     <Card title="Your team">
-      <div className="divide-y divide-slate-100">
+      <div className="divide-y divide-border/60">
         {members.map((m, i) => (<div key={m.id} className="flex items-center gap-3 py-2.5 text-sm">
           <Avatar name={m.display_name || m.email} i={i} />
-          <div><div className="text-slate-800">{m.display_name || m.email}</div><div className="text-xs text-slate-400">{m.job_title || m.role}</div></div>
+          <div><div className="text-foreground">{m.display_name || m.email}</div><div className="text-xs text-muted-foreground/70">{m.job_title || m.role}</div></div>
         </div>))}
       </div>
     </Card>

@@ -2,12 +2,18 @@ import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffe
 import { sb } from "../lib/supabase.js";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
-import { inputCls, Field } from "../ui.jsx";
+import { inputCls, textareaCls, Field, Avatar } from "../ui.jsx";
 import { toast } from "sonner";
-import { phaseRanges } from "../studio/core.jsx";
+import { phaseRanges, ModalShell, ModalHead, ModalFoot } from "../studio/core.jsx";
 import { InviteModal } from "./Team.jsx";
 import { ProjectModal } from "./Projects.jsx";
 import { useConfirm } from "../components/confirm.tsx";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Button } from "@/components/ui/button";
+import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Plus, X, ChevronLeft, ChevronRight, Search, Trash2, AlertTriangle, Users,
   Pencil, ZoomIn, ZoomOut, Plane, Building2, Calendar, Play, Square,
@@ -32,10 +38,8 @@ const nextWeekday = (d) => { let x = new Date(d); while(!isWeekday(x)) x = addDa
 const addWorkingDays = (start,n) => { let d = new Date(start), c = 0; while(true){ if(isWeekday(d)) c++; if(c>=n) return new Date(d); d = addDays(d,1); } };
 const workdaysBetween = (s,e) => { let c = 0; for(let d = new Date(s); d<=e; d = addDays(d,1)) if(isWeekday(d)) c++; return c; };
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
-const initials = (name) => (name||"?").split(" ").map(p=>p[0]).slice(0,2).join("").toUpperCase();
 const NAVY = "#1f2d4e";
 const CLIENT_COLORS = ["#2f80ed","#9b51e0","#16a0a0","#eb5757","#27ae60","#f2994a","#2d9cdb","#6b7a99","#e84393","#8e44ad"];
-const AVATAR_BG = ["#5b8def","#9b6dd6","#3aa99f","#e0884b","#d65f6e","#4caf8f"];
 const LEAVE_TYPES = { vacation:{label:"Holiday",color:"#f2994a"}, parental:{label:"Parental Leave",color:"#e67e22"}, sick:{label:"Sick Leave",color:"#c0563f"}, holiday:{label:"Public Holiday",color:"#7f8fa6"} };
 const pfIncludes = (pf,id) => pf==="all" || (Array.isArray(pf)?pf.includes(id):pf===id);
 const cfIncludes = (cf,id) => cf==="all" || (Array.isArray(cf)?(cf.length===0||cf.includes(id)):cf===id);
@@ -80,24 +84,16 @@ function openFloatingTimer({ getTop, getElapsed, onStop }){
   return Promise.resolve(wire(w));
 }
 
-/* ---- local modal kit (matches the studio forms) ---- */
-function ModalShell({ children, onClose }){
-  return (<div className="fixed inset-0 z-50 bg-black/40 grid place-items-center p-4" onClick={onClose}>
-    <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[92vh] overflow-y-auto" onClick={e=>e.stopPropagation()}>{children}</div>
-  </div>);
-}
-function ModalHead({ title, onClose }){ return <div className="flex items-center justify-between px-5 py-3.5 rounded-t-xl text-white" style={{background:NAVY}}><h3 className="font-semibold">{title}</h3><button onClick={onClose} className="opacity-80 hover:opacity-100"><X size={18}/></button></div>; }
-function ModalFoot({ onSave, onDelete, saveLabel="Save", disabled }){ return <div className="flex items-center gap-2 px-5 py-4 border-t border-slate-100">{onDelete&&<button onClick={onDelete} className="flex items-center gap-1 text-sm text-red-600 hover:bg-red-50 px-2.5 py-2 rounded-lg"><Trash2 size={15}/> Delete</button>}<button onClick={onSave} disabled={disabled} className="ml-auto text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">{saveLabel}</button></div>; }
 
 /* ============================ board components (from studio tool) ================ */
 function PersonCell({ m, idx, width, onEdit, onAssign, canEdit }) {
   return (
-    <div className="shrink-0 border-r border-slate-200 px-3 py-3 flex items-start gap-2.5 group bg-white" style={{ width, position:"sticky", left:0, zIndex:15 }}>
-      <span className="grid place-items-center w-8 h-8 rounded-full text-white text-xs font-semibold shrink-0" style={{ background: AVATAR_BG[idx%AVATAR_BG.length] }}>{initials(m.name)}</span>
-      <div className="min-w-0 flex-1"><div className="text-sm font-semibold text-slate-800 truncate">{m.name}</div><div className="text-xs text-slate-400 truncate">{m.role}</div></div>
+    <div className="shrink-0 border-r border-border px-3 py-3 flex items-start gap-2.5 group bg-card" style={{ width, position:"sticky", left:0, zIndex:15 }}>
+      <Avatar name={m.name} i={idx} size={32} />
+      <div className="min-w-0 flex-1"><div className="text-sm font-semibold text-foreground truncate">{m.name}</div><div className="text-xs text-muted-foreground/70 truncate">{m.role}</div></div>
       {canEdit && <div className="flex flex-col gap-1 shrink-0">
-        <button onClick={onEdit} className="opacity-0 group-hover:opacity-100 transition grid place-items-center w-6 h-6 rounded-md text-slate-400 hover:bg-slate-100 hover:text-blue-600" title={"Edit "+m.name}><Pencil size={13}/></button>
-        <button onClick={onAssign} className="opacity-0 group-hover:opacity-100 transition grid place-items-center w-6 h-6 rounded-md text-slate-400 hover:bg-slate-100 hover:text-blue-600" title={"Assign work to "+m.name}><Plus size={15}/></button>
+        <button onClick={onEdit} className="opacity-0 group-hover:opacity-100 transition grid place-items-center w-6 h-6 rounded-md text-muted-foreground/70 hover:bg-muted hover:text-primary-foreground" title={"Edit "+m.name}><Pencil size={13}/></button>
+        <button onClick={onAssign} className="opacity-0 group-hover:opacity-100 transition grid place-items-center w-6 h-6 rounded-md text-muted-foreground/70 hover:bg-muted hover:text-primary-foreground" title={"Assign work to "+m.name}><Plus size={15}/></button>
       </div>}
     </div>
   );
@@ -265,23 +261,23 @@ function TimelineBoard(ctx) {
   });
   return (
     <div ref={scroller} onScroll={onScroll} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endPan} onPointerCancel={endPan}
-      className="tl-scroll h-full border-x border-b border-slate-200 overflow-auto bg-white" style={{cursor:"grab"}}>
+      className="tl-scroll h-full border-x border-b border-border overflow-auto bg-card" style={{cursor:"grab"}}>
       <style>{`.tl-scroll::-webkit-scrollbar:horizontal{height:0}.tl-scroll::-webkit-scrollbar:vertical{width:10px}.tl-scroll::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:6px}`}</style>
       <div style={{width:SIDEBAR+totalW}}>
-        <div className="flex border-b border-slate-100">
-          <div className="shrink-0 bg-white border-r border-slate-200" style={{width:SIDEBAR,position:"sticky",left:0,zIndex:16}}></div>
+        <div className="flex border-b border-border/60">
+          <div className="shrink-0 bg-card border-r border-border" style={{width:SIDEBAR,position:"sticky",left:0,zIndex:16}}></div>
           <div className="relative" style={{width:totalW,height:24}}>
-            {monthBands.map((b,k)=><div key={k} className="absolute top-0 bottom-0 flex items-center px-2 text-xs font-semibold text-slate-500 border-r border-slate-100" style={{left:b.left,width:b.width}}>{b.label}</div>)}
+            {monthBands.map((b,k)=><div key={k} className="absolute top-0 bottom-0 flex items-center px-2 text-xs font-semibold text-muted-foreground border-r border-border/60" style={{left:b.left,width:b.width}}>{b.label}</div>)}
           </div>
         </div>
-        {dayW>=14 && <div className="flex border-b border-slate-200">
-          <div className="shrink-0 bg-white border-r border-slate-200 px-3 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide" style={{width:SIDEBAR,position:"sticky",left:0,zIndex:16}}>{single?visibleMembers[0].name:(peopleFilter==="all"?`Everyone · ${data.members.length}`:`Selected · ${visibleMembers.length}`)}</div>
+        {dayW>=14 && <div className="flex border-b border-border">
+          <div className="shrink-0 bg-card border-r border-border px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide" style={{width:SIDEBAR,position:"sticky",left:0,zIndex:16}}>{single?visibleMembers[0].name:(peopleFilter==="all"?`Everyone · ${data.members.length}`:`Selected · ${visibleMembers.length}`)}</div>
           <div className="flex" style={{width:totalW}}>
             {days.map((d,k)=>{const wknd=!isWeekday(d);const mon=d.getDay()===1;return (
-              <div key={k} className={`text-center border-r ${mon?"border-slate-300":"border-slate-100"} ${wknd?"bg-slate-50":""}`} style={{width:conf.dayW,paddingTop:4,paddingBottom:4}}>
+              <div key={k} className={`text-center border-r ${mon?"border-input":"border-border/60"} ${wknd?"bg-muted/50":""}`} style={{width:conf.dayW,paddingTop:4,paddingBottom:4}}>
                 {dayW>=46
-                  ? <><div className="text-xs font-semibold text-slate-600">{DOW[d.getDay()]}</div><div className="text-xs text-slate-400">{pad(d.getDate())}</div></>
-                  : <div className="text-slate-400" style={{fontSize:9.5}}>{d.getDate()}</div>}
+                  ? <><div className="text-xs font-semibold text-muted-foreground">{DOW[d.getDay()]}</div><div className="text-xs text-muted-foreground/70">{pad(d.getDate())}</div></>
+                  : <div className="text-muted-foreground/70" style={{fontSize:9.5}}>{d.getDate()}</div>}
               </div>
             );})}
           </div>
@@ -292,7 +288,7 @@ function TimelineBoard(ctx) {
             <div key={m.id} className="flex" style={{borderBottom: single?"1px solid #e2e8f0":"2px solid #cbd5e1"}}>
               <PersonCell m={m} idx={idx} width={SIDEBAR} canEdit={canEdit} onEdit={()=>setModal({type:"member",payload:m})} onAssign={()=>setModal({type:"assign",payload:{memberId:m.id}})} />
               <div className="relative" style={{width:totalW,height:rowH}}>
-                {days.map((d,k)=>{ if(dayW<14){ return d.getDate()===1 ? <div key={k} className="absolute top-0 bottom-0 border-r border-slate-200" style={{left:k*conf.dayW}}/> : null; } const wknd=!isWeekday(d);const mon=d.getDay()===1;return <div key={k} className={`absolute top-0 bottom-0 border-r ${mon?"border-slate-200":"border-slate-100"} ${wknd?"bg-slate-50":""}`} style={{left:k*conf.dayW,width:conf.dayW}}/>;})}
+                {days.map((d,k)=>{ if(dayW<14){ return d.getDate()===1 ? <div key={k} className="absolute top-0 bottom-0 border-r border-border" style={{left:k*conf.dayW}}/> : null; } const wknd=!isWeekday(d);const mon=d.getDay()===1;return <div key={k} className={`absolute top-0 bottom-0 border-r ${mon?"border-border":"border-border/60"} ${wknd?"bg-muted/50":""}`} style={{left:k*conf.dayW,width:conf.dayW}}/>;})}
                 {todayX!==null && <div className="absolute top-0 bottom-0 z-10" style={{left:todayX+dayW/2-1,width:2,background:"#ef4444aa"}}/>}
                 {placed.map(({a,lane,laneIndex})=>{
                   const s=parseISO(a.start), e=addDays(parseISO(a.end),1);
@@ -307,12 +303,12 @@ function TimelineBoard(ctx) {
                       onOpen={()=>setModal({type:"assign",payload:a})} onCommit={(ns,ne,nl)=>moveAssign(a,ns,ne,nl)} />
                   );
                 })}
-                {placed.length===0 && <div className="absolute text-xs text-slate-300" style={{left:10,top:ROW_PAD+4}}>No assignments</div>}
+                {placed.length===0 && <div className="absolute text-xs text-muted-foreground/40" style={{left:10,top:ROW_PAD+4}}>No assignments</div>}
               </div>
             </div>
           );
         })}
-        {data.members.length===0 && <div className="py-16 text-center text-slate-400"><p className="mb-3">No people yet — invite your team on the People page.</p></div>}
+        {data.members.length===0 && <div className="py-16 text-center text-muted-foreground/70"><p className="mb-3">No people yet — invite your team on the People page.</p></div>}
       </div>
     </div>
   );
@@ -330,18 +326,18 @@ function PeoplePicker({ members, teams, value, onChange, me }){
   const ungrouped=members.filter(m=>!(m.teams&&m.teams.length));
   const summary=isAll?"Everyone":(sel.size===0?"No one":(sel.size===1?((members.find(m=>m.id===[...sel][0])||{}).name||"1 person"):`${sel.size} people`));
   return (<div className="relative">
-    <button onClick={()=>setOpen(o=>!o)} className="flex items-center gap-1.5 text-sm outline-none text-slate-700"><Users size={14} className="text-slate-400"/>{summary}<ChevronRight size={13} className="text-slate-400" style={{transform:open?"rotate(90deg)":"none",transition:"transform .15s"}}/></button>
+    <button onClick={()=>setOpen(o=>!o)} className="flex items-center gap-1.5 text-sm outline-none text-foreground/80"><Users size={14} className="text-muted-foreground/70"/>{summary}<ChevronRight size={13} className="text-muted-foreground/70" style={{transform:open?"rotate(90deg)":"none",transition:"transform .15s"}}/></button>
     {open && <><div className="fixed inset-0 z-30" onClick={()=>setOpen(false)}/>
-      <div className="absolute z-40 mt-1 left-0 w-60 bg-white border border-slate-200 rounded-xl shadow-lg p-2 max-h-96 overflow-y-auto text-sm">
+      <div className="absolute z-40 mt-1 left-0 w-60 bg-card border border-border rounded-xl shadow-lg p-2 max-h-96 overflow-y-auto text-sm">
         <div className="flex gap-1 mb-1.5">
-          <button onClick={()=>onChange("all")} className={`flex-1 text-xs py-1 rounded ${isAll?"bg-slate-800 text-white":"bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>Everyone</button>
-          {me && <button onClick={()=>onChange([me])} className="flex-1 text-xs py-1 rounded bg-slate-100 text-slate-600 hover:bg-slate-200">Just me</button>}
+          <button onClick={()=>onChange("all")} className={`flex-1 text-xs py-1 rounded ${isAll?"bg-primary text-primary-foreground":"bg-muted text-muted-foreground hover:bg-muted"}`}>Everyone</button>
+          {me && <button onClick={()=>onChange([me])} className="flex-1 text-xs py-1 rounded bg-muted text-muted-foreground hover:bg-muted">Just me</button>}
         </div>
         {teams.map(t=>(<div key={t} className="mb-1">
-          <label className="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-slate-50 cursor-pointer font-semibold text-slate-700"><input type="checkbox" checked={teamOn(t)} onChange={()=>toggleTeam(t)} className="w-3.5 h-3.5"/>{t}</label>
-          <div className="pl-5">{members.filter(m=>(m.teams||[]).includes(t)).map(m=><label key={m.id} className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-slate-50 cursor-pointer text-slate-600"><input type="checkbox" checked={sel.has(m.id)} onChange={()=>togglePerson(m.id)} className="w-3.5 h-3.5"/>{m.name}</label>)}</div>
+          <label className="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-muted/50 cursor-pointer font-semibold text-foreground/80"><input type="checkbox" checked={teamOn(t)} onChange={()=>toggleTeam(t)} className="w-3.5 h-3.5"/>{t}</label>
+          <div className="pl-5">{members.filter(m=>(m.teams||[]).includes(t)).map(m=><label key={m.id} className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-muted/50 cursor-pointer text-muted-foreground"><input type="checkbox" checked={sel.has(m.id)} onChange={()=>togglePerson(m.id)} className="w-3.5 h-3.5"/>{m.name}</label>)}</div>
         </div>))}
-        {ungrouped.length>0 && <div className="pl-1 pt-1 border-t border-slate-100">{ungrouped.map(m=><label key={m.id} className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-slate-50 cursor-pointer text-slate-600"><input type="checkbox" checked={sel.has(m.id)} onChange={()=>togglePerson(m.id)} className="w-3.5 h-3.5"/>{m.name}</label>)}</div>}
+        {ungrouped.length>0 && <div className="pl-1 pt-1 border-t border-border/60">{ungrouped.map(m=><label key={m.id} className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-muted/50 cursor-pointer text-muted-foreground"><input type="checkbox" checked={sel.has(m.id)} onChange={()=>togglePerson(m.id)} className="w-3.5 h-3.5"/>{m.name}</label>)}</div>}
       </div></>}
   </div>);
 }
@@ -355,12 +351,12 @@ function ClientPicker({ clients, value, onChange }){
   const toggle=(id)=>{ const s=new Set(sel); s.has(id)?s.delete(id):s.add(id); commit(s); };
   const summary=isAll?"All clients":(sel.size===1?((clients.find(c=>c.id===[...sel][0])||{}).name||"1 client"):`${sel.size} clients`);
   return (<div className="relative">
-    <button onClick={()=>setOpen(o=>!o)} className="flex items-center gap-1.5 text-sm outline-none text-slate-700"><Building2 size={14} className="text-slate-400"/>{summary}<ChevronRight size={13} className="text-slate-400" style={{transform:open?"rotate(90deg)":"none",transition:"transform .15s"}}/></button>
+    <button onClick={()=>setOpen(o=>!o)} className="flex items-center gap-1.5 text-sm outline-none text-foreground/80"><Building2 size={14} className="text-muted-foreground/70"/>{summary}<ChevronRight size={13} className="text-muted-foreground/70" style={{transform:open?"rotate(90deg)":"none",transition:"transform .15s"}}/></button>
     {open && <><div className="fixed inset-0 z-30" onClick={()=>setOpen(false)}/>
-      <div className="absolute z-40 mt-1 left-0 w-56 bg-white border border-slate-200 rounded-xl shadow-lg p-2 max-h-96 overflow-y-auto text-sm">
-        <button onClick={()=>onChange("all")} className={`w-full text-xs py-1 rounded mb-1.5 ${isAll?"bg-slate-800 text-white":"bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>All clients</button>
-        {clients.length===0 && <div className="text-xs text-slate-400 px-1.5 py-1">No clients yet.</div>}
-        {clients.map(c=><label key={c.id} className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-slate-50 cursor-pointer text-slate-600"><input type="checkbox" checked={sel.has(c.id)} onChange={()=>toggle(c.id)} className="w-3.5 h-3.5"/><span className="w-2.5 h-2.5 rounded-xs shrink-0" style={{background:c.color}}/>{c.name}</label>)}
+      <div className="absolute z-40 mt-1 left-0 w-56 bg-card border border-border rounded-xl shadow-lg p-2 max-h-96 overflow-y-auto text-sm">
+        <button onClick={()=>onChange("all")} className={`w-full text-xs py-1 rounded mb-1.5 ${isAll?"bg-primary text-primary-foreground":"bg-muted text-muted-foreground hover:bg-muted"}`}>All clients</button>
+        {clients.length===0 && <div className="text-xs text-muted-foreground/70 px-1.5 py-1">No clients yet.</div>}
+        {clients.map(c=><label key={c.id} className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-muted/50 cursor-pointer text-muted-foreground"><input type="checkbox" checked={sel.has(c.id)} onChange={()=>toggle(c.id)} className="w-3.5 h-3.5"/><span className="w-2.5 h-2.5 rounded-xs shrink-0" style={{background:c.color}}/>{c.name}</label>)}
       </div></>}
   </div>);
 }
@@ -415,42 +411,42 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
   };
   return (<ModalShell onClose={onClose}><ModalHead title={assignment?"Edit assignment":"Assign work"} onClose={onClose}/><div className="p-5">
     {!assignment
-      ? <div className="flex gap-2 mb-4">{[["work","Project work"],["leave","Time off"],["internal","Tasks"]].map(([v,l])=><button key={v} onClick={()=>setKind(v)} className={`flex-1 text-sm py-2 rounded-lg border ${kind===v?"border-blue-500 bg-blue-50 text-blue-700":"border-slate-200 text-slate-600"}`}>{l}</button>)}</div>
-      : <div className="mb-4 text-xs inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 text-slate-600">{kind==="leave"?"Time off":kind==="internal"?"Task":"Project work"}</div>}
-    <Field label={kind==="internal"?"Assign to":"Person"} error={errs.memberId}><select className={inputCls} value={memberId} onChange={e=>{ if(e.target.value==="__invite__"){ onInvite&&onInvite(); return; } setMemberId(e.target.value); }}>{members.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}{onInvite && <option value="__invite__">➕ Invite someone…</option>}</select></Field>
+      ? <div className="flex gap-2 mb-4">{[["work","Project work"],["leave","Time off"],["internal","Tasks"]].map(([v,l])=><button key={v} onClick={()=>setKind(v)} className={`flex-1 text-sm py-2 rounded-lg border ${kind===v?"border-primary bg-primary/10 text-primary-foreground":"border-border text-muted-foreground"}`}>{l}</button>)}</div>
+      : <div className="mb-4 text-xs inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted text-muted-foreground">{kind==="leave"?"Time off":kind==="internal"?"Task":"Project work"}</div>}
+    <Field label={kind==="internal"?"Assign to":"Person"} error={errs.memberId}><NativeSelect className="w-full" value={memberId} onChange={e=>{ if(e.target.value==="__invite__"){ onInvite&&onInvite(); return; } setMemberId(e.target.value); }}>{members.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}{onInvite && <option value="__invite__">➕ Invite someone…</option>}</NativeSelect></Field>
     {kind==="work" ? (<>
-      <Field label="Project"><select className={inputCls} value={projectId} onChange={e=>{ if(e.target.value==="__new__"){ onNewProject&&onNewProject(); return; } setProjectId(e.target.value);setPhaseId(""); }}>{projectsByClient(projects,clients).map(g=>(<optgroup key={g.client?g.client.id:"none"} label={g.client?g.client.name:"No client"}>{g.projects.map(p=><option key={p.id} value={p.id}>{p.index} — {p.name}</option>)}</optgroup>))}{onNewProject && <option value="__new__">➕ New project / client…</option>}</select></Field>
-      {client && <div className="-mt-1 mb-3 flex items-center gap-2 text-xs text-slate-500"><span className="w-3 h-3 rounded-xs" style={{background:client.color}}/>Client: <span className="font-medium text-slate-700">{client.name} · {proj.index} {proj.name}</span></div>}
-      {proj?.phases?.length>0 && <Field label="Phase"><select className={inputCls} value={phaseId} onChange={e=>setPhaseId(e.target.value)}><option value="">— none —</option>{proj.phases.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
-      {phaseId && <Field label="Monitor designer hours for this phase (optional)"><input type="number" min="0" className={inputCls} value={phaseHours} onChange={e=>setPhaseHours(e.target.value)} placeholder="e.g. 20"/><p className="text-xs text-slate-400 mt-1">Sets the hours budget for this phase across the whole project — the bar fills up as time is logged. Leave blank for no monitoring.</p></Field>}
+      <Field label="Project"><NativeSelect className="w-full" value={projectId} onChange={e=>{ if(e.target.value==="__new__"){ onNewProject&&onNewProject(); return; } setProjectId(e.target.value);setPhaseId(""); }}>{projectsByClient(projects,clients).map(g=>(<optgroup key={g.client?g.client.id:"none"} label={g.client?g.client.name:"No client"}>{g.projects.map(p=><option key={p.id} value={p.id}>{p.index} — {p.name}</option>)}</optgroup>))}{onNewProject && <option value="__new__">➕ New project / client…</option>}</NativeSelect></Field>
+      {client && <div className="-mt-1 mb-3 flex items-center gap-2 text-xs text-muted-foreground"><span className="w-3 h-3 rounded-xs" style={{background:client.color}}/>Client: <span className="font-medium text-foreground/80">{client.name} · {proj.index} {proj.name}</span></div>}
+      {proj?.phases?.length>0 && <Field label="Phase"><NativeSelect className="w-full" value={phaseId} onChange={e=>setPhaseId(e.target.value)}><option value="">— none —</option>{proj.phases.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</NativeSelect></Field>}
+      {phaseId && <Field label="Monitor designer hours for this phase (optional)"><input type="number" min="0" className={inputCls} value={phaseHours} onChange={e=>setPhaseHours(e.target.value)} placeholder="e.g. 20"/><p className="text-xs text-muted-foreground/70 mt-1">Sets the hours budget for this phase across the whole project — the bar fills up as time is logged. Leave blank for no monitoring.</p></Field>}
     </>) : kind==="internal" ? (<>
-      <Field label="Task" error={errs.taskId}><select className={inputCls} value={taskId} onChange={e=>setTaskId(e.target.value)}><option value="">Choose a task…</option>{tasks.filter(t=>t.status!=="done").map(t=><option key={t.id} value={t.id}>{t.title}</option>)}<option value="__new__">➕ New task…</option></select></Field>
+      <Field label="Task" error={errs.taskId}><NativeSelect className="w-full" value={taskId} onChange={e=>setTaskId(e.target.value)}><option value="">Choose a task…</option>{tasks.filter(t=>t.status!=="done").map(t=><option key={t.id} value={t.id}>{t.title}</option>)}<option value="__new__">➕ New task…</option></NativeSelect></Field>
       {taskId==="__new__" ? (<>
         <Field label="New task" error={errs.taskTitle}><input className={inputCls} value={taskTitle} onChange={e=>setTaskTitle(e.target.value)} placeholder="e.g. Improve our SEO"/></Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Importance"><select className={inputCls} value={taskPri} onChange={e=>setTaskPri(e.target.value)}><option value="high">High</option><option value="med">Medium</option><option value="low">Low</option></select></Field>
+          <Field label="Importance"><NativeSelect className="w-full" value={taskPri} onChange={e=>setTaskPri(e.target.value)}><option value="high">High</option><option value="med">Medium</option><option value="low">Low</option></NativeSelect></Field>
           <Field label="Team (optional)"><input className={inputCls} value={taskTeam} list="assign-teams" onChange={e=>setTaskTeam(e.target.value)} placeholder="optional"/><datalist id="assign-teams">{teams.map(t=><option key={t} value={t}/>)}</datalist></Field>
         </div>
-        <p className="text-xs text-slate-400 -mt-1 mb-1">Creates the task on the Tasks board and puts it on this person's timeline.</p>
-      </>) : <p className="text-xs text-slate-400 -mt-1 mb-1">Puts this task on the person's timeline so it shows as one of today's projects and can be tracked.</p>}
+        <p className="text-xs text-muted-foreground/70 -mt-1 mb-1">Creates the task on the Tasks board and puts it on this person's timeline.</p>
+      </>) : <p className="text-xs text-muted-foreground/70 -mt-1 mb-1">Puts this task on the person's timeline so it shows as one of today's projects and can be tracked.</p>}
     </>) : (
-      <Field label="Type"><select className={inputCls} value={leaveType} onChange={e=>setLeaveType(e.target.value)}>{Object.entries(LEAVE_TYPES).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select></Field>
+      <Field label="Type"><NativeSelect className="w-full" value={leaveType} onChange={e=>setLeaveType(e.target.value)}>{Object.entries(LEAVE_TYPES).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</NativeSelect></Field>
     )}
     <div className="grid grid-cols-3 gap-3">
       <Field label="Start date"><input type="date" className={inputCls} value={start} onChange={e=>onStartCh(e.target.value)}/></Field>
       <Field label="Duration (weeks)"><input type="number" min="0.2" step="0.5" className={inputCls} value={dur} onChange={e=>onDurCh(e.target.value)}/></Field>
       <Field label="End date" error={errs.dates}><input type="date" className={inputCls} value={end} onChange={e=>onEndCh(e.target.value)}/></Field>
     </div>
-    <p className="text-xs text-slate-400 -mt-1">Set a start + duration and the end fills in (1 week = 5 working days), or pick the end date directly.</p>
+    <p className="text-xs text-muted-foreground/70 -mt-1">Set a start + duration and the end fills in (1 week = 5 working days), or pick the end date directly.</p>
     {kind==="leave" && <div className="mt-2 mb-1">
-      <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer"><input type="checkbox" checked={partDay} onChange={e=>setPartDay(e.target.checked)} className="w-4 h-4"/> Part-day (take only part of the first / last day)</label>
+      <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer"><input type="checkbox" checked={partDay} onChange={e=>setPartDay(e.target.checked)} className="w-4 h-4"/> Part-day (take only part of the first / last day)</label>
       {partDay && <div className="mt-2 grid grid-cols-2 gap-3">
         <Field label="First day starts"><input type="time" className={inputCls} value={sTime} onChange={e=>setSTime(e.target.value)}/></Field>
         <Field label="Last day ends"><input type="time" className={inputCls} value={eTime} onChange={e=>setETime(e.target.value)}/></Field>
-        <p className="col-span-2 text-xs text-slate-400 -mt-2">Based on a {WORKDAY_H}-hour day ({pad(WORK_START)}:00–{pad(WORK_END)}:00). For a single-day half, set both times on that day (e.g. 09:00–13:00 = half a day).</p>
+        <p className="col-span-2 text-xs text-muted-foreground/70 -mt-2">Based on a {WORKDAY_H}-hour day ({pad(WORK_START)}:00–{pad(WORK_END)}:00). For a single-day half, set both times on that day (e.g. 09:00–13:00 = half a day).</p>
       </div>}
     </div>}
-    <p className="text-xs text-slate-400 mt-3">Tip: on the board you can drag the bar to move it, or drag either end to change the dates.</p>
+    <p className="text-xs text-muted-foreground/70 mt-3">Tip: on the board you can drag the bar to move it, or drag either end to change the dates.</p>
   </div>
   <ModalFoot onSave={save} onDelete={onDelete?()=>onDelete(assignment.id):null} saveLabel={assignment?"Save":"Assign"}/></ModalShell>);
 }
@@ -470,7 +466,7 @@ function DashTracker(ctx){
   useEffect(()=>{ setRun(meId? lsGet("tracker_run_"+meId): null); },[meId]);
   useEffect(()=>{ if(!run) closePip(); },[run]); // eslint-disable-line
   useEffect(()=>()=>closePip(),[]); // eslint-disable-line
-  if(!meId) return (<div className="shrink-0 mt-2.5 px-3 py-2.5 bg-white border border-slate-200 rounded-xl shadow-xs text-xs text-slate-400 flex items-center gap-2"><Clock size={14}/> We couldn't match your login to a person on this team yet.</div>);
+  if(!meId) return (<div className="shrink-0 mt-2.5 px-3 py-2.5 bg-card border border-border rounded-xl shadow-xs text-xs text-muted-foreground/70 flex items-center gap-2"><Clock size={14}/> We couldn't match your login to a person on this team yet.</div>);
   const me=data.members.find(m=>m.id===meId);
   const projById=(id)=>data.projects.find(p=>p.id===id);
   const clientOf=(pid)=>{ const pr=projById(pid); return pr && data.clients.find(c=>c.id===pr.clientId); };
@@ -516,34 +512,34 @@ function DashTracker(ctx){
     if(ctl) pip.current=ctl;
   };
   return (
-    <div className="shrink-0 mt-2.5 bg-white border border-slate-200 rounded-xl shadow-xs">
+    <div className="shrink-0 mt-2.5 bg-card border border-border rounded-xl shadow-xs">
       <div onClick={()=>setOpen(o=>!o)} className="flex items-center gap-3 px-3 py-2 cursor-pointer select-none">
-        <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-600 shrink-0"><Clock size={15}/> Tracker <ChevronRight size={14} style={{transform:open?"rotate(90deg)":"none",transition:"transform .15s"}}/></span>
+        <span className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground shrink-0"><Clock size={15}/> Tracker <ChevronRight size={14} style={{transform:open?"rotate(90deg)":"none",transition:"transform .15s"}}/></span>
         {run ? (
           <div className="flex items-center gap-2 min-w-0">
             <span className="inline-flex items-center gap-2 rounded-lg px-2.5 py-1 text-white text-sm min-w-0" style={{background:runColor()}}>
-              <span className="w-1.5 h-1.5 rounded-full bg-white shrink-0" style={{animation:"pulse 1.5s infinite"}}/>
+              <span className="w-1.5 h-1.5 rounded-full bg-card shrink-0" style={{animation:"pulse 1.5s infinite"}}/>
               <span className="truncate font-semibold">{runTop()}</span>
               {!run.taskId && phName(run.projectId,run.phaseId) && <span className="truncate opacity-90 hidden sm:inline">· {phName(run.projectId,run.phaseId)}</span>}
               <span className="font-bold tabular-nums shrink-0">{elapsed}</span>
             </span>
-            <button onClick={e=>{e.stopPropagation();stop();}} className="flex items-center gap-1.5 bg-slate-800 text-white text-sm font-semibold px-3 py-1.5 rounded-lg hover:bg-slate-900 shrink-0"><Square size={14}/> Stop &amp; log</button>
-            <button onClick={e=>{e.stopPropagation();openPip();}} title="Pop out a floating timer" className="grid place-items-center w-9 h-9 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 shrink-0"><PictureInPicture2 size={16}/></button>
-            <button onClick={e=>{e.stopPropagation();cancel();}} title="Discard" className="text-slate-400 hover:text-red-500 shrink-0"><X size={16}/></button>
+            <button onClick={e=>{e.stopPropagation();stop();}} className="flex items-center gap-1.5 bg-primary text-primary-foreground text-sm font-semibold px-3 py-1.5 rounded-lg hover:bg-primary/90 shrink-0"><Square size={14}/> Stop &amp; log</button>
+            <button onClick={e=>{e.stopPropagation();openPip();}} title="Pop out a floating timer" className="grid place-items-center w-9 h-9 rounded-lg border border-border text-muted-foreground hover:bg-muted/50 shrink-0"><PictureInPicture2 size={16}/></button>
+            <button onClick={e=>{e.stopPropagation();cancel();}} title="Discard" className="text-muted-foreground/70 hover:text-destructive shrink-0"><X size={16}/></button>
           </div>
         ) : (
-          <span className="text-sm text-slate-400 truncate">{me?me.name+" — tap a project to start":"Not tracking"}</span>
+          <span className="text-sm text-muted-foreground/70 truncate">{me?me.name+" — tap a project to start":"Not tracking"}</span>
         )}
-        <button onClick={e=>{e.stopPropagation(); ctx.openTrackerPage&&ctx.openTrackerPage();}} className="ml-auto text-xs text-blue-600 hover:underline shrink-0">Open full tracker →</button>
+        <button onClick={e=>{e.stopPropagation(); ctx.openTrackerPage&&ctx.openTrackerPage();}} className="ml-auto text-xs text-primary-foreground hover:underline shrink-0">Open full tracker →</button>
       </div>
-      {open && !run && <div className="px-3 pb-3 border-t border-slate-100 pt-2.5">
+      {open && !run && <div className="px-3 pb-3 border-t border-border/60 pt-2.5">
         <div className="flex items-stretch gap-2 overflow-x-auto pb-1">
-          {bubbles.length===0 && myTasks.length===0 && <span className="text-xs text-slate-400 py-2">Nothing assigned to you today — use Manual below, or book yourself on the board.</span>}
+          {bubbles.length===0 && myTasks.length===0 && <span className="text-xs text-muted-foreground/70 py-2">Nothing assigned to you today — use Manual below, or book yourself on the board.</span>}
           {bubbles.map(b=>{ if(b.internal){ const tt=((taskById(b.taskId))||{}).title||"task"; return (
             <button key={"ib:"+b.taskId} onClick={()=>startTask(b.taskId)} title={"Start · Task · "+tt}
               className="shrink-0 text-left rounded-xl px-3 py-2 text-white transition hover:brightness-110" style={{background:NAVY,minWidth:150,maxWidth:230}}>
               <div className="flex items-center gap-2">
-                <span className="grid place-items-center w-6 h-6 rounded-full bg-white shrink-0" style={{color:NAVY}}><Play size={12}/></span>
+                <span className="grid place-items-center w-6 h-6 rounded-full bg-card shrink-0" style={{color:NAVY}}><Play size={12}/></span>
                 <div className="min-w-0"><div className="text-xs font-semibold leading-tight truncate">Task</div><div className="opacity-90 leading-tight truncate" style={{fontSize:11}}>{tt}</div></div>
               </div>
               <div className="opacity-80 mt-1" style={{fontSize:10.5}}>Today {hm(minsForTask(b.taskId))}</div>
@@ -551,7 +547,7 @@ function DashTracker(ctx){
             <button key={b.projectId+"|"+b.phaseId} onClick={()=>start(b.projectId,b.phaseId)} title={"Start · "+labTop(b.projectId)+(phName(b.projectId,b.phaseId)?" · "+phName(b.projectId,b.phaseId):"")}
               className="shrink-0 text-left rounded-xl px-3 py-2 text-white transition hover:brightness-110" style={{background:c,minWidth:150,maxWidth:230}}>
               <div className="flex items-center gap-2">
-                <span className="grid place-items-center w-6 h-6 rounded-full bg-white shrink-0" style={{color:c}}><Play size={12}/></span>
+                <span className="grid place-items-center w-6 h-6 rounded-full bg-card shrink-0" style={{color:c}}><Play size={12}/></span>
                 <div className="min-w-0"><div className="text-xs font-semibold leading-tight truncate">{labProj(b.projectId)}</div><div className="opacity-90 leading-tight truncate" style={{fontSize:11}}>{phName(b.projectId,b.phaseId)||"—"}</div></div>
               </div>
               <div className="opacity-80 mt-1" style={{fontSize:10.5}}>Today {hm(minsFor(b.projectId,b.phaseId))}</div>
@@ -560,49 +556,49 @@ function DashTracker(ctx){
             <button key={"task:"+t.id} onClick={()=>startTask(t.id)} title={"Start · Task · "+t.title}
               className="shrink-0 text-left rounded-xl px-3 py-2 text-white transition hover:brightness-110" style={{background:NAVY,minWidth:150,maxWidth:230}}>
               <div className="flex items-center gap-2">
-                <span className="grid place-items-center w-6 h-6 rounded-full bg-white shrink-0" style={{color:NAVY}}><Play size={12}/></span>
+                <span className="grid place-items-center w-6 h-6 rounded-full bg-card shrink-0" style={{color:NAVY}}><Play size={12}/></span>
                 <div className="min-w-0"><div className="text-xs font-semibold leading-tight truncate">Task</div><div className="opacity-90 leading-tight truncate" style={{fontSize:11}}>{t.title}</div></div>
               </div>
               <div className="opacity-80 mt-1" style={{fontSize:10.5}}>Today {hm(minsForTask(t.id))}</div>
             </button>))}
         </div>
         <div className="flex items-center gap-2 flex-wrap mt-2">
-          <span className="text-xs font-medium text-slate-400 flex items-center gap-1 w-36 shrink-0"><Play size={12}/> Start another</span>
-          <select value={selP} onChange={e=>{setSelP(e.target.value);setSelPh("");}} className="w-48 shrink-0 text-sm rounded-lg border border-slate-200 px-2 py-1.5 outline-none"><option value="">Project…</option>{groups.map(grp)}</select>
-          {selproj?.phases?.length>0 && <select value={selPh} onChange={e=>setSelPh(e.target.value)} className="text-sm rounded-lg border border-slate-200 px-2 py-1.5 outline-none"><option value="">No phase</option>{selproj.phases.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>}
+          <span className="text-xs font-medium text-muted-foreground/70 flex items-center gap-1 w-36 shrink-0"><Play size={12}/> Start another</span>
+          <NativeSelect value={selP} onChange={e=>{setSelP(e.target.value);setSelPh("");}} className="w-48 shrink-0"><option value="">Project…</option>{groups.map(grp)}</NativeSelect>
+          {selproj?.phases?.length>0 && <NativeSelect value={selPh} onChange={e=>setSelPh(e.target.value)} ><option value="">No phase</option>{selproj.phases.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</NativeSelect>}
           <button onClick={()=>{ start(selP,selPh); setSelP(""); setSelPh(""); }} disabled={!selP} className="flex items-center gap-1.5 bg-green-600 text-white text-sm font-semibold px-3 py-1.5 rounded-lg hover:bg-green-700 disabled:opacity-40"><Play size={14}/> Start</button>
         </div>
         <div className="flex items-center gap-2 flex-wrap mt-2">
-          <span className="text-xs font-medium text-slate-400 flex items-center gap-1 w-36 shrink-0"><Plus size={12}/> Log time manually</span>
-          <select value={mP} onChange={e=>{setMP(e.target.value);setMPh("");}} className="w-48 shrink-0 text-sm rounded-lg border border-slate-200 px-2 py-1.5 outline-none"><option value="">Project…</option>{groups.map(grp)}</select>
-          {mproj?.phases?.length>0 && <select value={mPh} onChange={e=>setMPh(e.target.value)} className="text-sm rounded-lg border border-slate-200 px-2 py-1.5 outline-none"><option value="">No phase</option>{mproj.phases.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>}
-          <input type="date" value={mDate} onChange={e=>setMDate(e.target.value)} className="text-sm rounded-lg border border-slate-200 px-2 py-1.5 outline-none"/>
-          <input type="number" min="0" value={mH} onChange={e=>setMH(e.target.value)} className="w-12 text-sm rounded-lg border border-slate-200 px-2 py-1.5 outline-none"/><span className="text-xs text-slate-400">h</span>
-          <input type="number" min="0" max="59" value={mM} onChange={e=>setMM(e.target.value)} className="w-12 text-sm rounded-lg border border-slate-200 px-2 py-1.5 outline-none"/><span className="text-xs text-slate-400">m</span>
-          <button onClick={addManual} disabled={!mP} className="bg-blue-600 text-white text-sm font-semibold px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-40">Add</button>
+          <span className="text-xs font-medium text-muted-foreground/70 flex items-center gap-1 w-36 shrink-0"><Plus size={12}/> Log time manually</span>
+          <NativeSelect value={mP} onChange={e=>{setMP(e.target.value);setMPh("");}} className="w-48 shrink-0"><option value="">Project…</option>{groups.map(grp)}</NativeSelect>
+          {mproj?.phases?.length>0 && <NativeSelect value={mPh} onChange={e=>setMPh(e.target.value)} ><option value="">No phase</option>{mproj.phases.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</NativeSelect>}
+          <input type="date" value={mDate} onChange={e=>setMDate(e.target.value)} className="text-sm rounded-lg border border-border px-2 py-1.5 outline-none"/>
+          <input type="number" min="0" value={mH} onChange={e=>setMH(e.target.value)} className="w-12 text-sm rounded-lg border border-border px-2 py-1.5 outline-none"/><span className="text-xs text-muted-foreground/70">h</span>
+          <input type="number" min="0" max="59" value={mM} onChange={e=>setMM(e.target.value)} className="w-12 text-sm rounded-lg border border-border px-2 py-1.5 outline-none"/><span className="text-xs text-muted-foreground/70">m</span>
+          <button onClick={addManual} disabled={!mP} className="bg-primary text-primary-foreground text-sm font-semibold px-3 py-1.5 rounded-lg hover:bg-primary/80 disabled:opacity-40">Add</button>
         </div>
-        <div className="mt-3 pt-2.5 border-t border-slate-100">
-          <button onClick={()=>setLogOpen(o=>!o)} className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700">
-            <ChevronRight size={13} style={{transform:logOpen?"rotate(90deg)":"none",transition:"transform .15s"}}/> Logged today <span className="font-semibold text-slate-700">{hm(todayMins)}</span>
+        <div className="mt-3 pt-2.5 border-t border-border/60">
+          <button onClick={()=>setLogOpen(o=>!o)} className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground">
+            <ChevronRight size={13} style={{transform:logOpen?"rotate(90deg)":"none",transition:"transform .15s"}}/> Logged today <span className="font-semibold text-foreground/80">{hm(todayMins)}</span>
           </button>
           {logOpen && <div className="flex flex-col gap-1 mt-2">
-            {todayEntries.length===0 && <span className="text-xs text-slate-400">Nothing logged yet today.</span>}
+            {todayEntries.length===0 && <span className="text-xs text-muted-foreground/70">Nothing logged yet today.</span>}
             {todayEntries.map(l=>{ const editing=editId===l.id; return (
               <div key={l.id} className="flex items-center gap-2 text-sm">
                 <span className="w-2.5 h-2.5 rounded-xs shrink-0" style={{background:l.taskId?NAVY:colorOf(l.projectId)}}/>
-                <span className="text-slate-700 truncate">{l.taskId?("Task · "+((taskById(l.taskId)||{}).title||"task")):(labProj(l.projectId)+(phName(l.projectId,l.phaseId)?" · "+phName(l.projectId,l.phaseId):""))}</span>
-                <span className="text-slate-300" style={{fontSize:11}}>{l.source}</span>
+                <span className="text-foreground/80 truncate">{l.taskId?("Task · "+((taskById(l.taskId)||{}).title||"task")):(labProj(l.projectId)+(phName(l.projectId,l.phaseId)?" · "+phName(l.projectId,l.phaseId):""))}</span>
+                <span className="text-muted-foreground/40" style={{fontSize:11}}>{l.source}</span>
                 {editing ? (<span className="ml-auto flex items-center gap-1 flex-wrap justify-end">
-                  {!l.taskId && <select value={eProj} onChange={e=>{setEProj(e.target.value);setEPh("");}} className="text-xs rounded border border-slate-200 px-1 py-1 outline-none max-w-[120px]"><option value="">No project</option>{groups.map(grp)}</select>}
-                  {!l.taskId && projById(eProj)?.phases?.length>0 && <select value={ePh} onChange={e=>setEPh(e.target.value)} className="text-xs rounded border border-slate-200 px-1 py-1 outline-none max-w-[110px]"><option value="">No phase</option>{projById(eProj).phases.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>}
-                  <input type="number" min="0" value={eH} onChange={e=>setEH(e.target.value)} className="w-11 rounded border border-slate-200 px-1.5 py-1 outline-none"/><span className="text-xs text-slate-400">h</span>
-                  <input type="number" min="0" max="59" value={eM} onChange={e=>setEM(e.target.value)} className="w-11 rounded border border-slate-200 px-1.5 py-1 outline-none"/><span className="text-xs text-slate-400">m</span>
-                  <button onClick={()=>saveEdit(l)} className="text-xs font-semibold text-white bg-blue-600 px-2 py-1 rounded">Save</button>
-                  <button onClick={()=>setEditId(null)} className="text-slate-400 hover:text-slate-700"><X size={15}/></button>
+                  {!l.taskId && <NativeSelect value={eProj} onChange={e=>{setEProj(e.target.value);setEPh("");}} className="max-w-[120px]"><option value="">No project</option>{groups.map(grp)}</NativeSelect>}
+                  {!l.taskId && projById(eProj)?.phases?.length>0 && <NativeSelect value={ePh} onChange={e=>setEPh(e.target.value)} className="max-w-[110px]"><option value="">No phase</option>{projById(eProj).phases.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</NativeSelect>}
+                  <input type="number" min="0" value={eH} onChange={e=>setEH(e.target.value)} className="w-11 rounded border border-border px-1.5 py-1 outline-none"/><span className="text-xs text-muted-foreground/70">h</span>
+                  <input type="number" min="0" max="59" value={eM} onChange={e=>setEM(e.target.value)} className="w-11 rounded border border-border px-1.5 py-1 outline-none"/><span className="text-xs text-muted-foreground/70">m</span>
+                  <button onClick={()=>saveEdit(l)} className="text-xs font-semibold text-primary-foreground bg-primary px-2 py-1 rounded">Save</button>
+                  <button onClick={()=>setEditId(null)} className="text-muted-foreground/70 hover:text-foreground"><X size={15}/></button>
                 </span>) : (<span className="ml-auto flex items-center gap-2">
-                  <span className="font-medium text-slate-700 tabular-nums">{hm(l.minutes)}</span>
-                  <button onClick={()=>beginEdit(l)} className="text-slate-300 hover:text-blue-600"><Pencil size={13}/></button>
-                  <button onClick={()=>delTimeLogs([l.id])} className="text-slate-300 hover:text-red-500"><Trash2 size={13}/></button>
+                  <span className="font-medium text-foreground/80 tabular-nums">{hm(l.minutes)}</span>
+                  <button onClick={()=>beginEdit(l)} className="text-muted-foreground/40 hover:text-primary-foreground"><Pencil size={13}/></button>
+                  <button onClick={()=>delTimeLogs([l.id])} className="text-muted-foreground/40 hover:text-destructive"><Trash2 size={13}/></button>
                 </span>)}
               </div>);})}
           </div>}
@@ -711,29 +707,29 @@ function ProposalForm({ org, clients, members, anchor, onCreate, onClose }) {
   const lastEnd=phases.length?phaseRanges(startDate,phases.map(p=>({id:p.id,name:p.name,days:Math.max(1,Math.round(p.days||1))}))).slice(-1)[0].end:null;
   if(step==="input"){
     return (<ModalShell onClose={onClose}><ModalHead title="New project from a proposal" onClose={onClose}/><div className="p-5">
-      <p className="text-sm text-slate-500 mb-4 flex items-start gap-2"><Sparkles size={16} className="text-violet-500 mt-0.5 shrink-0"/> Drop in a proposal and AI will pull out the client, phases, durations and value for you to review.</p>
-      <label className="block border-2 border-dashed border-slate-200 rounded-xl p-5 text-center cursor-pointer hover:border-violet-400 hover:bg-violet-50/40 mb-3">
+      <p className="text-sm text-muted-foreground mb-4 flex items-start gap-2"><Sparkles size={16} className="text-violet-500 mt-0.5 shrink-0"/> Drop in a proposal and AI will pull out the client, phases, durations and value for you to review.</p>
+      <label className="block border-2 border-dashed border-border rounded-xl p-5 text-center cursor-pointer hover:border-violet-400 hover:bg-violet-50/40 mb-3">
         <input type="file" accept=".pdf,.txt,.md,.markdown,application/pdf,text/plain" className="hidden" onChange={e=>onFile(e.target.files[0])}/>
-        <Upload size={20} className="mx-auto text-slate-400 mb-1"/>
-        <div className="text-sm text-slate-600">{fileName?<span className="inline-flex items-center gap-1.5 text-slate-800 font-medium"><FileText size={14}/>{fileName}</span>:"Click to choose a PDF or text file"}</div>
-        <div className="text-slate-400 mt-0.5" style={{fontSize:11}}>PDF or text file.</div>
+        <Upload size={20} className="mx-auto text-muted-foreground/70 mb-1"/>
+        <div className="text-sm text-muted-foreground">{fileName?<span className="inline-flex items-center gap-1.5 text-foreground font-medium"><FileText size={14}/>{fileName}</span>:"Click to choose a PDF or text file"}</div>
+        <div className="text-muted-foreground/70 mt-0.5" style={{fontSize:11}}>PDF or text file.</div>
       </label>
-      <div className="text-xs text-slate-400 mb-1">…or paste the proposal text</div>
-      <textarea value={paste} onChange={e=>setPaste(e.target.value)} rows={5} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-violet-400 mb-3" placeholder="Paste here…"/>
+      <div className="text-xs text-muted-foreground/70 mb-1">…or paste the proposal text</div>
+      <textarea value={paste} onChange={e=>setPaste(e.target.value)} rows={5} className="w-full text-sm rounded-lg border border-border px-3 py-2 outline-none focus:border-violet-400 mb-3" placeholder="Paste here…"/>
       <Field label="Project start date"><input type="date" className={inputCls} value={startDate} onChange={e=>setStartDate(e.target.value)}/></Field>
-      {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
+      {error && <p className="text-sm text-destructive mb-2">{error}</p>}
     </div>
-    <div className="flex items-center gap-2 px-5 py-4 border-t border-slate-100">
+    <div className="flex items-center gap-2 px-5 py-4 border-t border-border/60">
       <button onClick={extract} disabled={busy} className="ml-auto flex items-center gap-2 text-sm bg-violet-600 text-white px-4 py-2 rounded-lg hover:bg-violet-700 disabled:opacity-60"><Sparkles size={15}/> {busy?"Reading proposal…":"Extract with AI"}</button>
     </div></ModalShell>);
   }
   return (<ModalShell onClose={onClose}><ModalHead title="Review & create" onClose={onClose}/><div className="p-5">
     {confidence && <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4 flex items-start gap-1.5"><AlertTriangle size={13} className="mt-0.5 shrink-0"/><span>{confidence} — check everything below before creating.</span></div>}
     <Field label="Client">
-      <div className="flex gap-2 mb-2">{[["existing","Existing"],["new","New client"]].map(([v,l])=><button key={v} onClick={()=>setClientMode(v)} className={`flex-1 text-sm py-2 rounded-lg border ${clientMode===v?"border-violet-500 bg-violet-50 text-violet-700":"border-slate-200 text-slate-600"}`}>{l}</button>)}</div>
+      <div className="flex gap-2 mb-2">{[["existing","Existing"],["new","New client"]].map(([v,l])=><button key={v} onClick={()=>setClientMode(v)} className={`flex-1 text-sm py-2 rounded-lg border ${clientMode===v?"border-violet-500 bg-violet-50 text-violet-700":"border-border text-muted-foreground"}`}>{l}</button>)}</div>
       {clientMode==="existing"
-        ? <select className={inputCls} value={existingClientId} onChange={e=>setExistingClientId(e.target.value)}>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
-        : <div><input className={inputCls+" mb-2"} value={newClientName} onChange={e=>setNewClientName(e.target.value)} placeholder="Client name"/><div className="flex flex-wrap gap-2">{CLIENT_COLORS.map(c=><button key={c} onClick={()=>setNewClientColor(c)} className="w-7 h-7 rounded-lg" style={{background:c,outline:newClientColor===c?"2px solid #1e293b":"none",outlineOffset:2}}/>)}</div></div>}
+        ? <NativeSelect className="w-full" value={existingClientId} onChange={e=>setExistingClientId(e.target.value)}>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</NativeSelect>
+        : <div><input className={inputCls+" mb-2"} value={newClientName} onChange={e=>setNewClientName(e.target.value)} placeholder="Client name"/><div className="flex flex-wrap gap-2">{CLIENT_COLORS.map(c=><button key={c} onClick={()=>setNewClientColor(c)} className="w-7 h-7 rounded-lg" style={{background:c,outline:newClientColor===c?"2px solid var(--ring)":"none",outlineOffset:2}}/>)}</div></div>}
     </Field>
     <div className="grid grid-cols-3 gap-3">
       <div className="col-span-1"><Field label="Code"><input className={inputCls} value={code} onChange={e=>setCode(e.target.value)} placeholder={autoCode()}/></Field></div>
@@ -742,28 +738,28 @@ function ProposalForm({ org, clients, members, anchor, onCreate, onClose }) {
     <Field label={`Project value ${currency?"("+currency+")":""}`}><input type="number" min="0" className={inputCls} value={cost} onChange={e=>setCost(e.target.value)} placeholder="0"/></Field>
     <Field label="Phases & durations (working days)">
       <div className="space-y-1.5 mb-2">{phases.map((p,i)=>(
-        <div key={p.id} className="flex items-center gap-2 text-sm bg-slate-50 rounded-lg px-2.5 py-1.5">
-          <span className="text-xs text-slate-400 w-4">{i+1}</span>
+        <div key={p.id} className="flex items-center gap-2 text-sm bg-muted/50 rounded-lg px-2.5 py-1.5">
+          <span className="text-xs text-muted-foreground/70 w-4">{i+1}</span>
           <input className="flex-1 bg-transparent outline-none" value={p.name} onChange={e=>setPhases(phases.map(x=>x.id===p.id?{...x,name:e.target.value}:x))}/>
-          <input type="number" min="1" className="w-14 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-xs" value={p.days} onChange={e=>setPhases(phases.map(x=>x.id===p.id?{...x,days:Number(e.target.value)}:x))}/>
-          <span className="text-xs text-slate-400">d</span>
-          <button onClick={()=>setPhases(phases.filter(x=>x.id!==p.id))} className="text-slate-400 hover:text-red-500"><X size={14}/></button>
+          <input type="number" min="1" className="w-14 bg-card border border-border rounded px-1.5 py-0.5 text-xs" value={p.days} onChange={e=>setPhases(phases.map(x=>x.id===p.id?{...x,days:Number(e.target.value)}:x))}/>
+          <span className="text-xs text-muted-foreground/70">d</span>
+          <button onClick={()=>setPhases(phases.filter(x=>x.id!==p.id))} className="text-muted-foreground/70 hover:text-destructive"><X size={14}/></button>
         </div>))}
       </div>
-      <button onClick={()=>setPhases([...phases,{id:uid(),name:"",days:5}])} className="text-xs flex items-center gap-1 text-slate-500 hover:text-slate-800"><Plus size={13}/> Add phase</button>
+      <button onClick={()=>setPhases([...phases,{id:uid(),name:"",days:5}])} className="text-xs flex items-center gap-1 text-muted-foreground hover:text-foreground"><Plus size={13}/> Add phase</button>
     </Field>
     <div className="grid grid-cols-2 gap-3">
       <Field label="Start date"><input type="date" className={inputCls} value={startDate} onChange={e=>setStartDate(e.target.value)}/></Field>
-      <Field label="Finishes (calculated)"><div className={inputCls+" bg-slate-50 text-slate-500"}>{lastEnd?`${pad(parseISO(lastEnd).getDate())} ${MONTHS[parseISO(lastEnd).getMonth()]} ${parseISO(lastEnd).getFullYear()}`:"—"}</div></Field>
+      <Field label="Finishes (calculated)"><div className={inputCls+" bg-muted/50 text-muted-foreground"}>{lastEnd?`${pad(parseISO(lastEnd).getDate())} ${MONTHS[parseISO(lastEnd).getMonth()]} ${parseISO(lastEnd).getFullYear()}`:"—"}</div></Field>
     </div>
     <Field label="Assign people (one bar per phase each)">
-      <div className="flex flex-wrap gap-1.5">{members.map(m=>(<button key={m.id} onClick={()=>togglePerson(m.id)} className={`text-xs px-2.5 py-1.5 rounded-lg border ${people.includes(m.id)?"border-violet-500 bg-violet-50 text-violet-700":"border-slate-200 text-slate-600"}`}>{m.name}</button>))}</div>
-      {people.length===0 && <p className="text-xs text-slate-400 mt-1">Optional — leave empty to create the project with no one scheduled yet.</p>}
+      <div className="flex flex-wrap gap-1.5">{members.map(m=>(<button key={m.id} onClick={()=>togglePerson(m.id)} className={`text-xs px-2.5 py-1.5 rounded-lg border ${people.includes(m.id)?"border-violet-500 bg-violet-50 text-violet-700":"border-border text-muted-foreground"}`}>{m.name}</button>))}</div>
+      {people.length===0 && <p className="text-xs text-muted-foreground/70 mt-1">Optional — leave empty to create the project with no one scheduled yet.</p>}
     </Field>
-    {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
+    {error && <p className="text-sm text-destructive mb-2">{error}</p>}
   </div>
-  <div className="flex items-center gap-2 px-5 py-4 border-t border-slate-100">
-    <button onClick={()=>{setStep("input");setError("");}} className="flex items-center gap-1 text-sm text-slate-500 hover:bg-slate-100 px-2.5 py-2 rounded-lg"><ArrowLeft size={15}/> Back</button>
+  <div className="flex items-center gap-2 px-5 py-4 border-t border-border/60">
+    <button onClick={()=>{setStep("input");setError("");}} className="flex items-center gap-1 text-sm text-muted-foreground hover:bg-muted px-2.5 py-2 rounded-lg"><ArrowLeft size={15}/> Back</button>
     <button onClick={confirm} className="ml-auto text-sm bg-violet-600 text-white px-4 py-2 rounded-lg hover:bg-violet-700">Create project &amp; schedule</button>
   </div></ModalShell>);
 }
@@ -789,6 +785,7 @@ export default function Schedule({ org, me, data: cadData, reload, onNavigate, p
   const [holidayFilter,setHolidayFilter]=useState("show");
   const [clientFilter,setClientFilter]=useState("all");
   const [q,setQ]=useState("");
+  const [dateOpen,setDateOpen]=useState(false);
   const [modal,setModal]=useState(null);
   const [quickModal,setQuickModal]=useState(null); // "invite" | "newproject" — layered over the assign form
   const boardScroll=useRef(null);
@@ -822,42 +819,58 @@ export default function Schedule({ org, me, data: cadData, reload, onNavigate, p
 
   return (
     <div className="h-full flex flex-col">
-      <div className="shrink-0 flex flex-wrap items-center gap-2 px-3 py-2 bg-white border-b border-slate-200">
-        <div className="flex items-center rounded-lg border border-slate-200 overflow-hidden">
-          <button onClick={()=>step(-1)} className="px-2 py-1.5 hover:bg-slate-50"><ChevronLeft size={16}/></button>
-          <button onClick={()=>setAnchor(startOfDay(new Date()))} className="px-3 py-1.5 text-sm hover:bg-slate-50 border-x border-slate-200">Today</button>
-          <button onClick={()=>step(1)} className="px-2 py-1.5 hover:bg-slate-50"><ChevronRight size={16}/></button>
-        </div>
-        <div className="flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-slate-500">
-          <Calendar size={15}/><input type="date" value={toISO(anchor)} onChange={e=>e.target.value&&setAnchor(parseISO(e.target.value))} className="text-sm outline-none bg-transparent"/>
-        </div>
-        <div className="text-sm font-semibold text-slate-700 px-1 hidden md:block">{MONTHS_LONG[anchor.getMonth()]} {anchor.getFullYear()}</div>
+      <div className="shrink-0 flex flex-wrap items-center gap-2 px-3 py-2 bg-card border-b border-border">
+        <ButtonGroup>
+          <Button variant="outline" size="icon" onClick={()=>step(-1)} aria-label="Previous month"><ChevronLeft/></Button>
+          <Button variant="outline" onClick={()=>setAnchor(startOfDay(new Date()))}>Today</Button>
+          <Button variant="outline" size="icon" onClick={()=>step(1)} aria-label="Next month"><ChevronRight/></Button>
+        </ButtonGroup>
+        <Popover open={dateOpen} onOpenChange={setDateOpen}>
+          <PopoverTrigger render={<Button variant="outline" />}>
+            <Calendar/> {toISO(anchor)}
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <CalendarPicker mode="single" selected={anchor} onSelect={(d)=>{ if(d){ setAnchor(startOfDay(d)); setDateOpen(false); } }} defaultMonth={anchor} />
+          </PopoverContent>
+        </Popover>
+        <div className="text-sm font-semibold text-foreground/80 px-1 hidden md:block">{MONTHS_LONG[anchor.getMonth()]} {anchor.getFullYear()}</div>
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
-          <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5"><Search size={14} className="text-slate-400"/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search" className="text-sm outline-none w-24 sm:w-32 bg-transparent"/></div>
-          <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5"><PeoplePicker members={data.members} teams={teams} value={peopleFilter} onChange={setPeopleFilter} me={me.id}/></div>
-          <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5"><Plane size={14} className="text-slate-400"/><select value={holidayFilter} onChange={e=>setHolidayFilter(e.target.value)} className="text-sm outline-none bg-transparent"><option value="show">Holidays: show</option><option value="hide">Holidays: hide</option><option value="only">Holidays: only</option></select></div>
-          <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5"><ClientPicker clients={data.clients} value={clientFilter} onChange={setClientFilter}/></div>
-          {canEdit && <button onClick={()=>setModal({type:"proposal"})} className="flex items-center gap-1.5 text-sm px-2.5 h-8 rounded-lg text-white hover:brightness-110" style={{background:"#7c3aed"}}><Sparkles size={15}/> <span className="hidden sm:inline">Proposal</span></button>}
-          {canEdit && <button onClick={()=>setModal({type:"assign"})} className="flex items-center gap-1.5 text-sm px-2.5 h-8 rounded-lg text-white" style={{background:"#2f6fed"}}><Plus size={15}/> <span className="hidden sm:inline">Assign Work</span></button>}
+          <div className="flex h-8 items-center gap-1.5 rounded-lg border border-input px-2"><Search size={14} className="text-muted-foreground/70"/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search" className="text-sm outline-none w-24 sm:w-32 bg-transparent"/></div>
+          <div className="flex h-8 items-center gap-1.5 rounded-lg border border-input px-2"><PeoplePicker members={data.members} teams={teams} value={peopleFilter} onChange={setPeopleFilter} me={me.id}/></div>
+          <Select value={holidayFilter} onValueChange={setHolidayFilter} items={{show:"Holidays: show",hide:"Holidays: hide",only:"Holidays: only"}}>
+            <SelectTrigger><Plane size={14} className="text-muted-foreground/70"/><SelectValue/></SelectTrigger>
+            {/* alignItemWithTrigger (the component default) opens macOS-style over
+                the trigger; false drops below like every native select in the app. */}
+            <SelectContent alignItemWithTrigger={false} align="start">
+              <SelectItem value="show">Holidays: show</SelectItem>
+              <SelectItem value="hide">Holidays: hide</SelectItem>
+              <SelectItem value="only">Holidays: only</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="flex h-8 items-center gap-1.5 rounded-lg border border-input px-2"><ClientPicker clients={data.clients} value={clientFilter} onChange={setClientFilter}/></div>
+          {canEdit && <Button variant="secondary" onClick={()=>setModal({type:"proposal"})}><Sparkles/> <span className="hidden sm:inline">Proposal</span></Button>}
+          {canEdit && <Button onClick={()=>setModal({type:"assign"})}><Plus/> <span className="hidden sm:inline">Assign Work</span></Button>}
         </div>
       </div>
 
       <div className="flex-1 min-h-0"><TimelineBoard {...ctx} /></div>
 
-      <div className="shrink-0 flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 bg-white border-x border-b border-slate-200 text-xs text-slate-500">
-        <span className="font-medium text-slate-600">Clients:</span>
-        {data.clients.map(c=>(<button key={c.id} onClick={()=>canEdit&&setModal({type:"client",payload:c})} className="flex items-center gap-1.5 hover:text-slate-800 group"><span className="w-3 h-3 rounded-xs" style={{background:c.color}}/>{c.name}{canEdit&&<Pencil size={11} className="opacity-0 group-hover:opacity-60"/>}</button>))}
+      <div className="shrink-0 flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 bg-card border-x border-b border-border text-xs text-muted-foreground">
+        <span className="font-medium text-muted-foreground">Clients:</span>
+        {data.clients.map(c=>(<button key={c.id} onClick={()=>canEdit&&setModal({type:"client",payload:c})} className="flex items-center gap-1.5 hover:text-foreground group"><span className="w-3 h-3 rounded-xs" style={{background:c.color}}/>{c.name}{canEdit&&<Pencil size={11} className="opacity-0 group-hover:opacity-60"/>}</button>))}
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-xs" style={{background:LEAVE_TYPES.vacation.color}}/>Time off</span>
         <div className="mx-auto flex items-center gap-2">
-          <button onClick={()=>boardScroll.current?.nudge(-1)} title="Move left" className="grid place-items-center w-8 h-8 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"><ChevronLeft size={18}/></button>
-          <span className="text-slate-400 hidden md:inline">use mouse wheel or click empty area to move</span>
-          <button onClick={()=>boardScroll.current?.nudge(1)} title="Move right" className="grid place-items-center w-8 h-8 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"><ChevronRight size={18}/></button>
+          <span className="text-muted-foreground/70 hidden md:inline">use mouse wheel or click empty area to move</span>
+          <ButtonGroup>
+            <Button variant="outline" size="icon-sm" onClick={()=>boardScroll.current?.nudge(-1)} aria-label="Move left"><ChevronLeft/></Button>
+            <Button variant="outline" size="icon-sm" onClick={()=>boardScroll.current?.nudge(1)} aria-label="Move right"><ChevronRight/></Button>
+          </ButtonGroup>
         </div>
-        <div className="flex items-center rounded-lg border border-slate-200 overflow-hidden">
-          <button onClick={()=>setZoomT(z=>Math.max(0,Math.round((z-0.2)*10)/10))} disabled={zoomT<=0} className="grid place-items-center w-10 h-9 hover:bg-slate-50 disabled:opacity-30"><ZoomOut size={20}/></button>
-          <span className="px-1.5 text-slate-400 border-x border-slate-200 select-none" style={{fontSize:11}}>Zoom</span>
-          <button onClick={()=>setZoomT(z=>Math.min(1,Math.round((z+0.2)*10)/10))} disabled={zoomT>=1} className="grid place-items-center w-10 h-9 hover:bg-slate-50 disabled:opacity-30"><ZoomIn size={20}/></button>
-        </div>
+        <ButtonGroup>
+          <Button variant="outline" size="icon-sm" onClick={()=>setZoomT(z=>Math.max(0,Math.round((z-0.2)*10)/10))} disabled={zoomT<=0} aria-label="Zoom out"><ZoomOut/></Button>
+          <ButtonGroupText>Zoom</ButtonGroupText>
+          <Button variant="outline" size="icon-sm" onClick={()=>setZoomT(z=>Math.min(1,Math.round((z+0.2)*10)/10))} disabled={zoomT>=1} aria-label="Zoom in"><ZoomIn/></Button>
+        </ButtonGroup>
       </div>
 
       <DashTracker {...ctx} />
@@ -884,10 +897,10 @@ function ClientForm({ org, client, canEdit, onClose, onSaved }){
   const del=async()=>{ if(!(await confirm({title:"Delete this client?", confirmLabel:"Delete", destructive:true}))) return; await sb.from("clients").delete().eq("id",client.id); onSaved(); };
   return (<ModalShell onClose={onClose}><ModalHead title={client?"Edit client":"Add client"} onClose={onClose}/><div className="p-5">
     <Field label="Client name"><input className={inputCls} disabled={!canEdit} value={name} onChange={e=>setName(e.target.value)}/></Field>
-    <Field label="Colour"><div className="flex flex-wrap gap-2">{CLIENT_COLORS.map(c=><button key={c} disabled={!canEdit} onClick={()=>setColor(c)} className="w-8 h-8 rounded-lg" style={{background:c,outline:color===c?"2px solid #1e293b":"none",outlineOffset:2}}/>)}</div></Field>
+    <Field label="Colour"><div className="flex flex-wrap gap-2">{CLIENT_COLORS.map(c=><button key={c} disabled={!canEdit} onClick={()=>setColor(c)} className="w-8 h-8 rounded-lg" style={{background:c,outline:color===c?"2px solid var(--ring)":"none",outlineOffset:2}}/>)}</div></Field>
     <Field label="Payment terms (days)"><input type="number" className={inputCls} disabled={!canEdit} value={terms} onChange={e=>setTerms(e.target.value)}/></Field>
-    <Field label="Billing address (for invoices)"><textarea className={inputCls} rows={3} disabled={!canEdit} value={addr} onChange={e=>setAddr(e.target.value)}/></Field>
-  </div>{canEdit?<ModalFoot onSave={save} onDelete={client?del:null} saveLabel="Save"/>:<div className="px-5 py-4 border-t border-slate-100 text-right"><button onClick={onClose} className="text-sm text-slate-500">Close</button></div>}</ModalShell>);
+    <Field label="Billing address (for invoices)"><textarea className={textareaCls} rows={3} disabled={!canEdit} value={addr} onChange={e=>setAddr(e.target.value)}/></Field>
+  </div>{canEdit?<ModalFoot onSave={save} onDelete={client?del:null} saveLabel="Save"/>:<div className="px-5 py-4 border-t border-border/60 text-right"><button onClick={onClose} className="text-sm text-muted-foreground">Close</button></div>}</ModalShell>);
 }
 
 function MemberForm({ org, member, teams, canEdit, onClose, onSaved }){
@@ -908,9 +921,9 @@ function MemberForm({ org, member, teams, canEdit, onClose, onSaved }){
       <Field label="Holiday (days/yr)"><input type="number" className={inputCls} disabled={!canEdit} value={allow} onChange={e=>setAllow(e.target.value)}/></Field>
       <Field label="Rate (£/hr)"><input type="number" className={inputCls} disabled={!canEdit} value={rate} onChange={e=>setRate(e.target.value)} placeholder="—"/></Field>
     </div>
-    <Field label="Teams"><div className="flex flex-wrap gap-1.5 mb-2">{teams.map(t=><button key={t} disabled={!canEdit} onClick={()=>toggle(t)} className={`text-xs px-2 py-1 rounded-full border ${sel.includes(t)?"text-white border-transparent":"border-slate-200 text-slate-600"}`} style={sel.includes(t)?{background:NAVY}:undefined}>{t}</button>)}</div>
-      {canEdit && <div className="flex gap-2"><input className={inputCls} value={newTeam} onChange={e=>setNewTeam(e.target.value)} placeholder="New team name"/><button onClick={()=>{ if(newTeam.trim()&&!sel.includes(newTeam.trim())){ setSel([...sel,newTeam.trim()]); setNewTeam(""); } }} className="text-sm border border-slate-200 rounded-lg px-3">Add</button></div>}
+    <Field label="Teams"><div className="flex flex-wrap gap-1.5 mb-2">{teams.map(t=><button key={t} disabled={!canEdit} onClick={()=>toggle(t)} className={`text-xs px-2 py-1 rounded-full border ${sel.includes(t)?"bg-primary text-primary-foreground border-transparent":"border-border text-muted-foreground"}`}>{t}</button>)}</div>
+      {canEdit && <div className="flex gap-2"><input className={inputCls} value={newTeam} onChange={e=>setNewTeam(e.target.value)} placeholder="New team name"/><button onClick={()=>{ if(newTeam.trim()&&!sel.includes(newTeam.trim())){ setSel([...sel,newTeam.trim()]); setNewTeam(""); } }} className="text-sm border border-border rounded-lg px-3">Add</button></div>}
     </Field>
-    <p className="text-[11px] text-slate-400">Roles, permissions and invites are managed on the People page.</p>
-  </div>{canEdit?<ModalFoot onSave={save} saveLabel="Save"/>:<div className="px-5 py-4 border-t border-slate-100 text-right"><button onClick={onClose} className="text-sm text-slate-500">Close</button></div>}</ModalShell>);
+    <p className="text-[11px] text-muted-foreground/70">Roles, permissions and invites are managed on the People page.</p>
+  </div>{canEdit?<ModalFoot onSave={save} saveLabel="Save"/>:<div className="px-5 py-4 border-t border-border/60 text-right"><button onClick={onClose} className="text-sm text-muted-foreground">Close</button></div>}</ModalShell>);
 }

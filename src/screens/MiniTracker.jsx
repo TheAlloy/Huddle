@@ -2,8 +2,9 @@ import React, { useState, useEffect, useMemo } from "react";
 import { sb } from "../lib/supabase.js";
 import { can } from "../lib/permissions.js";
 import { toISO, fmtH } from "../lib/dates.js";
-import { NAVY } from "../ui.jsx";
+
 import { Play, Square, Clock } from "lucide-react";
+import { NativeSelect } from "@/components/ui/native-select";
 
 /** The condensed running-timer strip that sits on the Schedule page (like the studio dashboard). */
 export default function MiniTracker({ org, me, data, reload }) {
@@ -28,23 +29,23 @@ export default function MiniTracker({ org, me, data, reload }) {
   const phases = projectById[sel]?.phases || [];
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 border-b border-slate-200 bg-white shrink-0 text-sm flex-wrap">
-      <Clock size={15} className="text-slate-400" />
+    <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border bg-card shrink-0 text-sm flex-wrap">
+      <Clock size={15} className="text-muted-foreground/70" />
       {run ? (<>
-        <span className="font-bold tabular-nums text-base" style={{ color: NAVY }}>{clock(elapsed)}</span>
-        <span className="text-slate-600 truncate">{runProj ? (runProj.code || runProj.name) : "Tracking"}{runPhase ? " · " + runPhase.name : ""}</span>
+        <span className="font-bold tabular-nums text-base text-foreground">{clock(elapsed)}</span>
+        <span className="text-muted-foreground truncate">{runProj ? (runProj.code || runProj.name) : "Tracking"}{runPhase ? " · " + runPhase.name : ""}</span>
         <button onClick={stop} className="ml-1 flex items-center gap-1 text-xs font-semibold text-white rounded px-2 py-1" style={{ background: "#eb5757" }}><Square size={12} /> Stop &amp; log</button>
       </>) : (<>
-        <select className="text-sm outline-none border border-slate-200 rounded px-2 py-1 max-w-[190px]" value={sel} onChange={e => { setSel(e.target.value); setSelPhase(""); }}>
+        <NativeSelect className="max-w-[190px]" value={sel} onChange={e => { setSel(e.target.value); setSelPhase(""); }}>
           <option value="">Track time on…</option>
           {data.projects.map(p => <option key={p.id} value={p.id}>{p.code ? p.code + " · " : ""}{p.name}</option>)}
-        </select>
-        {phases.length > 0 && <select className="text-sm outline-none border border-slate-200 rounded px-2 py-1 max-w-[130px]" value={selPhase} onChange={e => setSelPhase(e.target.value)}>
+        </NativeSelect>
+        {phases.length > 0 && <NativeSelect className="max-w-[130px]" value={selPhase} onChange={e => setSelPhase(e.target.value)}>
           <option value="">Any phase</option>{phases.map(ph => <option key={ph.id} value={ph.id}>{ph.name}</option>)}
-        </select>}
-        <button onClick={start} disabled={!sel} className="flex items-center gap-1 text-xs font-semibold text-white rounded px-2 py-1 disabled:opacity-40" style={{ background: NAVY }}><Play size={12} /> Start</button>
+        </NativeSelect>}
+        <button onClick={start} disabled={!sel} className="flex items-center gap-1 text-xs font-semibold bg-primary text-primary-foreground rounded px-2 py-1 disabled:opacity-40"><Play size={12} /> Start</button>
       </>)}
-      <span className="ml-auto text-xs text-slate-400">Logged today <b className="text-slate-600">{fmtH(totalToday / 60)}h</b></span>
+      <span className="ml-auto text-xs text-muted-foreground/70">Logged today <b className="text-muted-foreground">{fmtH(totalToday / 60)}h</b></span>
     </div>
   );
 }

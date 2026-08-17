@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
-import { Btn, Card, Field, inputCls, Pill, Modal } from "../ui.jsx";
+import { Btn, Card, Field, inputCls, textareaCls, Pill, Modal } from "../ui.jsx";
 import { can } from "../lib/permissions.js";
 import { USAGE_OPTIONS } from "../lib/terms.js";
 import { PlanCard } from "./PlanCard.jsx";
 import { toast } from "sonner";
+import { NativeSelect } from "@/components/ui/native-select";
 
 export default function Settings({ org, me, members, reload }) {
   const [name, setName] = useState(org.name);
@@ -114,7 +115,7 @@ export default function Settings({ org, me, members, reload }) {
 
   return (
     <div className="p-4 space-y-4 overflow-y-auto h-full w-full">
-      <h2 className="text-base font-bold text-slate-800">Settings</h2>
+      <h2 className="text-base font-bold text-foreground">Settings</h2>
       <div className="space-y-4">
 
       <Card title="Studio">
@@ -125,29 +126,29 @@ export default function Settings({ org, me, members, reload }) {
           <Btn onClick={save} disabled={busy || !name.trim()}>{busy ? "Saving…" : "Save changes"}</Btn>
           {saved && <span className="text-xs text-green-600">Saved.</span>}
         </div>}
-        {!admin && <p className="text-xs text-slate-400">Only owners and administrators can change these.</p>}
+        {!admin && <p className="text-xs text-muted-foreground/70">Only owners and administrators can change these.</p>}
       </Card>
 
       {can(me, "billing.view") && <Card title="Subscription">
         <div className="flex items-center gap-3 flex-wrap">
           <div>
-            <div className="text-lg font-bold text-slate-800">{currentPlan ? currentPlan.name : (org.plan && org.plan !== "trial" ? org.plan : "No plan")} {currentPlan && <span className="text-sm font-normal text-slate-400">{fmtPrice(currentPlan)}{perInterval(currentPlan)}</span>}</div>
-            <div className="text-xs text-slate-500">{currentPlan?.description || ""}</div>
+            <div className="text-lg font-bold text-foreground">{currentPlan ? currentPlan.name : (org.plan && org.plan !== "trial" ? org.plan : "No plan")} {currentPlan && <span className="text-sm font-normal text-muted-foreground/70">{fmtPrice(currentPlan)}{perInterval(currentPlan)}</span>}</div>
+            <div className="text-xs text-muted-foreground">{currentPlan?.description || ""}</div>
           </div>
           {liveSub?.status === "trialing"
             ? <Pill color="#2f80ed">Free trial{liveSub.trialEnd ? " — " + Math.max(0, Math.ceil((liveSub.trialEnd * 1000 - Date.now()) / 86400000)) + " days left" : ""}</Pill>
             : <Pill color={org.status === "active" ? "#27ae60" : org.status === "past_due" ? "#f59e0b" : "#eb5757"}>{org.status}</Pill>}
           {admin && <Btn variant="outline" className="ml-auto" onClick={openBillingPortal} disabled={busy}>Manage billing</Btn>}
         </div>
-        <div className="text-xs text-slate-400 mt-3">
+        <div className="text-xs text-muted-foreground/70 mt-3">
           {liveSub?.status === "trialing" && liveSub.trialEnd
             ? <>Your free trial ends on {new Date(liveSub.trialEnd * 1000).toISOString().slice(0, 10)}, then billing starts automatically. Cancel any time before then through Manage billing.</>
             : <>Seats: {org.seats >= 9999 ? "Unlimited" : org.seats}. Update your card or cancel through Manage billing.</>}
         </div>
 
-        {admin && <div className="mt-4 pt-4 border-t border-slate-100">
-          <div className="text-xs font-semibold text-slate-500 mb-2">{currentPlan ? "Switch plan" : "Choose a plan"}</div>
-          {plans === null && <div className="text-xs text-slate-400">Loading plans from Stripe…</div>}
+        {admin && <div className="mt-4 pt-4 border-t border-border/60">
+          <div className="text-xs font-semibold text-muted-foreground mb-2">{currentPlan ? "Switch plan" : "Choose a plan"}</div>
+          {plans === null && <div className="text-xs text-muted-foreground/70">Loading plans from Stripe…</div>}
           {plans !== null && plans.length === 0 && <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">{plansMsg || "No active plans found in Stripe. Create products with recurring prices in your Stripe dashboard and they'll appear here automatically."}</div>}
           {plans !== null && plans.length > 0 && <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))" }}>
             {plans.map(p => {
@@ -155,19 +156,19 @@ export default function Settings({ org, me, members, reload }) {
               return <PlanCard key={p.priceId} plan={p} current={current} onChoose={subscribe} busy={busy} ctaLabel={currentPlan ? "Switch to this" : "Subscribe"} />;
             })}
           </div>}
-          <p className="text-[11px] text-slate-400 mt-2">These come straight from your Stripe products. Subscribing opens Stripe Checkout. To change or cancel an existing subscription, use <button onClick={openBillingPortal} className="underline">Manage billing</button> so Stripe prorates it correctly.</p>
+          <p className="text-[11px] text-muted-foreground/70 mt-2">These come straight from your Stripe products. Subscribing opens Stripe Checkout. To change or cancel an existing subscription, use <button onClick={openBillingPortal} className="underline">Manage billing</button> so Stripe prorates it correctly.</p>
         </div>}
       </Card>}
 
       {admin && <Card title="Invoice details">
-        <p className="text-xs text-slate-500 mb-3">These print on the PDF invoices you download from Billing. Leave anything blank to omit it.</p>
+        <p className="text-xs text-muted-foreground mb-3">These print on the PDF invoices you download from Billing. Leave anything blank to omit it.</p>
         <div className="grid sm:grid-cols-2 gap-3">
           <Field label="Company name"><input className={inputCls} value={inv.company || ""} onChange={e => setF("company", e.target.value)} placeholder={org.name} /></Field>
           <Field label="VAT number"><input className={inputCls} value={inv.vat || ""} onChange={e => setF("vat", e.target.value)} placeholder="GB 000 0000 00" /></Field>
         </div>
-        <Field label="Company address (one line each)"><textarea className={inputCls} rows={3} value={inv.address || ""} onChange={e => setF("address", e.target.value)} placeholder={"Building 2\nYour Street\nTown, Postcode"} /></Field>
+        <Field label="Company address (one line each)"><textarea className={textareaCls} rows={3} value={inv.address || ""} onChange={e => setF("address", e.target.value)} placeholder={"Building 2\nYour Street\nTown, Postcode"} /></Field>
         <Field label="Contact email(s) for invoice queries"><input className={inputCls} value={inv.emails || ""} onChange={e => setF("emails", e.target.value)} placeholder="accounts@yourstudio.com" /></Field>
-        <div className="text-xs font-semibold text-slate-500 mt-2 mb-1">Bank details (printed under “pay by transfer”)</div>
+        <div className="text-xs font-semibold text-muted-foreground mt-2 mb-1">Bank details (printed under “pay by transfer”)</div>
         <div className="grid sm:grid-cols-2 gap-3">
           <Field label="Account name"><input className={inputCls} value={inv.bankName || ""} onChange={e => setF("bankName", e.target.value)} /></Field>
           <Field label="Bank / branch"><input className={inputCls} value={inv.bankBranch || ""} onChange={e => setF("bankBranch", e.target.value)} /></Field>
@@ -181,12 +182,12 @@ export default function Settings({ org, me, members, reload }) {
           <Field label="Short logo text (top of invoice)"><input className={inputCls} value={inv.logoText || ""} onChange={e => setF("logoText", e.target.value)} placeholder={org.name?.split(" ")[0] || "Studio"} /></Field>
         </div>
 
-        <div className="mt-2 mb-3 rounded-xl border border-slate-200 p-3">
-          <div className="text-xs font-semibold text-slate-500 mb-1.5">Letterhead / template image</div>
-          <p className="text-[11px] text-slate-400 mb-2">Upload a PNG or JPG of your header (or a full A4 letterhead). It's placed on every invoice PDF, so downloads look like your own template. Keep it under ~600&nbsp;KB.</p>
+        <div className="mt-2 mb-3 rounded-xl border border-border p-3">
+          <div className="text-xs font-semibold text-muted-foreground mb-1.5">Letterhead / template image</div>
+          <p className="text-[11px] text-muted-foreground/70 mb-2">Upload a PNG or JPG of your header (or a full A4 letterhead). It's placed on every invoice PDF, so downloads look like your own template. Keep it under ~600&nbsp;KB.</p>
           {inv.letterhead && <div className="mb-2"><img src={inv.letterhead} alt="letterhead" style={{ maxHeight: 80, maxWidth: "100%", border: "1px solid #e2e8f0", borderRadius: 6 }} /></div>}
           <div className="flex items-center gap-2 flex-wrap">
-            <label className="text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer border border-blue-200 rounded-lg px-2.5 py-1.5">
+            <label className="text-xs font-semibold text-primary-foreground hover:text-primary-foreground cursor-pointer border border-primary/40 rounded-lg px-2.5 py-1.5">
               {inv.letterhead ? "Replace image" : "Upload image"}
               <input type="file" accept="image/png,image/jpeg" className="hidden" onChange={e => {
                 const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -194,48 +195,48 @@ export default function Settings({ org, me, members, reload }) {
                 const r = new FileReader(); r.onload = () => setF("letterhead", r.result); r.readAsDataURL(f);
               }} />
             </label>
-            {inv.letterhead && <button onClick={() => setInv(p => { const n = { ...p }; delete n.letterhead; return n; })} className="text-xs text-red-600 hover:bg-red-50 rounded-lg px-2 py-1.5">Remove</button>}
-            {inv.letterhead && <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer ml-1"><input type="checkbox" checked={!!inv.letterheadFull} onChange={e => setF("letterheadFull", e.target.checked)} /> It's a full-page background</label>}
+            {inv.letterhead && <button onClick={() => setInv(p => { const n = { ...p }; delete n.letterhead; return n; })} className="text-xs text-destructive hover:bg-destructive/10 rounded-lg px-2 py-1.5">Remove</button>}
+            {inv.letterhead && <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer ml-1"><input type="checkbox" checked={!!inv.letterheadFull} onChange={e => setF("letterheadFull", e.target.checked)} /> It's a full-page background</label>}
           </div>
-          <p className="text-[11px] text-slate-400 mt-2">Banner mode (default) sits your header across the top and prints the invoice below it. Tick "full-page background" only if your image is a complete A4 template with space left in the middle for the invoice text.</p>
+          <p className="text-[11px] text-muted-foreground/70 mt-2">Banner mode (default) sits your header across the top and prints the invoice below it. Tick "full-page background" only if your image is a complete A4 template with space left in the middle for the invoice text.</p>
         </div>
 
         <div className="flex items-center gap-2"><Btn onClick={saveInvoice} disabled={busy}>Save invoice details</Btn>{invSaved && <span className="text-xs text-green-600">Saved.</span>}</div>
       </Card>}
 
       {admin && <Card title="How you use Huddle">
-        <p className="text-xs text-slate-500 mb-3">This tailors the wording across the app (for example “clients” vs “teams”).</p>
+        <p className="text-xs text-muted-foreground mb-3">This tailors the wording across the app (for example “clients” vs “teams”).</p>
         <div className="space-y-1.5">{USAGE_OPTIONS.map(o => (
-          <label key={o.key} className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer ${usage === o.key ? "border-blue-500 bg-blue-50" : "border-slate-200"}`}>
+          <label key={o.key} className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer ${usage === o.key ? "border-primary bg-primary/10" : "border-border"}`}>
             <input type="radio" name="usage-settings" checked={usage === o.key} onChange={() => setUsage(o.key)} className="mt-0.5" />
-            <span><span className="text-sm font-medium text-slate-800">{o.label}</span><span className="block text-xs text-slate-500">{o.blurb}</span></span>
+            <span><span className="text-sm font-medium text-foreground">{o.label}</span><span className="block text-xs text-muted-foreground">{o.blurb}</span></span>
           </label>))}</div>
         {usage === "other" && <input className={inputCls + " mt-2"} value={usageOther} onChange={e => setUsageOther(e.target.value)} placeholder="How would you describe it?" />}
         <div className="flex items-center gap-2 mt-3"><Btn onClick={saveUsage} disabled={busy}>Save</Btn>{usageSaved && <span className="text-xs text-green-600">Saved.</span>}</div>
       </Card>}
 
       {admin && <Card title="Desktop app warnings">
-        <p className="text-xs text-slate-500 mb-3">Controls the reminders shown in the installed desktop app for everyone on your team.</p>
+        <p className="text-xs text-muted-foreground mb-3">Controls the reminders shown in the installed desktop app for everyone on your team.</p>
         <label className="flex items-start gap-2 py-1.5 cursor-pointer">
           <input type="checkbox" checked={closeWarn} onChange={e => setCloseWarn(e.target.checked)} className="mt-0.5" />
-          <span><span className="text-sm font-medium text-slate-800">Ask before closing</span><span className="block text-xs text-slate-500">Shows “Have you recorded all your time?” when someone quits the app.</span></span>
+          <span><span className="text-sm font-medium text-foreground">Ask before closing</span><span className="block text-xs text-muted-foreground">Shows “Have you recorded all your time?” when someone quits the app.</span></span>
         </label>
         <label className="flex items-start gap-2 py-1.5 cursor-pointer">
           <input type="checkbox" checked={minWarn} onChange={e => setMinWarn(e.target.checked)} className="mt-0.5" />
-          <span><span className="text-sm font-medium text-slate-800">Remind on minimise</span><span className="block text-xs text-slate-500">If the tracker isn't running when they minimise, remind them to start recording.</span></span>
+          <span><span className="text-sm font-medium text-foreground">Remind on minimise</span><span className="block text-xs text-muted-foreground">If the tracker isn't running when they minimise, remind them to start recording.</span></span>
         </label>
         <div className="flex items-center gap-2 mt-3"><Btn onClick={saveDesktop} disabled={busy}>Save</Btn>{dwSaved && <span className="text-xs text-green-600">Saved.</span>}</div>
       </Card>}
 
       <Card title="Your account">
-        <div className="text-sm text-slate-600">{me.email}</div>
-        <div className="text-xs text-slate-400 mt-1">Signed in · role: {me.role}</div>
+        <div className="text-sm text-muted-foreground">{me.email}</div>
+        <div className="text-xs text-muted-foreground/70 mt-1">Signed in · role: {me.role}</div>
         <div className="mt-3 flex flex-wrap gap-2">
           <Btn variant="outline" onClick={() => setAccountModal("email")}>Change email</Btn>
           <Btn variant="outline" onClick={() => setAccountModal("password")}>Change password</Btn>
           <Btn variant="outline" onClick={async () => { await sb.auth.signOut(); window.location.reload(); }}>Sign out</Btn>
         </div>
-        {can(me, "account.close") && <button onClick={() => setAccountModal("delete")} className="mt-3 text-xs text-red-500 hover:text-red-600 hover:underline">Delete account</button>}
+        {can(me, "account.close") && <button onClick={() => setAccountModal("delete")} className="mt-3 text-xs text-destructive hover:text-destructive hover:underline">Delete account</button>}
       </Card>
 
       {accountModal === "email" && <ChangeEmailModal currentEmail={me.email} onClose={() => setAccountModal(null)} />}
@@ -271,14 +272,14 @@ function ChangeEmailModal({ currentEmail, onClose }) {
     <Modal title="Change email" onClose={onClose}
       footer={done ? <Btn variant="dark" onClick={onClose}>Done</Btn> : <><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn variant="dark" onClick={submit} disabled={busy}>{busy ? "Saving…" : "Change email"}</Btn></>}>
       {done ? (
-        <p className="text-sm text-slate-600">Almost there — we've emailed a confirmation link to <b>{email}</b>. Click it to finish changing your address. Until then, keep signing in with your current email.</p>
+        <p className="text-sm text-muted-foreground">Almost there — we've emailed a confirmation link to <b>{email}</b>. Click it to finish changing your address. Until then, keep signing in with your current email.</p>
       ) : (
         <>
-          <p className="text-xs text-slate-500 mb-3">Enter the new address and your current password (twice) to confirm it's you.</p>
+          <p className="text-xs text-muted-foreground mb-3">Enter the new address and your current password (twice) to confirm it's you.</p>
           <Field label="New email address"><input autoComplete="off" className={inputCls} value={email} onChange={e => setEmail(e.target.value)} placeholder="you@studio.com" autoFocus /></Field>
           <Field label="Current password"><input type="password" autoComplete="new-password" className={inputCls} value={pw} onChange={e => setPw(e.target.value)} /></Field>
           <Field label="Confirm current password"><input type="password" autoComplete="new-password" className={inputCls} value={pw2} onChange={e => setPw2(e.target.value)} /></Field>
-          {err && <div className="text-xs text-red-600 mt-1">{err}</div>}
+          {err && <div className="text-xs text-destructive mt-1">{err}</div>}
         </>
       )}
     </Modal>
@@ -306,12 +307,12 @@ function ChangePasswordModal({ currentEmail, onClose }) {
     <Modal title="Change password" onClose={onClose}
       footer={done ? <Btn variant="dark" onClick={onClose}>Done</Btn> : <><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn variant="dark" onClick={submit} disabled={busy}>{busy ? "Sending…" : "Send reset link"}</Btn></>}>
       {done ? (
-        <p className="text-sm text-slate-600">We've emailed a reset link to <b>{currentEmail}</b>. Open it, set a new password, and you'll be signed out to sign back in with it.</p>
+        <p className="text-sm text-muted-foreground">We've emailed a reset link to <b>{currentEmail}</b>. Open it, set a new password, and you'll be signed out to sign back in with it.</p>
       ) : (
         <>
-          <p className="text-xs text-slate-500 mb-3">Confirm your current password. We'll email you a secure link to set a new one.</p>
+          <p className="text-xs text-muted-foreground mb-3">Confirm your current password. We'll email you a secure link to set a new one.</p>
           <Field label="Current password"><input type="password" autoComplete="new-password" className={inputCls} value={pw} onChange={e => setPw(e.target.value)} autoFocus /></Field>
-          {err && <div className="text-xs text-red-600 mt-1">{err}</div>}
+          {err && <div className="text-xs text-destructive mt-1">{err}</div>}
         </>
       )}
     </Modal>
@@ -340,15 +341,15 @@ function DeleteAccountModal({ org, me, members, onClose }) {
 
   if (step === "choose") return (
     <Modal title="Delete account" onClose={onClose} footer={<Btn variant="ghost" onClick={onClose}>Cancel</Btn>}>
-      <p className="text-sm text-slate-600 mb-3">What would you like to do with <b>{org.name}</b>?</p>
+      <p className="text-sm text-muted-foreground mb-3">What would you like to do with <b>{org.name}</b>?</p>
       <div className="space-y-2">
-        <button onClick={() => setStep("transfer")} disabled={others.length === 0} className={`w-full text-left border rounded-xl p-3 ${others.length === 0 ? "opacity-50 cursor-not-allowed border-slate-200" : "border-slate-200 hover:border-blue-400 hover:bg-blue-50"}`}>
-          <div className="text-sm font-semibold text-slate-800">Transfer ownership &amp; leave</div>
-          <div className="text-xs text-slate-500">Hand the studio to someone else. It keeps running; you're removed.{others.length === 0 ? " (No other members to transfer to.)" : ""}</div>
+        <button onClick={() => setStep("transfer")} disabled={others.length === 0} className={`w-full text-left border rounded-xl p-3 ${others.length === 0 ? "opacity-50 cursor-not-allowed border-border" : "border-border hover:border-primary hover:bg-primary/10"}`}>
+          <div className="text-sm font-semibold text-foreground">Transfer ownership &amp; leave</div>
+          <div className="text-xs text-muted-foreground">Hand the studio to someone else. It keeps running; you're removed.{others.length === 0 ? " (No other members to transfer to.)" : ""}</div>
         </button>
-        <button onClick={() => setStep("confirmDelete")} className="w-full text-left border border-red-200 rounded-xl p-3 hover:bg-red-50">
-          <div className="text-sm font-semibold text-red-600">Delete the whole team</div>
-          <div className="text-xs text-slate-500">Permanently removes the studio and everyone's data. This can't be undone.</div>
+        <button onClick={() => setStep("confirmDelete")} className="w-full text-left border border-destructive/30 rounded-xl p-3 hover:bg-destructive/10">
+          <div className="text-sm font-semibold text-destructive">Delete the whole team</div>
+          <div className="text-xs text-muted-foreground">Permanently removes the studio and everyone's data. This can't be undone.</div>
         </button>
       </div>
     </Modal>
@@ -357,20 +358,20 @@ function DeleteAccountModal({ org, me, members, onClose }) {
   if (step === "transfer") return (
     <Modal title="Transfer ownership" onClose={onClose}
       footer={<><Btn variant="ghost" onClick={() => setStep("choose")} disabled={busy}>Back</Btn><Btn variant="dark" onClick={() => newOwner ? call({ action: "transfer", newOwnerId: newOwner }) : setErr("Choose a new owner.")} disabled={busy}>{busy ? "Transferring…" : "Transfer & leave"}</Btn></>}>
-      <p className="text-sm text-slate-600 mb-3">Choose who becomes the new owner of <b>{org.name}</b>. You'll be removed from the team and signed out.</p>
-      <select className={inputCls} value={newOwner} onChange={e => setNewOwner(e.target.value)}>
+      <p className="text-sm text-muted-foreground mb-3">Choose who becomes the new owner of <b>{org.name}</b>. You'll be removed from the team and signed out.</p>
+      <NativeSelect className="w-full" value={newOwner} onChange={e => setNewOwner(e.target.value)}>
         <option value="">Select a team member…</option>
         {others.map(m => <option key={m.id} value={m.id}>{m.display_name || m.email}</option>)}
-      </select>
-      {err && <div className="text-xs text-red-600 mt-2">{err}</div>}
+      </NativeSelect>
+      {err && <div className="text-xs text-destructive mt-2">{err}</div>}
     </Modal>
   );
 
   return (
     <Modal title="Delete the whole team" onClose={onClose}
       footer={<><Btn variant="ghost" onClick={() => setStep("choose")} disabled={busy}>Back</Btn><Btn variant="danger" onClick={() => call({ action: "delete" })} disabled={busy}>{busy ? "Deleting…" : "Yes, delete everything"}</Btn></>}>
-      <p className="text-sm text-slate-600">This permanently deletes <b>{org.name}</b> and all of its schedules, time logs, projects and members, and cancels the subscription. <b>This cannot be undone.</b> You'll be signed out.</p>
-      {err && <div className="text-xs text-red-600 mt-2">{err}</div>}
+      <p className="text-sm text-muted-foreground">This permanently deletes <b>{org.name}</b> and all of its schedules, time logs, projects and members, and cancels the subscription. <b>This cannot be undone.</b> You'll be signed out.</p>
+      {err && <div className="text-xs text-destructive mt-2">{err}</div>}
     </Modal>
   );
 }

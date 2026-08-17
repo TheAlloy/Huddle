@@ -8,16 +8,14 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Moved verbatim from the inline style block in index.html when the Tailwind CDN
-   script was removed. These rules are unlayered, so they deliberately win over
-   the @layer base rules below: body keeps the app's slate background instead of
-   taking --background (white). Repainting the app onto tokens is the rebuild's
-   job, not this plan's — see docs/foundations-plan.md, decision 2. */
+/* App frame. Colors come from the preset tokens (@layer base paints body with
+   bg-background/text-foreground); only layout and scrollbar shape live here. */
 html, body { height: 100%; }
-body { margin: 0; background: #f1f5f9; -webkit-font-smoothing: antialiased; }
-#root { height: 100vh; padding: 10px; box-sizing: border-box; }
+body { margin: 0; -webkit-font-smoothing: antialiased; }
+/* Full-bleed since the shadcn Sidebar shell landed — the old 10px frame is gone. */
+#root { height: 100vh; box-sizing: border-box; }
 ::-webkit-scrollbar { height: 11px; width: 11px; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 6px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
 
 @theme inline { --font-heading: var(--font-sans); --font-sans: 'Inter Variable', sans-serif; --color-sidebar-ring: var(--sidebar-ring); --color-sidebar-border: var(--sidebar-border); --color-sidebar-accent-foreground: var(--sidebar-accent-foreground); --color-sidebar-accent: var(--sidebar-accent); --color-sidebar-primary-foreground: var(--sidebar-primary-foreground); --color-sidebar-primary: var(--sidebar-primary); --color-sidebar-foreground: var(--sidebar-foreground); --color-sidebar: var(--sidebar); --color-chart-5: var(--chart-5); --color-chart-4: var(--chart-4); --color-chart-3: var(--chart-3); --color-chart-2: var(--chart-2); --color-chart-1: var(--chart-1); --color-ring: var(--ring); --color-input: var(--input); --color-border: var(--border); --color-destructive: var(--destructive); --color-accent-foreground: var(--accent-foreground); --color-accent: var(--accent); --color-muted-foreground: var(--muted-foreground); --color-muted: var(--muted); --color-secondary-foreground: var(--secondary-foreground); --color-secondary: var(--secondary); --color-primary-foreground: var(--primary-foreground); --color-primary: var(--primary); --color-popover-foreground: var(--popover-foreground); --color-popover: var(--popover); --color-card-foreground: var(--card-foreground); --color-card: var(--card); --color-foreground: var(--foreground); --color-background: var(--background); --radius-sm: calc(var(--radius) * 0.6); --radius-md: calc(var(--radius) * 0.8); --radius-lg: var(--radius); --radius-xl: calc(var(--radius) * 1.4); --radius-2xl: calc(var(--radius) * 1.8); --radius-3xl: calc(var(--radius) * 2.2); --radius-4xl: calc(var(--radius) * 2.6); }
 

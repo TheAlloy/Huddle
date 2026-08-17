@@ -59,7 +59,20 @@ aliases, and `allowJs` so existing `.jsx` keeps compiling untouched. Per-file
 conversion happens as screens get rebuilt. We are not converting 22 files up
 front.
 
-### 2. No big-bang component sweep
+### 2. ~~No big-bang component sweep~~ — SUPERSEDED
+
+> **Revised 14 Aug after review.** Troy reviewed the demo build after steps 1–4
+> and rejected the deferral: *"we can literally throw out all our previous
+> styling and components — I want it to almost feel like we've started a new
+> project using shadcn/ui (with preset `b7Uc5YiUE`) out of the box."* The old
+> styling is not being preserved for the rebuild; it is the thing being
+> replaced. The restyle happens now, in two layers: the shared primitives
+> (done — see step 5) and a token sweep over every screen's own classes
+> (slate → muted/foreground tokens, blue → primary, red → destructive, navy
+> shell → sidebar tokens). Screen *structure* still changes only in the
+> rebuild; this mandate is about styling.
+
+The original decision, kept for the record:
 
 The obvious plan — replace all 56 selects and 28 native dialogs now — is wrong,
 because the UX brief's rebuild order rewrites every screen in steps 2–6.
@@ -289,8 +302,107 @@ the app — see the accessibility note under Current state.
 > with no frames no animation events dispatch at all. **Any future check of
 > animated enter/exit in this harness needs the rAF shim, or a real browser.**
 
-**5. Hand off to the rebuild** — from here the UX brief's step 1 continues
-(router, app shell, store). Component conversion rides along per screen.
+**5. Full restyle onto the preset — DONE** (added by the revised decision 2;
+committed work up to step 4 first as `cc127de`). Two layers:
+
+*Primitive layer* — `Btn` now wraps the shadcn Button (variant map:
+primary→default, dark→secondary, danger→destructive), `Modal` and the
+`ModalShell`/`ModalHead`/`ModalFoot` kit rebuilt on the shadcn Dialog (focus
+trap, Escape, aria — same mount-to-open API), `Card`/`Field`/`Empty`/`Spinner`
+tokenized, `inputCls` redefined as shadcn Input styling (padding-based height
+because textareas share it; native select arrow kept until NativeSelect
+conversion per screen). Schedule's third local modal kit (navy) deleted and
+pointed at core's; core's `ModalFoot` gained Schedule's `disabled` prop.
+
+*Screen layer* — scripted sweep of **937** class replacements across 20 files
+(the mapping table lives in the git history of this step): slate text/borders/
+backgrounds → `muted`/`foreground`/`border` tokens, blue actions → `primary`,
+red → `destructive`, dark selected chips → `primary`. Line-scoped rule:
+`text-white` on former action backgrounds → `text-primary-foreground` (white on
+lime fails contrast). Then by hand: the app header (navy → light `bg-card`
+top bar, tokenized OrgSwitcher/HeaderTracker/Admin chips), Paywall header and
+sign-out, Feedback rating scale, Onboarding step dots, MiniTracker,
+Schedule's toolbar CTAs (`#2f6fed` → primary; the purple Proposal button →
+outline), team chips, selection outlines → `var(--ring)`, and the
+`#f1f5f9` page backgrounds → `bg-background` (index.css body now takes the
+token base layer; scrollbar on `var(--border)`).
+
+**Deliberately kept:** data colors — client colors, `AVATAR_BG`, `LEAVE_TYPES`,
+`TASK_PRI`, chart greens/reds in Billing, and NAVY where it color-codes
+internal-task bars and the popout timer (a separate browser window that doesn't
+load our CSS). Amber/green notice banners also kept.
+
+**Found and fixed along the way:** the registry's `button.tsx` assumes React 19
+(function components taking refs); on React 18 the ref Base UI passes via
+`render={<Button/>}` silently fails and broke dialog cleanup (a `removeChild`
+crash). `Button` is now `forwardRef`-wrapped, with a comment to remove it on a
+React upgrade. Any future `shadcn add` of a component using `render=` needs the
+same check.
+
+*Verified:* zero legacy `slate-*`/`blue-*` classes remain; live probes show the
+token background, light header, lime primary CTAs, muted selected-nav; Schedule,
+Billing, Summary, Tasks and Tracker all render with an empty console; dialog
+opens in a portal with focus trapped.
+
+**6. Component adoption — DONE** (from Troy's annotated page feedback: the
+token repaint wasn't enough; the visible controls had to *be* shadcn
+components). Added `select`, `avatar`, `button-group`, `calendar`, `popover`,
+`sidebar` (+ its `sheet`/`tooltip`/`skeleton`/`separator` deps). What changed:
+
+- **App shell** → the shadcn `Sidebar` family: `SidebarProvider` +
+  `Sidebar collapsible="icon"` (brand header, `SidebarMenu` nav with active
+  states and collapsed-mode tooltips, feedback box as `SidebarFooter`,
+  `SidebarRail`), content in `SidebarInset` with a `SidebarTrigger` in the top
+  bar. The app is now full-bleed — the old 10px `#root` frame is gone.
+- **All 56 native selects** → `NativeSelect` (scripted; value/onChange/options
+  untouched, wrapper takes only layout classes). The Schedule Holidays filter
+  additionally became the full popup `Select` as the reference conversion —
+  note it needs `items={{...}}` on the root for the trigger to show labels
+  rather than raw values.
+- **Schedule toolbar**: month-nav and zoom/pan clusters → `ButtonGroup`; the
+  native date input → `Popover` + `Calendar` (react-day-picker); Assign Work →
+  default `Button`, Proposal → `variant="secondary"` per the feedback.
+- **Avatars** → ui.jsx `Avatar` now wraps shadcn `Avatar`/`AvatarFallback`
+  (same `{name,i,size}` API, indexed palette kept as data color). Schedule's
+  `PersonCell` and the Tasks board columns converted onto it — which surfaced
+  a **fourth** drifted duplicate: Schedule had *local* `AVATAR_BG` (the old
+  6-colour palette) and the buggy `initials`, invisible to step 3's
+  import-based audit because nothing imported them. Both deleted; Schedule
+  avatars were still on the old palette until this step.
+
+*Verified live:* sidebar mounts with 8 items and active state; popup Select
+opens/picks/updates; Calendar renders and sets the anchor date; ButtonGroups
+and shadcn-Button CTAs (lime default / secondary) confirmed by computed style;
+avatars on the canonical palette; Tasks, Billing, Tracker, Settings all render
+with a clean console from a cold load.
+
+*Registry→React-18 note:* `shadcn add --overwrite` clobbers the `forwardRef`
+patch on `button.tsx` — it was re-applied this step. Check it after any future
+`add`.
+
+**Consistency pass (review feedback, same day).** Two findings from Troy's
+screenshot review:
+
+- *Control heights.* `inputCls` had kept a padding-based height (~34px) while
+  every shadcn control (Button, SelectTrigger, NativeSelect, Input) is
+  **h-8 / 32px** — old styling genuinely still inlaid. `inputCls` now carries
+  `h-8` and matches the Input component exactly; textareas moved to a new
+  `textareaCls` (same look, no fixed height, 12 sites). The Schedule toolbar's
+  search/people/client wrapper boxes went from `py-1.5` to `h-8`, Tasks'
+  "Add task" and Team's refresh button became real Buttons. Verified live:
+  every control in the Schedule toolbar row and every field in the Assign
+  modal measures exactly 32px.
+- *Select popup positioning.* The popup opening **over** the trigger is the
+  component's out-of-the-box default (`alignItemWithTrigger = true`, Base UI's
+  macOS-style item alignment) — not our styling. It reads as broken next to 55
+  native selects that drop below, so our use passes
+  `alignItemWithTrigger={false}`; popup-below verified live. Decide once
+  whether to flip the default in `select.tsx` when more popup Selects land.
+
+**7. Hand off to the rebuild** — router, app shell wiring, store (UX brief
+step 1). Remaining polish, screen-level and by eye: popup `Select` for the
+other high-traffic filters, `Popover`+`Calendar` for form date fields,
+Billing's tab row, density/contrast judgment calls.
 
 ## Risks
 

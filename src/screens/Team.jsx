@@ -4,6 +4,7 @@ import { Btn, Field, inputCls, Modal, Avatar, Pill, Card, Empty } from "../ui.js
 import { PERMISSIONS, PERMISSION_GROUPS, ROLES, ROLE_KEYS, effectivePermissions, isFromRole, can } from "../lib/permissions.js";
 import { Plus, Mail, Trash2, Pencil, RefreshCw, Link as LinkIcon } from "lucide-react";
 import { useConfirm } from "../components/confirm.tsx";
+import { NativeSelect } from "@/components/ui/native-select";
 
 export default function Team({ org, me, members, reload, onNavigate }) {
   const confirm = useConfirm();
@@ -47,10 +48,10 @@ export default function Team({ org, me, members, reload, onNavigate }) {
     <div className="p-4 space-y-4 overflow-y-auto h-full">
       <div className="flex items-center gap-3 flex-wrap">
         <div>
-          <h2 className="text-base font-bold text-slate-800">People</h2>
-          <p className="text-xs text-slate-500">{unlimitedSeats ? `${seatsUsed} team member${seatsUsed === 1 ? "" : "s"} · unlimited invites` : `${seatsUsed} of ${org.seats} seats used`} on the {org.plan && org.plan !== "trial" ? org.plan : "current"} plan.</p>
+          <h2 className="text-base font-bold text-foreground">People</h2>
+          <p className="text-xs text-muted-foreground">{unlimitedSeats ? `${seatsUsed} team member${seatsUsed === 1 ? "" : "s"} · unlimited invites` : `${seatsUsed} of ${org.seats} seats used`} on the {org.plan && org.plan !== "trial" ? org.plan : "current"} plan.</p>
         </div>
-        {manage && <button onClick={() => { loadInvites(); reload(); }} title="Refresh" className="ml-auto grid place-items-center w-9 h-9 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"><RefreshCw size={15} /></button>}
+        {manage && <Btn variant="outline" title="Refresh" className="ml-auto w-8 px-0" onClick={() => { loadInvites(); reload(); }}><RefreshCw size={15} /></Btn>}
         {manage && <Btn onClick={() => overSeats ? setUpgradeOpen(true) : setInviteOpen(true)}><Plus size={14} /> Invite someone</Btn>}
       </div>
       {overSeats && manage && <div className="text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2">
@@ -60,20 +61,20 @@ export default function Team({ org, me, members, reload, onNavigate }) {
 
       <Card title="Team members">
         {members.length === 0 && <Empty title="No one here yet">Invite your team to get started.</Empty>}
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-border/60">
           {members.map((m, i) => {
             const role = ROLES[m.role] || ROLES.member;
             return (<div key={m.id} className="flex items-center gap-3 py-2.5 text-sm">
               <Avatar name={m.display_name || m.email} i={i} />
               <div className="min-w-0">
-                <div className="font-medium text-slate-800 truncate">{m.display_name || m.email || "Invited"} {m.user_id === me.user_id && <span className="text-slate-400 font-normal">(you)</span>}</div>
-                <div className="text-xs text-slate-400 truncate">{m.email}{m.job_title ? " · " + m.job_title : ""}</div>
+                <div className="font-medium text-foreground truncate">{m.display_name || m.email || "Invited"} {m.user_id === me.user_id && <span className="text-muted-foreground/70 font-normal">(you)</span>}</div>
+                <div className="text-xs text-muted-foreground/70 truncate">{m.email}{m.job_title ? " · " + m.job_title : ""}</div>
               </div>
               <div className="ml-auto flex items-center gap-2 shrink-0">
                 {m.status === "suspended" && <Pill color="#eb5757">Suspended</Pill>}
                 <Pill color={m.role === "owner" ? "#9b51e0" : "#2f80ed"}>{role.label}</Pill>
                 {manage && (
-                  <button className="text-slate-400 hover:text-blue-600" title="Manage member" onClick={() => setEditing(m)}><Pencil size={15} /></button>
+                  <button className="text-muted-foreground/70 hover:text-primary-foreground" title="Manage member" onClick={() => setEditing(m)}><Pencil size={15} /></button>
                 )}
               </div>
             </div>);
@@ -83,23 +84,23 @@ export default function Team({ org, me, members, reload, onNavigate }) {
 
       {manage && invites.length > 0 && (
         <Card title="Pending invitations">
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-border/60">
             {invites.map(inv => (
               <div key={inv.id} className="flex items-center gap-3 py-2.5 text-sm">
-                <Mail size={15} className="text-slate-300" />
-                <div className="min-w-0"><div className="text-slate-700 truncate">{inv.email}</div>
-                  <div className="text-xs text-slate-400">{(ROLES[inv.role] || {}).label} · expires {String(inv.expires_at).slice(0, 10)}</div></div>
+                <Mail size={15} className="text-muted-foreground/40" />
+                <div className="min-w-0"><div className="text-foreground/80 truncate">{inv.email}</div>
+                  <div className="text-xs text-muted-foreground/70">{(ROLES[inv.role] || {}).label} · expires {String(inv.expires_at).slice(0, 10)}</div></div>
                 <div className="ml-auto flex items-center gap-2">
-                  <button title="Copy invite link to share" className="text-slate-400 hover:text-blue-600"
+                  <button title="Copy invite link to share" className="text-muted-foreground/70 hover:text-primary-foreground"
                     onClick={() => { const link = `${window.location.origin}/?invite=${inv.token}`; navigator.clipboard?.writeText(link); setNote("Invite link copied — paste it to " + inv.email); }}><LinkIcon size={14} /></button>
-                  <button title="Resend" className="text-slate-400 hover:text-blue-600" disabled={busy}
+                  <button title="Resend" className="text-muted-foreground/70 hover:text-primary-foreground" disabled={busy}
                     onClick={async () => {
                       setBusy(true);
                       const token = (await sb.auth.getSession()).data.session?.access_token;
                       await fetch("/api/invite", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: org.id, email: inv.email, role: inv.role, accessToken: token }) });
                       setBusy(false); setNote("Invitation resent to " + inv.email); loadInvites();
                     }}><RefreshCw size={14} /></button>
-                  <button title="Revoke" className="text-slate-400 hover:text-red-500"
+                  <button title="Revoke" className="text-muted-foreground/70 hover:text-destructive"
                     onClick={async () => { if (await confirm({ title: "Revoke this invitation?", confirmLabel: "Revoke", destructive: true })) { await sb.from("invites").delete().eq("id", inv.id); loadInvites(); } }}><Trash2 size={14} /></button>
                 </div>
               </div>
@@ -110,7 +111,7 @@ export default function Team({ org, me, members, reload, onNavigate }) {
 
       {inviteOpen && <InviteModal org={org} onClose={() => setInviteOpen(false)} onSent={(email, altNote) => { setInviteOpen(false); setNote(altNote || ("Invitation sent to " + email)); loadInvites(); }} onSeatsFull={() => { setInviteOpen(false); setUpgradeOpen(true); }} />}
       {upgradeOpen && <Modal title="Upgrade to add more people" onClose={() => setUpgradeOpen(false)} footer={<><Btn variant="ghost" onClick={() => setUpgradeOpen(false)}>Not now</Btn><Btn variant="dark" onClick={() => { setUpgradeOpen(false); onNavigate && onNavigate("settings"); }}>See plans</Btn></>}>
-        <p className="text-sm text-slate-600">You've reached the team limit on your current plan{unlimitedSeats ? "" : ` (${org.seats} member${org.seats === 1 ? "" : "s"})`}. Upgrade to a larger plan to invite more people.</p>
+        <p className="text-sm text-muted-foreground">You've reached the team limit on your current plan{unlimitedSeats ? "" : ` (${org.seats} member${org.seats === 1 ? "" : "s"})`}. Upgrade to a larger plan to invite more people.</p>
       </Modal>}
       {editing && <AccessModal m={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />}
     </div>
@@ -142,12 +143,12 @@ export function InviteModal({ org, onClose, onSent, onSeatsFull }) {
     footer={<><Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={send} disabled={busy}>{busy ? "Sending…" : "Send invitation"}</Btn></>}>
     <Field label="Email address"><input className={inputCls} value={email} onChange={e => setEmail(e.target.value)} placeholder="name@studio.com" autoFocus /></Field>
     <Field label="Access level" hint={ROLES[role]?.blurb}>
-      <select className={inputCls} value={role} onChange={e => setRole(e.target.value)}>
+      <NativeSelect className="w-full" value={role} onChange={e => setRole(e.target.value)}>
         {ROLE_KEYS.filter(k => k !== "owner").map(k => <option key={k} value={k}>{ROLES[k].label}</option>)}
-      </select>
+      </NativeSelect>
     </Field>
-    {err && <div className="text-xs text-red-600">{err}</div>}
-    <p className="text-xs text-slate-400 mt-2">They'll receive an email with a link to set up their account and join {org.name}.</p>
+    {err && <div className="text-xs text-destructive">{err}</div>}
+    <p className="text-xs text-muted-foreground/70 mt-2">They'll receive an email with a link to set up their account and join {org.name}.</p>
   </Modal>);
 }
 
@@ -190,7 +191,7 @@ function AccessModal({ m, onClose, onSaved }) {
 
   return (<Modal wide title={`Manage — ${m.display_name || m.email}`} onClose={onClose}
     footer={<>{!isOwner && <Btn variant="danger" className="mr-auto" onClick={remove} disabled={busy}><Trash2 size={14} /> Remove from studio</Btn>}<Btn variant="ghost" onClick={onClose}>Cancel</Btn><Btn onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</Btn></>}>
-    <div className="text-xs font-semibold text-slate-500 mb-2">Profile &amp; scheduling</div>
+    <div className="text-xs font-semibold text-muted-foreground mb-2">Profile &amp; scheduling</div>
     <div className="grid sm:grid-cols-2 gap-3">
       <Field label="Display name"><input className={inputCls} value={name} onChange={e => setName(e.target.value)} placeholder={m.email} /></Field>
       <Field label="Job title"><input className={inputCls} value={jobTitle} onChange={e => setJobTitle(e.target.value)} placeholder="Designer" /></Field>
@@ -201,42 +202,42 @@ function AccessModal({ m, onClose, onSaved }) {
       <Field label="Rate (£/hr)" hint="Guides billing cost."><input type="number" className={inputCls} value={rate} onChange={e => setRate(e.target.value)} placeholder="—" /></Field>
     </div>
     <Field label="Teams">
-      <div className="flex flex-wrap gap-1.5 mb-2">{teams.map(t => <button key={t} onClick={() => toggleTeam(t)} className="text-xs px-2 py-1 rounded-full text-white" style={{ background: "#1f2d4e" }}>{t} ✕</button>)}{teams.length === 0 && <span className="text-xs text-slate-400">No teams yet.</span>}</div>
+      <div className="flex flex-wrap gap-1.5 mb-2">{teams.map(t => <button key={t} onClick={() => toggleTeam(t)} className="text-xs px-2 py-1 rounded-full text-white" style={{ background: "#1f2d4e" }}>{t} ✕</button>)}{teams.length === 0 && <span className="text-xs text-muted-foreground/70">No teams yet.</span>}</div>
       <div className="flex gap-2"><input className={inputCls} value={newTeam} onChange={e => setNewTeam(e.target.value)} placeholder="Add to a team…" onKeyDown={e => { if (e.key === "Enter" && newTeam.trim()) { if (!teams.includes(newTeam.trim())) setTeams([...teams, newTeam.trim()]); setNewTeam(""); } }} /><Btn variant="outline" onClick={() => { if (newTeam.trim() && !teams.includes(newTeam.trim())) { setTeams([...teams, newTeam.trim()]); setNewTeam(""); } }}>Add</Btn></div>
     </Field>
 
     {isOwner
-      ? <p className="text-xs text-slate-400 mt-2">This is the studio owner — role and permissions can't be changed here.</p>
+      ? <p className="text-xs text-muted-foreground/70 mt-2">This is the studio owner — role and permissions can't be changed here.</p>
       : <>
-        <div className="grid sm:grid-cols-2 gap-3 mt-4 mb-2 pt-4 border-t border-slate-100">
+        <div className="grid sm:grid-cols-2 gap-3 mt-4 mb-2 pt-4 border-t border-border/60">
           <Field label="Role" hint={ROLES[role]?.blurb}>
-            <select className={inputCls} value={role} onChange={e => setRole(e.target.value)}>{ROLE_KEYS.map(k => <option key={k} value={k}>{ROLES[k].label}</option>)}</select>
+            <NativeSelect className="w-full" value={role} onChange={e => setRole(e.target.value)}>{ROLE_KEYS.map(k => <option key={k} value={k}>{ROLES[k].label}</option>)}</NativeSelect>
           </Field>
           <Field label="Status">
-            <select className={inputCls} value={status} onChange={e => setStatus(e.target.value)}>
+            <NativeSelect className="w-full" value={status} onChange={e => setStatus(e.target.value)}>
               <option value="active">Active</option><option value="suspended">Suspended (cannot sign in)</option>
-            </select>
+            </NativeSelect>
           </Field>
         </div>
-        <div className="text-xs font-semibold text-slate-500 mb-2">What they can do</div>
-        <div className="border border-slate-200 rounded-xl divide-y divide-slate-100">
+        <div className="text-xs font-semibold text-muted-foreground mb-2">What they can do</div>
+        <div className="border border-border rounded-xl divide-y divide-border/60">
           {PERMISSION_GROUPS.map(g => (
             <div key={g} className="p-3">
-              <div className="text-[11px] uppercase tracking-wide text-slate-400 mb-1.5">{g}</div>
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground/70 mb-1.5">{g}</div>
               <div className="grid sm:grid-cols-2 gap-1.5">
                 {PERMISSIONS.filter(p => p.group === g).map(p => {
                   const locked = isFromRole(draft, p.key);
                   const on = eff.includes(p.key);
-                  return (<label key={p.key} className={`flex items-center gap-2 text-sm ${locked ? "text-slate-400" : "text-slate-700 cursor-pointer"}`}>
+                  return (<label key={p.key} className={`flex items-center gap-2 text-sm ${locked ? "text-muted-foreground/70" : "text-foreground/80 cursor-pointer"}`}>
                     <input type="checkbox" className="w-3.5 h-3.5" checked={on} disabled={locked} onChange={() => toggle(p.key)} />
-                    {p.label}{locked && <span className="text-[10px] text-slate-300">(from role)</span>}
+                    {p.label}{locked && <span className="text-[10px] text-muted-foreground/40">(from role)</span>}
                   </label>);
                 })}
               </div>
             </div>
           ))}
         </div>
-        <p className="text-xs text-slate-400 mt-3">Greyed ticks come with the role. Tick extras to grant more on top. Use the copy-link on a pending invite to share sign-in details.</p>
+        <p className="text-xs text-muted-foreground/70 mt-3">Greyed ticks come with the role. Tick extras to grant more on top. Use the copy-link on a pending invite to share sign-in details.</p>
       </>}
   </Modal>);
 }

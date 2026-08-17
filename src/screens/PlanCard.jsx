@@ -24,21 +24,21 @@ export function PlanCard({ plan, current, onChoose, busy, ctaLabel = "Subscribe"
   const per = perInterval(plan);
   const isTrial = plan.trialDays > 0;
   return (
-    <div className={`rounded-xl border p-4 flex flex-col ${current ? "border-blue-400 bg-blue-50" : "border-slate-200"}`}>
-      <div className="font-semibold text-slate-800">{plan.name}</div>
+    <div className={`rounded-xl border p-4 flex flex-col ${current ? "border-primary bg-primary/10" : "border-border"}`}>
+      <div className="font-semibold text-foreground">{plan.name}</div>
       {isTrial ? (
         <>
-          <div className="text-2xl font-bold text-slate-800">Free <span className="text-sm font-normal text-slate-400 line-through">{price}{per}</span></div>
+          <div className="text-2xl font-bold text-foreground">Free <span className="text-sm font-normal text-muted-foreground/70 line-through">{price}{per}</span></div>
           <div className="text-[11px] text-emerald-700 font-medium">{trialLabel(plan.trialDays)} free trial, then {price}{per}</div>
         </>
       ) : (
-        <div className="text-2xl font-bold text-slate-800">{price || "Free"}<span className="text-xs font-normal text-slate-400">{plan.amount ? per : ""}</span></div>
+        <div className="text-2xl font-bold text-foreground">{price || "Free"}<span className="text-xs font-normal text-muted-foreground/70">{plan.amount ? per : ""}</span></div>
       )}
-      {plan.description && <div className="text-[11px] text-slate-500 my-1 leading-snug">{plan.description}</div>}
-      <div className="text-[11px] text-slate-400 mt-1 mb-1.5">{seatsText(plan)}</div>
+      {plan.description && <div className="text-[11px] text-muted-foreground my-1 leading-snug">{plan.description}</div>}
+      <div className="text-[11px] text-muted-foreground/70 mt-1 mb-1.5">{seatsText(plan)}</div>
       <div className="mt-auto pt-3">
         {current
-          ? <span className="inline-flex items-center justify-center w-full gap-1.5 text-xs font-semibold text-blue-700 bg-blue-100 rounded-lg py-2">✓ Current plan</span>
+          ? <span className="inline-flex items-center justify-center w-full gap-1.5 text-xs font-semibold text-primary-foreground bg-primary/15 rounded-lg py-2">✓ Current plan</span>
           : <Btn variant={dark ? "dark" : undefined} className="w-full justify-center" onClick={() => onChoose(plan.priceId)} disabled={busy}>{isTrial ? "Start free trial" : ctaLabel}</Btn>}
       </div>
     </div>

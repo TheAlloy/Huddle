@@ -3,7 +3,7 @@ import { sb, CONFIGURED, DEMO } from "./lib/supabase.js";
 import DemoSwitcher from "./lib/DemoSwitcher.jsx";
 import { loadOrgData, memberName } from "./lib/api.js";
 import { can } from "./lib/permissions.js";
-import { NAVY, Avatar, Spinner, Btn } from "./ui.jsx";
+import { Avatar, Spinner, Btn } from "./ui.jsx";
 import Auth from "./screens/Auth.jsx";
 import Onboarding from "./screens/Onboarding.jsx";
 import FeedbackModal from "./screens/Feedback.jsx";
@@ -22,6 +22,8 @@ import Billing from "./screens/Billing.jsx";
 import { lsGet, fmtClock } from "./studio/core.jsx";
 import { makeTerms } from "./lib/terms.js";
 import { CalendarDays, Table2, LayoutGrid, Landmark, Users, Settings as Cog, Clock, FolderKanban, Shield, ChevronDown } from "lucide-react";
+import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger } from "@/components/ui/sidebar";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const PRODUCT = "Huddle";
 
@@ -186,49 +188,63 @@ export default function App() {
   const current = visible.find(n => n.key === tab) ? tab : (visible[0]?.key || "settings");
 
   return (
-    <div className="h-full flex flex-col bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <TooltipProvider>
+    <SidebarProvider>
+      <Sidebar collapsible="icon">
+        <SidebarHeader>
+          <div className="flex items-center gap-2 px-2 py-1.5">
+            <img src="/huddle-icon.png" alt="" className="w-6 h-6 rounded-md shrink-0" />
+            <span className="font-heading font-semibold group-data-[collapsible=icon]:hidden">{PRODUCT}</span>
+          </div>
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {visible.map(n => {
+                  const Icon = n.icon;
+                  return (
+                    <SidebarMenuItem key={n.key}>
+                      <SidebarMenuButton isActive={current === n.key && tab !== "admin"} onClick={() => setTab(n.key)} tooltip={n.label}>
+                        <Icon /><span>{n.label}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+        <SidebarFooter>
+          <div className="rounded-lg p-2.5 text-center bg-muted group-data-[collapsible=icon]:hidden">
+            <div className="text-[11px] font-semibold text-foreground/80 leading-snug">Want the chance to receive 1 month free?</div>
+            <Btn onClick={() => setFeedbackOpen(true)} className="mt-2 w-full h-7 text-xs">Leave feedback</Btn>
+          </div>
+        </SidebarFooter>
+        <SidebarRail />
+      </Sidebar>
+      <SidebarInset className="h-svh overflow-hidden">
       {/* header */}
-      <div className="flex items-center gap-3 px-4 h-14 text-white shrink-0" style={{ background: NAVY }}>
-        <div className="font-bold">{PRODUCT}</div>
+      <div className="flex items-center gap-3 px-4 h-14 bg-card border-b shrink-0">
+        <SidebarTrigger className="-ml-1" />
         <OrgSwitcher memberships={memberships} activeId={active.org_id} onPick={(id) => { setOrgId(id); localStorage.setItem("cadence_org", id); }} />
         <div className="ml-auto flex items-center gap-2">
           {can(me, "time.track") && <HeaderTracker me={me} active={current === "tracker"} onOpen={() => setTab("tracker")} />}
           {profile?.platform_admin && (
             <button onClick={() => setTab("admin")} title="Subscriber console"
-              className={`flex items-center gap-1.5 text-xs px-2.5 h-7 rounded-md ${tab === "admin" ? "bg-white text-slate-800" : "text-white"}`}
-              style={tab === "admin" ? undefined : { background: "#ffffff1f" }}><Shield size={13} /> Admin</button>
+              className={`flex items-center gap-1.5 text-xs px-2.5 h-7 rounded-md ${tab === "admin" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50"}`}><Shield size={13} /> Admin</button>
           )}
           <Avatar name={me.display_name || me.email} i={0} size={26} />
         </div>
       </div>
 
-      {suspended && <div className="text-xs bg-red-50 border-b border-red-200 text-red-700 px-4 py-2">
+      {suspended && <div className="text-xs bg-destructive/10 border-b border-destructive/30 text-destructive px-4 py-2">
         This studio's subscription is {org.status}. Ask an owner to update billing in Settings.
       </div>}
       {err && <div className="text-xs bg-amber-50 border-b border-amber-200 text-amber-800 px-4 py-2">{err}</div>}
 
-      <div className="flex-1 min-h-0 flex">
-        {/* sidebar */}
-        <nav className="w-44 shrink-0 border-r border-slate-200 flex flex-col">
-          <div className="p-2 space-y-0.5 overflow-y-auto flex-1">
-            {visible.map(n => {
-              const Icon = n.icon; const on = current === n.key && tab !== "admin";
-              return (<button key={n.key} onClick={() => setTab(n.key)}
-                className={`w-full flex items-center gap-2 text-sm px-2.5 py-2 rounded-lg text-left ${on ? "bg-slate-100 text-slate-900 font-semibold" : "text-slate-600 hover:bg-slate-50"}`}>
-                <Icon size={15} className={on ? "" : "text-slate-400"} />{n.label}
-              </button>);
-            })}
-          </div>
-          <div className="p-2 border-t border-slate-100">
-            <div className="rounded-lg p-2.5 text-center" style={{ background: "#eef2fb" }}>
-              <div className="text-[11px] font-semibold text-slate-700 leading-snug">Want the chance to receive 1 month free?</div>
-              <button onClick={() => setFeedbackOpen(true)} className="mt-2 w-full text-xs font-semibold text-white rounded-lg py-1.5 hover:brightness-110" style={{ background: NAVY }}>Leave feedback</button>
-            </div>
-          </div>
-        </nav>
-
-        {/* content */}
-        <main className="flex-1 min-w-0 bg-slate-50/50">
+      {/* content */}
+      <main className="flex-1 min-h-0 bg-muted/30">
           {tab === "admin" && profile?.platform_admin ? <Admin />
             : current === "people" ? (can(me, "team.manage") ? <Team org={org} me={me} members={data.members} reload={reload} onNavigate={setTab} /> : <TeamLite members={data.members} />)
             : current === "settings" ? <Settings org={org} me={me} members={data.members} reload={() => { loadMe(); reload(); }} />
@@ -241,11 +257,12 @@ export default function App() {
                 ? <Billing org={org} me={me} data={data} reload={reload} />
                 : <NoAccess what="billing" />)
             : null}
-        </main>
-      </div>
+      </main>
       {feedbackOpen && <FeedbackModal org={org} me={me} onClose={() => setFeedbackOpen(false)} />}
       {DEMO && <DemoSwitcher />}
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
+    </TooltipProvider>
   );
 }
 
@@ -259,10 +276,10 @@ function OrgSwitcher({ memberships, activeId, onPick }) {
       {active.organizations?.name}<ChevronDown size={14} />
     </button>
     {open && <><div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-      <div className="absolute z-40 mt-1 w-56 bg-white text-slate-700 rounded-xl shadow-lg border border-slate-200 p-1">
+      <div className="absolute z-40 mt-1 w-56 bg-card text-foreground/80 rounded-xl shadow-lg border border-border p-1">
         {memberships.map(m => (
           <button key={m.org_id} onClick={() => { onPick(m.org_id); setOpen(false); }}
-            className={`w-full text-left text-sm px-2.5 py-1.5 rounded-lg hover:bg-slate-50 ${m.org_id === activeId ? "font-semibold" : ""}`}>
+            className={`w-full text-left text-sm px-2.5 py-1.5 rounded-lg hover:bg-muted/50 ${m.org_id === activeId ? "font-semibold" : ""}`}>
             {m.organizations?.name}
           </button>
         ))}
@@ -280,10 +297,9 @@ function HeaderTracker({ me, active, onOpen }) {
   const elapsed = run ? fmtClock((Date.now() - run.startedAt) / 1000) : null;
   return (
     <button onClick={onOpen} title="Time tracker"
-      className={`flex items-center gap-1.5 text-xs px-2.5 h-7 rounded-md ${active ? "bg-white text-slate-800" : "text-white"}`}
-      style={active ? undefined : { background: run ? "#22c55e33" : "#ffffff1f" }}>
+      className={`flex items-center gap-1.5 text-xs px-2.5 h-7 rounded-md ${active ? "bg-muted text-foreground" : run ? "bg-emerald-500/15 text-foreground" : "text-muted-foreground hover:bg-muted/50"}`}>
       {run
-        ? <><span className="w-1.5 h-1.5 rounded-full bg-emerald-300" style={{ animation: "pulse 1.5s infinite" }} /> <span className="tabular-nums font-semibold">{elapsed}</span></>
+        ? <><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" style={{ animation: "pulse 1.5s infinite" }} /> <span className="tabular-nums font-semibold">{elapsed}</span></>
         : <><Clock size={13} /> Track</>}
     </button>
   );
@@ -291,20 +307,20 @@ function HeaderTracker({ me, active, onOpen }) {
 
 function ComingSoonBilling() {
   return (<div className="p-4 h-full overflow-y-auto">
-    <div className="bg-white border border-slate-200 rounded-xl p-5 max-w-xl">
-      <h3 className="text-sm font-semibold text-slate-700 mb-2">Billing</h3>
-      <p className="text-sm text-slate-600 mb-3">The April–March billing plan, invoices and expenses are the next screen to come across from the studio tool.</p>
-      <ul className="text-sm text-slate-500 list-disc pl-5 space-y-1">
+    <div className="bg-card border border-border rounded-xl p-5 max-w-xl">
+      <h3 className="text-sm font-semibold text-foreground/80 mb-2">Billing</h3>
+      <p className="text-sm text-muted-foreground mb-3">The April–March billing plan, invoices and expenses are the next screen to come across from the studio tool.</p>
+      <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-1">
         <li>Phase-by-phase income timeline</li><li>Prospective work — likely vs less likely</li>
         <li>Overheads and predicted net</li><li>Invoice PDFs with your branding</li>
       </ul>
-      <p className="text-xs text-slate-400 mt-4">Billing is permission-gated already — only people with "see billing" reach this page, and only "edit billing" can change it.</p>
+      <p className="text-xs text-muted-foreground/70 mt-4">Billing is permission-gated already — only people with "see billing" reach this page, and only "edit billing" can change it.</p>
     </div>
   </div>);
 }
 
 function Fatal({ title, msg }) {
   return (<div className="h-full grid place-items-center p-6 text-center">
-    <div><div className="font-bold text-slate-800 mb-1">{title}</div><p className="text-sm text-slate-500 max-w-sm">{msg}</p></div>
+    <div><div className="font-bold text-foreground mb-1">{title}</div><p className="text-sm text-muted-foreground max-w-sm">{msg}</p></div>
   </div>);
 }

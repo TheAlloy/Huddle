@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
-import { Btn, NAVY } from "../ui.jsx";
+import { Btn } from "../ui.jsx";
 import { can } from "../lib/permissions.js";
 import { PlanCard } from "./PlanCard.jsx";
 import { ChevronDown } from "lucide-react";
@@ -56,35 +56,35 @@ export default function Paywall({ org, me, memberships, onPickOrg, onSignOut }) 
   };
 
   return (
-    <div className="h-full overflow-y-auto" style={{ background: "#f1f5f9" }}>
-      <div className="flex items-center gap-3 px-4 h-14 text-white" style={{ background: NAVY }}>
+    <div className="h-full overflow-y-auto bg-background">
+      <div className="flex items-center gap-3 px-4 h-14 bg-card border-b">
         <img src="/huddle-icon.png" alt="Huddle" className="w-7 h-7 rounded-md" />
         <div className="font-bold">Huddle</div>
         {memberships && memberships.length > 1 ? (
           <div className="relative">
             <button onClick={() => setOrgMenu(o => !o)} className="flex items-center gap-1 text-sm opacity-90 hover:opacity-100">{org.name}<ChevronDown size={14} /></button>
             {orgMenu && <><div className="fixed inset-0 z-30" onClick={() => setOrgMenu(false)} />
-              <div className="absolute z-40 mt-1 w-56 bg-white text-slate-700 rounded-xl shadow-lg border border-slate-200 p-1">
-                {memberships.map(m => <button key={m.org_id} onClick={() => { onPickOrg(m.org_id); setOrgMenu(false); }} className={`w-full text-left text-sm px-2.5 py-1.5 rounded-lg hover:bg-slate-50 ${m.org_id === org.id ? "font-semibold" : ""}`}>{m.organizations?.name}</button>)}
+              <div className="absolute z-40 mt-1 w-56 bg-card text-foreground/80 rounded-xl shadow-lg border border-border p-1">
+                {memberships.map(m => <button key={m.org_id} onClick={() => { onPickOrg(m.org_id); setOrgMenu(false); }} className={`w-full text-left text-sm px-2.5 py-1.5 rounded-lg hover:bg-muted/50 ${m.org_id === org.id ? "font-semibold" : ""}`}>{m.organizations?.name}</button>)}
               </div></>}
           </div>
         ) : <span className="text-sm opacity-80">{org.name}</span>}
-        <button onClick={onSignOut} className="ml-auto text-xs px-2.5 h-7 rounded-md text-white" style={{ background: "#ffffff1f" }}>Sign out</button>
+        <button onClick={onSignOut} className="ml-auto text-xs px-2.5 h-7 rounded-md text-muted-foreground hover:bg-muted/50">Sign out</button>
       </div>
 
       <div className="max-w-2xl mx-auto py-10 px-4">
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-slate-800">{org.status === "cancelled" || org.status === "suspended" ? "Your subscription has ended" : "Subscribe to start using Huddle"}</h1>
-          <p className="text-sm text-slate-500 mt-2">{canPay ? "Choose a plan to unlock scheduling, time tracking and billing for your studio." : "This studio doesn't have an active subscription yet."}</p>
+          <h1 className="text-2xl font-bold text-foreground">{org.status === "cancelled" || org.status === "suspended" ? "Your subscription has ended" : "Subscribe to start using Huddle"}</h1>
+          <p className="text-sm text-muted-foreground mt-2">{canPay ? "Choose a plan to unlock scheduling, time tracking and billing for your studio." : "This studio doesn't have an active subscription yet."}</p>
         </div>
 
         {!canPay ? (
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 text-center text-sm text-slate-600">
+          <div className="bg-card border border-border rounded-2xl p-6 text-center text-sm text-muted-foreground">
             Ask an owner or admin of <b>{org.name}</b> to subscribe, then you'll be able to sign in and use Huddle.
           </div>
         ) : (
-          <div className="bg-white border border-slate-200 rounded-2xl p-6">
-            {plans === null && <div className="text-sm text-slate-400 py-4 text-center">Loading plans…</div>}
+          <div className="bg-card border border-border rounded-2xl p-6">
+            {plans === null && <div className="text-sm text-muted-foreground/70 py-4 text-center">Loading plans…</div>}
             {plans !== null && plans.length === 0 && <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">{plansMsg || "No plans found. Add products with recurring prices in Stripe."}</div>}
             {plans !== null && plans.length > 0 && (
               <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))" }}>
@@ -92,7 +92,7 @@ export default function Paywall({ org, me, memberships, onPickOrg, onSignOut }) 
               </div>
             )}
             <div className="mt-4 text-center">
-              <a href="mailto:hello@thealloy.com?subject=Huddle%20sign-up%20help" className="text-xs text-slate-500 hover:text-slate-700 underline">Trouble signing up or signing in? Get in touch</a>
+              <a href="mailto:hello@thealloy.com?subject=Huddle%20sign-up%20help" className="text-xs text-muted-foreground hover:text-foreground underline">Trouble signing up or signing in? Get in touch</a>
             </div>
           </div>
         )}

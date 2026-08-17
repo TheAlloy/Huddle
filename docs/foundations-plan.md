@@ -556,9 +556,18 @@ input; inline green "Saved." labels → success toasts; subscription status →
 Select; invoice form in `FieldGroup`; account modals on default-primary CTAs)
 → **dead code deleted**: Workspace.jsx cut from 169 → 28 lines (only
 `NoAccess` + `TeamLite` were ever imported) and `ComingSoonBilling` removed
-from App.jsx, per the UX brief's cut list → next: Onboarding/Auth/Paywall/
-Admin → Schedule chrome (board timeline stays custom viz inside stock chrome;
-ClientPicker → stock DropdownMenu; PeoplePicker already done).
+from App.jsx, per the UX brief's cut list → **small screens ✓**
+(Auth/ResetPassword/Onboarding/Paywall/PlanCard/Admin/Feedback: panels →
+stock `Card`; banners/notices → `Alert`; forms in `FieldGroup`; usage radios
+→ `RadioGroup`; role/plan/status/frequency NativeSelects → popup `Select`;
+Feedback scales + uses-chips → `ToggleGroup` (single via value-array, multi
+via `toggleMultiple`); Admin search → `InputGroup` with Search addon; Pills →
+`Badge` variants; Paywall org menu → stock `DropdownMenu`; PlanCard on stock
+Card anatomy — also fixed its phantom `variant="dark"` Button, which isn't a
+stock variant and rendered unstyled) → next: Schedule chrome (board timeline
+stays custom viz inside stock chrome; ClientPicker → stock DropdownMenu;
+PeoplePicker already done; Summary calendar micro-editor NativeSelect
+deliberately deferred).
 
 ## Risks
 

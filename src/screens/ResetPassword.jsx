@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { sb } from "../lib/supabase.js";
-import { Field } from "../ui.jsx";
+import { Field, Card } from "../ui.jsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FieldGroup } from "@/components/ui/field";
 
 /** Shown when the user arrives via a password-reset link (Supabase PASSWORD_RECOVERY). */
 export default function ResetPassword() {
@@ -25,23 +26,27 @@ export default function ResetPassword() {
 
   return (
     <div className="min-h-screen grid place-items-center p-4 bg-background">
-      <div className="w-full max-w-sm bg-card rounded-2xl shadow p-6">
-        <img src="/huddle-icon.png" alt="Huddle" className="w-12 h-12 rounded-xl mx-auto mb-3" />
-        {done ? (
-          <div className="text-center">
-            <h1 className="text-lg font-bold text-foreground mb-1">Password updated</h1>
-            <p className="text-sm text-muted-foreground">Signing you out — please sign in again with your new password.</p>
-          </div>
-        ) : (
-          <>
-            <h1 className="text-lg font-bold text-foreground text-center mb-1">Set a new password</h1>
-            <p className="text-sm text-muted-foreground text-center mb-4">Choose a new password for your account. You'll sign in again afterwards.</p>
-            <Field label="New password"><Input type="password" autoComplete="new-password" value={pw} onChange={e => setPw(e.target.value)} autoFocus /></Field>
-            <Field label="Confirm new password"><Input type="password" autoComplete="new-password" value={pw2} onChange={e => setPw2(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} /></Field>
-            {err && <div className="text-xs text-destructive my-2">{err}</div>}
-            <Button variant="secondary" className="w-full justify-center mt-3" onClick={submit} disabled={busy}>{busy ? "Saving…" : "Update password"}</Button>
-          </>
-        )}
+      <div className="w-full max-w-sm">
+        <Card>
+          <img src="/huddle-icon.png" alt="Huddle" className="w-12 h-12 rounded-xl mx-auto mb-3" />
+          {done ? (
+            <div className="text-center">
+              <h1 className="text-lg font-medium mb-1">Password updated</h1>
+              <p className="text-sm text-muted-foreground">Signing you out — please sign in again with your new password.</p>
+            </div>
+          ) : (
+            <>
+              <h1 className="text-lg font-medium text-center mb-1">Set a new password</h1>
+              <p className="text-sm text-muted-foreground text-center mb-4">Choose a new password for your account. You'll sign in again afterwards.</p>
+              <FieldGroup>
+                <Field label="New password"><Input type="password" autoComplete="new-password" value={pw} onChange={e => setPw(e.target.value)} autoFocus /></Field>
+                <Field label="Confirm new password"><Input type="password" autoComplete="new-password" value={pw2} onChange={e => setPw2(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} /></Field>
+                {err && <div className="text-sm text-destructive">{err}</div>}
+                <Button className="w-full" onClick={submit} disabled={busy}>{busy ? "Saving…" : "Update password"}</Button>
+              </FieldGroup>
+            </>
+          )}
+        </Card>
       </div>
     </div>
   );

@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
-import { Field, Pill } from "../ui.jsx";
+import { Field, Card } from "../ui.jsx";
 import { ROLES, ROLE_KEYS } from "../lib/permissions.js";
 import { USAGE_OPTIONS } from "../lib/terms.js";
 import { PlanCard } from "./PlanCard.jsx";
 import { Check, Plus, Trash2 } from "lucide-react";
-import { NativeSelect } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { FieldGroup } from "@/components/ui/field";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 /** First-run wizard. Creates the organization, invites the team, adds a first client/project, and picks a plan. */
 export default function Onboarding({ user, onDone }) {
@@ -86,15 +90,6 @@ export default function Onboarding({ user, onDone }) {
     }).catch(() => { setPlans([]); setPlansMsg("Couldn't load plans — you can choose one later in Settings."); });
   }, [step, plans]);
 
-  const fmtPrice = (p) => {
-    if (p.amount == null) return "";
-    if (p.amount === 0) return "Free";
-    const sym = p.currency === "GBP" ? "£" : p.currency === "USD" ? "$" : p.currency === "EUR" ? "€" : p.currency + " ";
-    const n = Number.isInteger(p.amount) ? p.amount : p.amount.toFixed(2);
-    return `${sym}${n}`;
-  };
-  const perInterval = (p) => p.interval === "year" ? "/yr" : p.interval === "week" ? "/wk" : "/mo";
-
   const choosePlan = async (priceId) => {
     setBusy(true); setErr("");
     try {
@@ -113,7 +108,7 @@ export default function Onboarding({ user, onDone }) {
     <div className="flex items-center justify-center gap-2 mb-6">
       {[1, 2, 3, 4].map(n => (
         <div key={n} className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-full grid place-items-center text-xs font-bold"
+          <div className="w-7 h-7 rounded-full grid place-items-center text-xs font-medium"
             style={{ background: step >= n ? "var(--primary)" : "var(--muted)", color: step >= n ? "var(--primary-foreground)" : "var(--muted-foreground)" }}>
             {step > n ? <Check size={14} /> : n}
           </div>
@@ -127,81 +122,86 @@ export default function Onboarding({ user, onDone }) {
     <div className="h-full overflow-y-auto bg-background">
       <div className="max-w-xl mx-auto py-10 px-4">
         <Steps />
-        <div className="bg-card border border-border rounded-2xl p-6">
+        <Card>
 
           {step === 1 && (<>
-            <h1 className="text-lg font-bold text-foreground mb-1">Set up your studio</h1>
+            <h1 className="text-lg font-medium mb-1">Set up your studio</h1>
             <p className="text-sm text-muted-foreground mb-5">This is the workspace your whole team will share.</p>
-            <Field label="Studio name"><Input value={studio} onChange={e => setStudio(e.target.value)} placeholder="e.g. Alloy" autoFocus /></Field>
-            <Field label="Your name"><Input value={yourName} onChange={e => setYourName(e.target.value)} placeholder="Alex Dangerfield" /></Field>
-            <Field label="What will you use it for?">
-              <div className="space-y-1.5">{USAGE_OPTIONS.map(o => (
-                <label key={o.key} className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer ${usage === o.key ? "border-primary bg-primary/10" : "border-border"}`}>
-                  <input type="radio" name="usage" checked={usage === o.key} onChange={() => setUsage(o.key)} className="mt-0.5" />
-                  <span><span className="text-sm font-medium text-foreground">{o.label}</span><span className="block text-xs text-muted-foreground">{o.blurb}</span></span>
-                </label>))}</div>
-              {usage === "other" && <Input className="mt-2" value={usageOther} onChange={e => setUsageOther(e.target.value)} placeholder="How would you describe it?" />}
-              <p className="text-[11px] text-muted-foreground/70 mt-1.5">This tailors the wording (e.g. “clients” vs “teams”). You can change it any time in Settings.</p>
-            </Field>
-            {err && <div className="text-xs text-destructive mb-3">{err}</div>}
-            <Button variant="secondary" className="w-full" onClick={createOrg} disabled={busy}>{busy ? "Creating…" : "Continue"}</Button>
+            <FieldGroup>
+              <Field label="Studio name"><Input value={studio} onChange={e => setStudio(e.target.value)} placeholder="e.g. Alloy" autoFocus /></Field>
+              <Field label="Your name"><Input value={yourName} onChange={e => setYourName(e.target.value)} placeholder="Alex Dangerfield" /></Field>
+              <Field label="What will you use it for?">
+                <RadioGroup value={usage} onValueChange={setUsage} className="flex flex-col gap-1.5">{USAGE_OPTIONS.map(o => (
+                  <label key={o.key} className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer ${usage === o.key ? "border-primary bg-primary/10" : ""}`}>
+                    <RadioGroupItem value={o.key} className="mt-0.5" />
+                    <span><span className="text-sm font-medium">{o.label}</span><span className="block text-xs text-muted-foreground">{o.blurb}</span></span>
+                  </label>))}</RadioGroup>
+                {usage === "other" && <Input className="mt-2" value={usageOther} onChange={e => setUsageOther(e.target.value)} placeholder="How would you describe it?" />}
+                <p className="text-[11px] text-muted-foreground mt-1.5">This tailors the wording (e.g. “clients” vs “teams”). You can change it any time in Settings.</p>
+              </Field>
+              {err && <div className="text-sm text-destructive">{err}</div>}
+              <Button className="w-full" onClick={createOrg} disabled={busy}>{busy ? "Creating…" : "Continue"}</Button>
+            </FieldGroup>
           </>)}
 
           {step === 2 && (<>
-            <h1 className="text-lg font-bold text-foreground mb-1">Invite your team</h1>
+            <h1 className="text-lg font-medium mb-1">Invite your team</h1>
             <p className="text-sm text-muted-foreground mb-5">They'll get an email invitation. You can change anyone's access later.</p>
-            <div className="space-y-2 mb-3">
+            <div className="flex flex-col gap-2 mb-3">
               {rows.map((r, i) => (
                 <div key={i} className="flex gap-2">
                   <Input className="flex-1" value={r.email} placeholder="name@studio.com"
                     onChange={e => setRows(rows.map((x, j) => j === i ? { ...x, email: e.target.value } : x))} />
-                  <NativeSelect className="w-44" value={r.role}
-                    onChange={e => setRows(rows.map((x, j) => j === i ? { ...x, role: e.target.value } : x))}>
-                    {ROLE_KEYS.filter(k => k !== "owner").map(k => <option key={k} value={k}>{ROLES[k].label}</option>)}
-                  </NativeSelect>
-                  {rows.length > 1 && <button className="text-muted-foreground/40 hover:text-destructive px-1" onClick={() => setRows(rows.filter((_, j) => j !== i))}><Trash2 size={15} /></button>}
+                  <Select value={r.role} onValueChange={(v) => setRows(rows.map((x, j) => j === i ? { ...x, role: v } : x))}
+                    items={Object.fromEntries(ROLE_KEYS.filter(k => k !== "owner").map(k => [k, ROLES[k].label]))}>
+                    <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectGroup>{ROLE_KEYS.filter(k => k !== "owner").map(k => <SelectItem key={k} value={k}>{ROLES[k].label}</SelectItem>)}</SelectGroup></SelectContent>
+                  </Select>
+                  {rows.length > 1 && <Button variant="ghost" size="icon-sm" onClick={() => setRows(rows.filter((_, j) => j !== i))}><Trash2 /></Button>}
                 </div>
               ))}
             </div>
-            <button className="text-xs font-semibold text-primary-foreground flex items-center gap-1 mb-4" onClick={() => setRows([...rows, { email: "", role: "member" }])}><Plus size={13} /> Add another</button>
-            <p className="text-xs text-muted-foreground/70 mb-4">{ROLES[rows[0]?.role]?.blurb}</p>
-            {err && <div className="text-xs text-amber-700 mb-3">{err}</div>}
+            <div className="mb-4"><Button variant="ghost" size="sm" onClick={() => setRows([...rows, { email: "", role: "member" }])}><Plus data-icon="inline-start" /> Add another</Button></div>
+            <p className="text-xs text-muted-foreground mb-4">{ROLES[rows[0]?.role]?.blurb}</p>
+            {err && <Alert className="mb-3"><AlertDescription>{err}</AlertDescription></Alert>}
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setStep(3)}>Skip for now</Button>
-              <Button variant="secondary" className="flex-1" onClick={sendInvites} disabled={busy}>{busy ? "Sending…" : "Send invitations"}</Button>
+              <Button className="flex-1" onClick={sendInvites} disabled={busy}>{busy ? "Sending…" : "Send invitations"}</Button>
             </div>
           </>)}
 
           {step === 3 && (<>
-            <h1 className="text-lg font-bold text-foreground mb-1">Add your first project</h1>
-            <p className="text-sm text-muted-foreground mb-5">Optional — you can do this later. {invited > 0 && <Pill color="#27ae60">{invited} invitation{invited > 1 ? "s" : ""} sent</Pill>}</p>
-            <Field label="Client name"><Input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="e.g. Clear-Com" /></Field>
-            <Field label="Project name"><Input value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="e.g. MARS Rack" /></Field>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setStep(4)}>Skip</Button>
-              <Button variant="secondary" className="flex-1" onClick={saveFirstProject} disabled={busy}>{busy ? "Saving…" : "Continue"}</Button>
-            </div>
+            <h1 className="text-lg font-medium mb-1">Add your first project</h1>
+            <p className="text-sm text-muted-foreground mb-5">Optional — you can do this later. {invited > 0 && <Badge variant="secondary">{invited} invitation{invited > 1 ? "s" : ""} sent</Badge>}</p>
+            <FieldGroup>
+              <Field label="Client name"><Input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="e.g. Clear-Com" /></Field>
+              <Field label="Project name"><Input value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="e.g. MARS Rack" /></Field>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setStep(4)}>Skip</Button>
+                <Button className="flex-1" onClick={saveFirstProject} disabled={busy}>{busy ? "Saving…" : "Continue"}</Button>
+              </div>
+            </FieldGroup>
           </>)}
 
           {step === 4 && (<>
-            <h1 className="text-lg font-bold text-foreground mb-1">Choose your plan</h1>
+            <h1 className="text-lg font-medium mb-1">Choose your plan</h1>
             <p className="text-sm text-muted-foreground mb-5">Pick a plan to start your subscription, or start now and decide later.</p>
-            {plans === null && <div className="text-sm text-muted-foreground/70 py-4">Loading plans…</div>}
-            {plans !== null && plans.length === 0 && <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">{plansMsg}</div>}
+            {plans === null && <div className="text-sm text-muted-foreground py-4">Loading plans…</div>}
+            {plans !== null && plans.length === 0 && <Alert className="mb-4"><AlertDescription>{plansMsg}</AlertDescription></Alert>}
             {plans !== null && plans.length > 0 && (
               <div className="grid gap-2 mb-4" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))" }}>
                 {plans.map(p => <PlanCard key={p.priceId} plan={p} onChoose={choosePlan} busy={busy} ctaLabel="Choose" />)}
               </div>
             )}
-            {err && <div className="text-xs text-destructive mb-3">{err}</div>}
+            {err && <div className="text-sm text-destructive mb-3">{err}</div>}
             {plans !== null && plans.length === 0 && (
-              <button onClick={finishFree} disabled={busy} className="w-full text-sm text-muted-foreground hover:text-foreground py-2">Continue →</button>
+              <Button variant="secondary" className="w-full" onClick={finishFree} disabled={busy}>Continue</Button>
             )}
-            <p className="text-[11px] text-muted-foreground/70 mt-1 text-center">A subscription is required to use Huddle. You can change plans any time in Settings.</p>
-            <p className="text-[11px] text-muted-foreground/70 mt-1 text-center">Trouble signing up or signing in? <a href="mailto:hello@thealloy.com?subject=Huddle%20sign-up%20help" className="underline">Get in touch</a>.</p>
+            <p className="text-[11px] text-muted-foreground mt-3 text-center">A subscription is required to use Huddle. You can change plans any time in Settings.</p>
+            <p className="text-[11px] text-muted-foreground mt-1 text-center">Trouble signing up or signing in? <a href="mailto:hello@thealloy.com?subject=Huddle%20sign-up%20help" className="underline">Get in touch</a>.</p>
           </>)}
 
-        </div>
+        </Card>
       </div>
     </div>
   );

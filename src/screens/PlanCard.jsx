@@ -1,5 +1,7 @@
 import React from "react";
+import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 
 export function priceText(p) {
@@ -20,28 +22,32 @@ function trialLabel(days) {
   return `${days}-day`;
 }
 
-export function PlanCard({ plan, current, onChoose, busy, ctaLabel = "Subscribe", dark = false }) {
+export function PlanCard({ plan, current, onChoose, busy, ctaLabel = "Subscribe" }) {
   const price = priceText(plan);
   const per = perInterval(plan);
   const isTrial = plan.trialDays > 0;
   return (
-    <div className={`rounded-xl border p-4 flex flex-col ${current ? "border-primary bg-primary/10" : "border-border"}`}>
-      <div className="font-semibold text-foreground">{plan.name}</div>
-      {isTrial ? (
-        <>
-          <div className="text-2xl font-bold text-foreground">Free <span className="text-sm font-normal text-muted-foreground/70 line-through">{price}{per}</span></div>
-          <div className="text-[11px] text-emerald-700 font-medium">{trialLabel(plan.trialDays)} free trial, then {price}{per}</div>
-        </>
-      ) : (
-        <div className="text-2xl font-bold text-foreground">{price || "Free"}<span className="text-xs font-normal text-muted-foreground/70">{plan.amount ? per : ""}</span></div>
-      )}
-      {plan.description && <div className="text-[11px] text-muted-foreground my-1 leading-snug">{plan.description}</div>}
-      <div className="text-[11px] text-muted-foreground/70 mt-1 mb-1.5">{seatsText(plan)}</div>
-      <div className="mt-auto pt-3">
+    <Card className={current ? "border-primary bg-primary/10" : undefined}>
+      <CardHeader>
+        <CardTitle>{plan.name}</CardTitle>
+        {plan.description && <CardDescription>{plan.description}</CardDescription>}
+      </CardHeader>
+      <CardContent>
+        {isTrial ? (
+          <>
+            <div className="text-2xl font-semibold text-foreground">Free <span className="text-sm font-normal text-muted-foreground line-through">{price}{per}</span></div>
+            <div className="text-xs text-muted-foreground">{trialLabel(plan.trialDays)} free trial, then {price}{per}</div>
+          </>
+        ) : (
+          <div className="text-2xl font-semibold text-foreground">{price || "Free"}<span className="text-xs font-normal text-muted-foreground">{plan.amount ? per : ""}</span></div>
+        )}
+        <div className="text-xs text-muted-foreground mt-1">{seatsText(plan)}</div>
+      </CardContent>
+      <CardFooter className="mt-auto">
         {current
-          ? <span className="inline-flex items-center justify-center w-full gap-1.5 text-xs font-semibold text-primary-foreground bg-primary/15 rounded-lg py-2">✓ Current plan</span>
-          : <Button variant={dark ? "dark" : undefined} className="w-full justify-center" onClick={() => onChoose(plan.priceId)} disabled={busy}>{isTrial ? "Start free trial" : ctaLabel}</Button>}
-      </div>
-    </div>
+          ? <Button variant="secondary" className="w-full" disabled><Check data-icon="inline-start" /> Current plan</Button>
+          : <Button className="w-full" onClick={() => onChoose(plan.priceId)} disabled={busy}>{isTrial ? "Start free trial" : ctaLabel}</Button>}
+      </CardFooter>
+    </Card>
   );
 }

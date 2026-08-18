@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
-import { Field, Card } from "../ui.jsx";
 import { ROLES, ROLE_KEYS } from "../lib/permissions.js";
 import { USAGE_OPTIONS } from "../lib/terms.js";
 import { PlanCard } from "./PlanCard.jsx";
@@ -9,9 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { FieldGroup } from "@/components/ui/field";
+import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
 
 /** First-run wizard. Creates the organization, invites the team, adds a first client/project, and picks a plan. */
 export default function Onboarding({ user, onDone }) {
@@ -122,15 +122,15 @@ export default function Onboarding({ user, onDone }) {
     <div className="h-full overflow-y-auto bg-background">
       <div className="max-w-xl mx-auto py-10 px-4">
         <Steps />
-        <Card>
+        <Card><CardContent>
 
           {step === 1 && (<>
             <h1 className="text-lg font-medium mb-1">Set up your studio</h1>
             <p className="text-sm text-muted-foreground mb-5">This is the workspace your whole team will share.</p>
             <FieldGroup>
-              <Field label="Studio name"><Input value={studio} onChange={e => setStudio(e.target.value)} placeholder="e.g. Alloy" autoFocus /></Field>
-              <Field label="Your name"><Input value={yourName} onChange={e => setYourName(e.target.value)} placeholder="Alex Dangerfield" /></Field>
-              <Field label="What will you use it for?">
+              <Field><FieldLabel>Studio name</FieldLabel><Input value={studio} onChange={e => setStudio(e.target.value)} placeholder="e.g. Alloy" autoFocus /></Field>
+              <Field><FieldLabel>Your name</FieldLabel><Input value={yourName} onChange={e => setYourName(e.target.value)} placeholder="Alex Dangerfield" /></Field>
+              <Field><FieldLabel>What will you use it for?</FieldLabel>
                 <RadioGroup value={usage} onValueChange={setUsage} className="flex flex-col gap-1.5">{USAGE_OPTIONS.map(o => (
                   <label key={o.key} className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer ${usage === o.key ? "border-primary bg-primary/10" : ""}`}>
                     <RadioGroupItem value={o.key} className="mt-0.5" />
@@ -174,8 +174,8 @@ export default function Onboarding({ user, onDone }) {
             <h1 className="text-lg font-medium mb-1">Add your first project</h1>
             <p className="text-sm text-muted-foreground mb-5">Optional — you can do this later. {invited > 0 && <Badge variant="secondary">{invited} invitation{invited > 1 ? "s" : ""} sent</Badge>}</p>
             <FieldGroup>
-              <Field label="Client name"><Input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="e.g. Clear-Com" /></Field>
-              <Field label="Project name"><Input value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="e.g. MARS Rack" /></Field>
+              <Field><FieldLabel>Client name</FieldLabel><Input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="e.g. Clear-Com" /></Field>
+              <Field><FieldLabel>Project name</FieldLabel><Input value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="e.g. MARS Rack" /></Field>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setStep(4)}>Skip</Button>
                 <Button className="flex-1" onClick={saveFirstProject} disabled={busy}>{busy ? "Saving…" : "Continue"}</Button>
@@ -201,7 +201,7 @@ export default function Onboarding({ user, onDone }) {
             <p className="text-[11px] text-muted-foreground mt-1 text-center">Trouble signing up or signing in? <a href="mailto:hello@thealloy.com?subject=Huddle%20sign-up%20help" className="underline">Get in touch</a>.</p>
           </>)}
 
-        </Card>
+        </CardContent></Card>
       </div>
     </div>
   );

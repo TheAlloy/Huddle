@@ -634,12 +634,22 @@ docs-style, even when it repeats lines. Wrappers hide the component and
 accumulate styling drift (the Avatar shim was caught overriding stock sizing
 with inline width/height/fontSize; it has been dissolved — all five call
 sites now compose stock `Avatar`/`AvatarFallback` directly, with only the
-identity data color poured). **Queued: dissolution sweep** of the remaining
-legacy shims — ui.jsx `Field`, `Card`, `Modal`, `Pill`, `Empty`, `Spinner`
-and core.jsx `ModalShell`/`ModalHead`/`ModalFoot` — inlining stock
-Field/Card/Dialog/Badge/Empty/Spinner anatomy at every call site, then
-deleting ui.jsx. Until then: never add new shim usages; inline when touching
-code that uses one.
+identity data color poured). **Dissolution sweep ✓** — codemod inlined the stock anatomy at every call
+site (~160 usages across 14 files): `Field` → stock Field + FieldLabel /
+FieldError / FieldDescription (error prop became `data-invalid` on the root
+plus a conditional FieldError, matching the old shim's render exactly);
+`Card` → Card + CardHeader/CardTitle/CardAction/CardContent; `Modal` and
+core's `ModalShell`/`ModalHead`/`ModalFoot` → stock Dialog anatomy
+(mount-to-open `<Dialog open onOpenChange>`, wide → sm:max-w-3xl, footer
+buttons inlined); `Pill` → Badge with the data-color style inline; `Empty` →
+Empty + EmptyHeader/Title/Description; `Spinner` → stock Spinner icon in its
+centering div. **src/ui.jsx is deleted**; core.jsx's modal kit and unused
+`ToolBtn` removed. Codemod gotchas for posterity: JSX label text contains
+apostrophes, so a naive expr scanner must not treat single quotes as string
+delimiters; multi-line import statements break line-based import insertion;
+attr-less shim usages (bare `<Card>`) still need their content wrapper.
+Verified: all 9 tabs render, and Invite/Task/Manage/Edit-client/Assign/
+Feedback(wide)/Change-email dialogs all open with correct titles + footers.
 
 ## Risks
 

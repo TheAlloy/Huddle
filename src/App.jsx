@@ -3,7 +3,6 @@ import { sb, CONFIGURED, DEMO } from "./lib/supabase.js";
 import DemoSwitcher from "./lib/DemoSwitcher.jsx";
 import { loadOrgData, memberName } from "./lib/api.js";
 import { can } from "./lib/permissions.js";
-import { Spinner } from "./ui.jsx";
 import Auth from "./screens/Auth.jsx";
 import Onboarding from "./screens/Onboarding.jsx";
 import FeedbackModal from "./screens/Feedback.jsx";
@@ -28,6 +27,7 @@ import { SiteHeader } from "@/components/site-header";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Spinner } from "@/components/ui/spinner";
 
 const PRODUCT = "Huddle";
 
@@ -155,15 +155,15 @@ export default function App() {
 
   if (!CONFIGURED) return <Fatal title="Not configured" msg="Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then redeploy." />;
   if (recovery) return <ResetPassword />;
-  if (session === undefined) return <Spinner label="Starting…" />;
+  if (session === undefined) return <div className="h-full grid place-items-center"><div className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner /> Starting…</div></div>;
   if (!session) return <Auth inviteToken={pendingInvite} inviteError={inviteErr} productName={PRODUCT} />;
-  if (memberships === null) return <Spinner label="Loading your account…" />;
+  if (memberships === null) return <div className="h-full grid place-items-center"><div className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner /> Loading your account…</div></div>;
   if (memberships.length === 0) {
-    if (pendingInvite || inviteBusy) return <Spinner label="Joining your team…" />;
+    if (pendingInvite || inviteBusy) return <div className="h-full grid place-items-center"><div className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner /> Joining your team…</div></div>;
     if (inviteErr) return <Fatal title="Couldn't join the team" msg={inviteErr} />;
     return <Onboarding user={session.user} onDone={(id) => { setOrgId(id); localStorage.setItem("cadence_org", id); loadMe(); }} />;
   }
-  if (!org || !data) return <Spinner label="Loading your studio…" />;
+  if (!org || !data) return <div className="h-full grid place-items-center"><div className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner /> Loading your studio…</div></div>;
 
   const me = active ? { ...active, display_name: memberName(active) } : active;
   const suspended = org.status === "suspended" || org.status === "cancelled";
@@ -171,7 +171,7 @@ export default function App() {
 
   // Hard subscription gate — no active subscription means no app access (owners can subscribe on the paywall).
   if (!profile?.platform_admin && !billingOk) {
-    if (!billingChecked) return <Spinner label="Checking subscription…" />;
+    if (!billingChecked) return <div className="h-full grid place-items-center"><div className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner /> Checking subscription…</div></div>;
     return <Paywall org={org} me={me} memberships={memberships}
       onPickOrg={(id) => { setOrgId(id); localStorage.setItem("cadence_org", id); }}
       onSignOut={async () => { await sb.auth.signOut(); window.location.reload(); }} />;

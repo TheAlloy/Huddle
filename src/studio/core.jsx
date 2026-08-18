@@ -1,9 +1,8 @@
 import React, { useState } from "react";
 import { sb } from "../lib/supabase.js";
-import { Users, ChevronRight, X, Trash2 } from "lucide-react";
+import { Users } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 /* constants */
@@ -14,8 +13,8 @@ export const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 export const WORK_START = 9, WORK_END = 17, WORKDAY_H = WORK_END - WORK_START;
 export const NAVY = "#1f2d4e";
 export const CLIENT_COLORS = ["#2f80ed","#9b51e0","#16a0a0","#eb5757","#27ae60","#f2994a","#2d9cdb","#6b7a99","#e84393","#8e44ad"];
-// Single source of truth — ui.jsx re-exports this. Both the Avatar component and
-// the Tasks board key colors by member index, so a second palette meant the same
+// Single source of truth for member identity colors. Screens compose the stock
+// Avatar and key board colors by member index, so a second palette meant the same
 // person rendered in two different colors (and wrapped at a different length).
 export const AVATAR_BG = ["#2f80ed","#9b51e0","#16a0a0","#eb5757","#27ae60","#f2994a","#2d9cdb","#6b7a99"];
 export const LEAVE_TYPES = { vacation:{label:"Holiday",color:"#f2994a"}, parental:{label:"Parental Leave",color:"#e67e22"}, sick:{label:"Sick Leave",color:"#c0563f"}, holiday:{label:"Public Holiday",color:"#7f8fa6"} };
@@ -99,20 +98,6 @@ export function openFloatingTimer({ getTop, getElapsed, onStop }){
   if(!w){ toast.add({ title: "Pop-out was blocked — allow pop-ups for this site (or use Chrome/Edge for an always-on-top timer).", type: "error" }); return Promise.resolve(null); }
   return Promise.resolve(wire(w));
 }
-
-/* modal kit — content-pouring shims over the stock Dialog anatomy. Same
-   three-part API the screens already use; every visual decision is the stock
-   component's (built-in close button, stock header/footer). */
-export function ModalShell({ children, onClose }){
-  return (<Dialog open onOpenChange={(o)=>{ if(!o) onClose?.(); }}>
-    <DialogContent className="sm:max-w-lg max-h-[92svh] overflow-y-auto">
-      {children}
-    </DialogContent>
-  </Dialog>);
-}
-export function ModalHead({ title }){ return <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>; }
-export function ModalFoot({ onSave, onDelete, saveLabel="Save", disabled }){ return <DialogFooter>{onDelete&&<Button variant="destructive" onClick={onDelete}><Trash2 data-icon="inline-start" /> Delete</Button>}<Button onClick={onSave} disabled={disabled}>{saveLabel}</Button></DialogFooter>; }
-export function ToolBtn({ icon:Icon, label, onClick, primary }){ return <Button variant={primary?"default":"outline"} onClick={onClick}><Icon data-icon="inline-start" /> <span className="hidden sm:inline">{label}</span></Button>; }
 
 // Multi-select people filter — content-poured into the stock DropdownMenu
 // (checkbox items stay open on click). Value shape unchanged: "all" | id[] | id.

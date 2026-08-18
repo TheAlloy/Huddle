@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import { sb } from "../lib/supabase.js";
-import { Card, Field, Modal } from "../ui.jsx";
 import { can } from "../lib/permissions.js";
 import { USAGE_OPTIONS } from "../lib/terms.js";
 import { PlanCard } from "./PlanCard.jsx";
@@ -10,10 +9,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { FieldGroup } from "@/components/ui/field";
+import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 export default function Settings({ org, me, members, reload }) {
   const [name, setName] = useState(org.name);
@@ -123,17 +124,17 @@ export default function Settings({ org, me, members, reload }) {
       <h2 className="text-base font-medium">Settings</h2>
       <div className="flex flex-col gap-4">
 
-      <Card title="Studio">
-        <Field label="Studio name">
+      <Card><CardHeader><CardTitle>Studio</CardTitle></CardHeader><CardContent>
+        <Field><FieldLabel>Studio name</FieldLabel>
           <Input value={name} disabled={!admin} onChange={e => setName(e.target.value)} />
         </Field>
         {admin && <div className="mt-3">
           <Button onClick={save} disabled={busy || !name.trim()}>{busy ? "Saving…" : "Save changes"}</Button>
         </div>}
         {!admin && <p className="text-xs text-muted-foreground mt-3">Only owners and administrators can change these.</p>}
-      </Card>
+      </CardContent></Card>
 
-      {can(me, "billing.view") && <Card title="Subscription">
+      {can(me, "billing.view") && <Card><CardHeader><CardTitle>Subscription</CardTitle></CardHeader><CardContent>
         <div className="flex items-center gap-3 flex-wrap">
           <div>
             <div className="text-lg font-medium text-foreground">{currentPlan ? currentPlan.name : (org.plan && org.plan !== "trial" ? org.plan : "No plan")} {currentPlan && <span className="text-sm font-normal text-muted-foreground">{fmtPrice(currentPlan)}{perInterval(currentPlan)}</span>}</div>
@@ -162,29 +163,29 @@ export default function Settings({ org, me, members, reload }) {
           </div>}
           <p className="text-[11px] text-muted-foreground mt-2">These come straight from your Stripe products. Subscribing opens Stripe Checkout. To change or cancel an existing subscription, use <button onClick={openBillingPortal} className="underline">Manage billing</button> so Stripe prorates it correctly.</p>
         </div>}
-      </Card>}
+      </CardContent></Card>}
 
-      {admin && <Card title="Invoice details">
+      {admin && <Card><CardHeader><CardTitle>Invoice details</CardTitle></CardHeader><CardContent>
         <p className="text-xs text-muted-foreground mb-3">These print on the PDF invoices you download from Billing. Leave anything blank to omit it.</p>
         <FieldGroup>
         <div className="grid sm:grid-cols-2 gap-3">
-          <Field label="Company name"><Input value={inv.company || ""} onChange={e => setF("company", e.target.value)} placeholder={org.name} /></Field>
-          <Field label="VAT number"><Input value={inv.vat || ""} onChange={e => setF("vat", e.target.value)} placeholder="GB 000 0000 00" /></Field>
+          <Field><FieldLabel>Company name</FieldLabel><Input value={inv.company || ""} onChange={e => setF("company", e.target.value)} placeholder={org.name} /></Field>
+          <Field><FieldLabel>VAT number</FieldLabel><Input value={inv.vat || ""} onChange={e => setF("vat", e.target.value)} placeholder="GB 000 0000 00" /></Field>
         </div>
-        <Field label="Company address (one line each)"><Textarea rows={3} value={inv.address || ""} onChange={e => setF("address", e.target.value)} placeholder={"Building 2\nYour Street\nTown, Postcode"} /></Field>
-        <Field label="Contact email(s) for invoice queries"><Input value={inv.emails || ""} onChange={e => setF("emails", e.target.value)} placeholder="accounts@yourstudio.com" /></Field>
+        <Field><FieldLabel>Company address (one line each)</FieldLabel><Textarea rows={3} value={inv.address || ""} onChange={e => setF("address", e.target.value)} placeholder={"Building 2\nYour Street\nTown, Postcode"} /></Field>
+        <Field><FieldLabel>Contact email(s) for invoice queries</FieldLabel><Input value={inv.emails || ""} onChange={e => setF("emails", e.target.value)} placeholder="accounts@yourstudio.com" /></Field>
         <div className="text-xs font-medium text-muted-foreground mt-2 mb-1">Bank details (printed under “pay by transfer”)</div>
         <div className="grid sm:grid-cols-2 gap-3">
-          <Field label="Account name"><Input value={inv.bankName || ""} onChange={e => setF("bankName", e.target.value)} /></Field>
-          <Field label="Bank / branch"><Input value={inv.bankBranch || ""} onChange={e => setF("bankBranch", e.target.value)} /></Field>
-          <Field label="Sort code"><Input value={inv.sort || ""} onChange={e => setF("sort", e.target.value)} /></Field>
-          <Field label="Account number"><Input value={inv.account || ""} onChange={e => setF("account", e.target.value)} /></Field>
-          <Field label="IBAN"><Input value={inv.iban || ""} onChange={e => setF("iban", e.target.value)} /></Field>
-          <Field label="SWIFT / BIC"><Input value={inv.swift || ""} onChange={e => setF("swift", e.target.value)} /></Field>
+          <Field><FieldLabel>Account name</FieldLabel><Input value={inv.bankName || ""} onChange={e => setF("bankName", e.target.value)} /></Field>
+          <Field><FieldLabel>Bank / branch</FieldLabel><Input value={inv.bankBranch || ""} onChange={e => setF("bankBranch", e.target.value)} /></Field>
+          <Field><FieldLabel>Sort code</FieldLabel><Input value={inv.sort || ""} onChange={e => setF("sort", e.target.value)} /></Field>
+          <Field><FieldLabel>Account number</FieldLabel><Input value={inv.account || ""} onChange={e => setF("account", e.target.value)} /></Field>
+          <Field><FieldLabel>IBAN</FieldLabel><Input value={inv.iban || ""} onChange={e => setF("iban", e.target.value)} /></Field>
+          <Field><FieldLabel>SWIFT / BIC</FieldLabel><Input value={inv.swift || ""} onChange={e => setF("swift", e.target.value)} /></Field>
         </div>
         <div className="grid sm:grid-cols-2 gap-3">
-          <Field label="Accent colour (hex)"><Input value={inv.accent || ""} onChange={e => setF("accent", e.target.value)} placeholder="#1f2d4e" /></Field>
-          <Field label="Short logo text (top of invoice)"><Input value={inv.logoText || ""} onChange={e => setF("logoText", e.target.value)} placeholder={org.name?.split(" ")[0] || "Studio"} /></Field>
+          <Field><FieldLabel>Accent colour (hex)</FieldLabel><Input value={inv.accent || ""} onChange={e => setF("accent", e.target.value)} placeholder="#1f2d4e" /></Field>
+          <Field><FieldLabel>Short logo text (top of invoice)</FieldLabel><Input value={inv.logoText || ""} onChange={e => setF("logoText", e.target.value)} placeholder={org.name?.split(" ")[0] || "Studio"} /></Field>
         </div>
 
         <div className="rounded-xl border border-border p-3">
@@ -206,9 +207,9 @@ export default function Settings({ org, me, members, reload }) {
 
         </FieldGroup>
         <div className="mt-3"><Button onClick={saveInvoice} disabled={busy}>Save invoice details</Button></div>
-      </Card>}
+      </CardContent></Card>}
 
-      {admin && <Card title="How you use Huddle">
+      {admin && <Card><CardHeader><CardTitle>How you use Huddle</CardTitle></CardHeader><CardContent>
         <p className="text-xs text-muted-foreground mb-3">This tailors the wording across the app (for example “clients” vs “teams”).</p>
         <RadioGroup value={usage} onValueChange={setUsage} className="flex flex-col gap-1.5">{USAGE_OPTIONS.map(o => (
           <label key={o.key} className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer ${usage === o.key ? "border-primary bg-primary/10" : ""}`}>
@@ -217,9 +218,9 @@ export default function Settings({ org, me, members, reload }) {
           </label>))}</RadioGroup>
         {usage === "other" && <Input className="mt-2" value={usageOther} onChange={e => setUsageOther(e.target.value)} placeholder="How would you describe it?" />}
         <div className="mt-3"><Button onClick={saveUsage} disabled={busy}>Save</Button></div>
-      </Card>}
+      </CardContent></Card>}
 
-      {admin && <Card title="Desktop app warnings">
+      {admin && <Card><CardHeader><CardTitle>Desktop app warnings</CardTitle></CardHeader><CardContent>
         <p className="text-xs text-muted-foreground mb-3">Controls the reminders shown in the installed desktop app for everyone on your team.</p>
         <label className="flex items-start gap-2 py-1.5 cursor-pointer">
           <Checkbox checked={closeWarn} onCheckedChange={(v) => setCloseWarn(!!v)} className="mt-0.5" />
@@ -230,9 +231,9 @@ export default function Settings({ org, me, members, reload }) {
           <span><span className="text-sm font-medium">Remind on minimise</span><span className="block text-xs text-muted-foreground">If the tracker isn't running when they minimise, remind them to start recording.</span></span>
         </label>
         <div className="mt-3"><Button onClick={saveDesktop} disabled={busy}>Save</Button></div>
-      </Card>}
+      </CardContent></Card>}
 
-      <Card title="Your account">
+      <Card><CardHeader><CardTitle>Your account</CardTitle></CardHeader><CardContent>
         <div className="text-sm text-muted-foreground">{me.email}</div>
         <div className="text-xs text-muted-foreground mt-1">Signed in · role: {me.role}</div>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -241,7 +242,7 @@ export default function Settings({ org, me, members, reload }) {
           <Button variant="outline" onClick={async () => { await sb.auth.signOut(); window.location.reload(); }}>Sign out</Button>
           {can(me, "account.close") && <Button variant="destructive" onClick={() => setAccountModal("delete")}>Delete account</Button>}
         </div>
-      </Card>
+      </CardContent></Card>
 
       {accountModal === "email" && <ChangeEmailModal currentEmail={me.email} onClose={() => setAccountModal(null)} />}
       {accountModal === "password" && <ChangePasswordModal currentEmail={me.email} onClose={() => setAccountModal(null)} />}
@@ -273,22 +274,21 @@ function ChangeEmailModal({ currentEmail, onClose }) {
   };
 
   return (
-    <Modal title="Change email" onClose={onClose}
-      footer={done ? <Button variant="secondary" onClick={onClose}>Done</Button> : <><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? "Saving…" : "Change email"}</Button></>}>
+    <Dialog open onOpenChange={(o) => { if (!o) (onClose)?.(); }}><DialogContent className="sm:max-w-lg max-h-[90svh] overflow-y-auto"><DialogHeader><DialogTitle>Change email</DialogTitle></DialogHeader>
       {done ? (
         <p className="text-sm text-muted-foreground">Almost there — we've emailed a confirmation link to <b>{email}</b>. Click it to finish changing your address. Until then, keep signing in with your current email.</p>
       ) : (
         <>
           <p className="text-sm text-muted-foreground mb-3">Enter the new address and your current password (twice) to confirm it's you.</p>
           <FieldGroup>
-          <Field label="New email address"><Input autoComplete="off" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@studio.com" autoFocus /></Field>
-          <Field label="Current password"><Input type="password" autoComplete="new-password" value={pw} onChange={e => setPw(e.target.value)} /></Field>
-          <Field label="Confirm current password"><Input type="password" autoComplete="new-password" value={pw2} onChange={e => setPw2(e.target.value)} /></Field>
+          <Field><FieldLabel>New email address</FieldLabel><Input autoComplete="off" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@studio.com" autoFocus /></Field>
+          <Field><FieldLabel>Current password</FieldLabel><Input type="password" autoComplete="new-password" value={pw} onChange={e => setPw(e.target.value)} /></Field>
+          <Field><FieldLabel>Confirm current password</FieldLabel><Input type="password" autoComplete="new-password" value={pw2} onChange={e => setPw2(e.target.value)} /></Field>
           </FieldGroup>
           {err && <div className="text-sm text-destructive mt-1">{err}</div>}
         </>
       )}
-    </Modal>
+    <DialogFooter>{done ? <Button variant="secondary" onClick={onClose}>Done</Button> : <><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? "Saving…" : "Change email"}</Button></>}</DialogFooter></DialogContent></Dialog>
   );
 }
 
@@ -310,18 +310,17 @@ function ChangePasswordModal({ currentEmail, onClose }) {
   };
 
   return (
-    <Modal title="Change password" onClose={onClose}
-      footer={done ? <Button variant="secondary" onClick={onClose}>Done</Button> : <><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? "Sending…" : "Send reset link"}</Button></>}>
+    <Dialog open onOpenChange={(o) => { if (!o) (onClose)?.(); }}><DialogContent className="sm:max-w-lg max-h-[90svh] overflow-y-auto"><DialogHeader><DialogTitle>Change password</DialogTitle></DialogHeader>
       {done ? (
         <p className="text-sm text-muted-foreground">We've emailed a reset link to <b>{currentEmail}</b>. Open it, set a new password, and you'll be signed out to sign back in with it.</p>
       ) : (
         <>
           <p className="text-xs text-muted-foreground mb-3">Confirm your current password. We'll email you a secure link to set a new one.</p>
-          <Field label="Current password"><Input type="password" autoComplete="new-password" value={pw} onChange={e => setPw(e.target.value)} autoFocus /></Field>
+          <Field><FieldLabel>Current password</FieldLabel><Input type="password" autoComplete="new-password" value={pw} onChange={e => setPw(e.target.value)} autoFocus /></Field>
           {err && <div className="text-xs text-destructive mt-1">{err}</div>}
         </>
       )}
-    </Modal>
+    <DialogFooter>{done ? <Button variant="secondary" onClick={onClose}>Done</Button> : <><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={submit} disabled={busy}>{busy ? "Sending…" : "Send reset link"}</Button></>}</DialogFooter></DialogContent></Dialog>
   );
 }
 
@@ -346,7 +345,7 @@ function DeleteAccountModal({ org, me, members, onClose }) {
   };
 
   if (step === "choose") return (
-    <Modal title="Delete account" onClose={onClose} footer={<Button variant="ghost" onClick={onClose}>Cancel</Button>}>
+    <Dialog open onOpenChange={(o) => { if (!o) (onClose)?.(); }}><DialogContent className="sm:max-w-lg max-h-[90svh] overflow-y-auto"><DialogHeader><DialogTitle>Delete account</DialogTitle></DialogHeader>
       <p className="text-sm text-muted-foreground mb-3">What would you like to do with <b>{org.name}</b>?</p>
       <div className="space-y-2">
         <button onClick={() => setStep("transfer")} disabled={others.length === 0} className={`w-full text-left border rounded-xl p-3 ${others.length === 0 ? "opacity-50 cursor-not-allowed border-border" : "border-border hover:border-primary hover:bg-primary/10"}`}>
@@ -358,26 +357,24 @@ function DeleteAccountModal({ org, me, members, onClose }) {
           <div className="text-xs text-muted-foreground">Permanently removes the studio and everyone's data. This can't be undone.</div>
         </button>
       </div>
-    </Modal>
+    <DialogFooter>{<Button variant="ghost" onClick={onClose}>Cancel</Button>}</DialogFooter></DialogContent></Dialog>
   );
 
   if (step === "transfer") return (
-    <Modal title="Transfer ownership" onClose={onClose}
-      footer={<><Button variant="ghost" onClick={() => setStep("choose")} disabled={busy}>Back</Button><Button onClick={() => newOwner ? call({ action: "transfer", newOwnerId: newOwner }) : setErr("Choose a new owner.")} disabled={busy}>{busy ? "Transferring…" : "Transfer & leave"}</Button></>}>
+    <Dialog open onOpenChange={(o) => { if (!o) (onClose)?.(); }}><DialogContent className="sm:max-w-lg max-h-[90svh] overflow-y-auto"><DialogHeader><DialogTitle>Transfer ownership</DialogTitle></DialogHeader>
       <p className="text-sm text-muted-foreground mb-3">Choose who becomes the new owner of <b>{org.name}</b>. You'll be removed from the team and signed out.</p>
       <Select value={newOwner} onValueChange={setNewOwner} items={{"":"Select a team member…",...Object.fromEntries(others.map(m=>[m.id,m.display_name||m.email]))}}>
         <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
         <SelectContent><SelectGroup><SelectItem value="">Select a team member…</SelectItem>{others.map(m => <SelectItem key={m.id} value={m.id}>{m.display_name || m.email}</SelectItem>)}</SelectGroup></SelectContent>
       </Select>
       {err && <div className="text-xs text-destructive mt-2">{err}</div>}
-    </Modal>
+    <DialogFooter>{<><Button variant="ghost" onClick={() => setStep("choose")} disabled={busy}>Back</Button><Button onClick={() => newOwner ? call({ action: "transfer", newOwnerId: newOwner }) : setErr("Choose a new owner.")} disabled={busy}>{busy ? "Transferring…" : "Transfer & leave"}</Button></>}</DialogFooter></DialogContent></Dialog>
   );
 
   return (
-    <Modal title="Delete the whole team" onClose={onClose}
-      footer={<><Button variant="ghost" onClick={() => setStep("choose")} disabled={busy}>Back</Button><Button variant="destructive" onClick={() => call({ action: "delete" })} disabled={busy}>{busy ? "Deleting…" : "Yes, delete everything"}</Button></>}>
+    <Dialog open onOpenChange={(o) => { if (!o) (onClose)?.(); }}><DialogContent className="sm:max-w-lg max-h-[90svh] overflow-y-auto"><DialogHeader><DialogTitle>Delete the whole team</DialogTitle></DialogHeader>
       <p className="text-sm text-muted-foreground">This permanently deletes <b>{org.name}</b> and all of its schedules, time logs, projects and members, and cancels the subscription. <b>This cannot be undone.</b> You'll be signed out.</p>
       {err && <div className="text-xs text-destructive mt-2">{err}</div>}
-    </Modal>
+    <DialogFooter>{<><Button variant="ghost" onClick={() => setStep("choose")} disabled={busy}>Back</Button><Button variant="destructive" onClick={() => call({ action: "delete" })} disabled={busy}>{busy ? "Deleting…" : "Yes, delete everything"}</Button></>}</DialogFooter></DialogContent></Dialog>
   );
 }

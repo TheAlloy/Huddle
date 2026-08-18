@@ -1,18 +1,20 @@
 import React, { useState } from "react";
 import { sb } from "../lib/supabase.js";
 import { logAudit } from "../lib/api.js";
-import { Card, Empty, Field, Modal, Pill } from "../ui.jsx";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
 import { money } from "../lib/dates.js";
 import { Plus, Trash2, Pencil, Layers } from "lucide-react";
 import { useConfirm } from "../components/confirm.tsx";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FieldGroup } from "@/components/ui/field";
+import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card, CardHeader, CardTitle, CardAction, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
 
 const CLIENT_COLORS = ["#2f80ed", "#9b51e0", "#16a0a0", "#eb5757", "#27ae60", "#f2994a", "#2d9cdb", "#eb5757", "#6b7a99", "#b5179e"];
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -30,8 +32,8 @@ export default function Projects({ org, me, data, reload, terms }) {
     <ScrollArea className="h-full"><div className="p-4 flex flex-col gap-4">
       <h2 className="text-base font-medium text-foreground">{T.clients} &amp; {T.projectsLower||"projects"}</h2>
 
-      <Card title={T.clients} action={mayClients && <Button onClick={() => setModal({ type: "client" })}><Plus data-icon="inline-start" /> Add {T.clientLower}</Button>}>
-        {data.clients.length === 0 && <Empty title={"No "+T.clientsLower+" yet"}>Add your first {T.clientLower} to start booking work.</Empty>}
+      <Card><CardHeader><CardTitle>{T.clients}</CardTitle><CardAction>{mayClients && <Button onClick={() => setModal({ type: "client" })}><Plus data-icon="inline-start" /> Add {T.clientLower}</Button>}</CardAction></CardHeader><CardContent>
+        {data.clients.length === 0 && <Empty><EmptyHeader><EmptyTitle>{"No "+T.clientsLower+" yet"}</EmptyTitle><EmptyDescription>Add your first {T.clientLower} to start booking work.</EmptyDescription></EmptyHeader></Empty>}
         <div className="divide-y divide-border/60">
           {data.clients.map(c => (
             <div key={c.id} className="flex items-center gap-3 py-2 text-sm group">
@@ -42,10 +44,10 @@ export default function Projects({ org, me, data, reload, terms }) {
             </div>
           ))}
         </div>
-      </Card>
+      </CardContent></Card>
 
-      <Card title={T.projects} action={mayProjects && <Button onClick={() => setModal({ type: "project" })}><Plus data-icon="inline-start" /> Add {T.projectLower||"project"}</Button>}>
-        {data.projects.length === 0 && <Empty title={"No "+(T.projectsLower||"projects")+" yet"}>{T.projects} hold the phases you schedule and bill against.</Empty>}
+      <Card><CardHeader><CardTitle>{T.projects}</CardTitle><CardAction>{mayProjects && <Button onClick={() => setModal({ type: "project" })}><Plus data-icon="inline-start" /> Add {T.projectLower||"project"}</Button>}</CardAction></CardHeader><CardContent>
+        {data.projects.length === 0 && <Empty><EmptyHeader><EmptyTitle>{"No "+(T.projectsLower||"projects")+" yet"}</EmptyTitle><EmptyDescription>{T.projects} hold the phases you schedule and bill against.</EmptyDescription></EmptyHeader></Empty>}
         {(() => {
           const byClient = {};
           const groups = [];
@@ -76,7 +78,7 @@ export default function Projects({ org, me, data, reload, terms }) {
             </div>
           ));
         })()}
-      </Card>
+      </CardContent></Card>
 
       {modal?.type === "client" && <ClientModal org={org} client={modal.c} onClose={() => setModal(null)} onSaved={() => { setModal(null); reload(); }} />}
       {modal?.type === "project" && <ProjectModal org={org} project={modal.p} clients={data.clients} onClose={() => setModal(null)} onSaved={() => { setModal(null); reload(); }} />}
@@ -99,15 +101,14 @@ function ClientModal({ org, client, onClose, onSaved }) {
     setBusy(false); onSaved();
   };
   const del = async () => { if (!(await confirm({ title: "Delete this client?", description: "Projects keep working but lose the link.", confirmLabel: "Delete", destructive: true }))) return; await sb.from("clients").delete().eq("id", client.id); onSaved(); };
-  return (<Modal title={client ? "Edit client" : "Add client"} onClose={onClose}
-    footer={<>{client && <Button variant="destructive" className="mr-auto" onClick={del}><Trash2 size={14} /> Delete</Button>}<Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy || !name.trim()}>Save</Button></>}>
+  return (<Dialog open onOpenChange={(o) => { if (!o) (onClose)?.(); }}><DialogContent className="sm:max-w-lg max-h-[90svh] overflow-y-auto"><DialogHeader><DialogTitle>{client ? "Edit client" : "Add client"}</DialogTitle></DialogHeader>
     <FieldGroup>
-    <Field label="Client name"><Input value={name} onChange={e => setName(e.target.value)} autoFocus /></Field>
-    <Field label="Colour"><div className="flex flex-wrap gap-2">{CLIENT_COLORS.map(c => <button key={c} onClick={() => setColor(c)} className="w-8 h-8 rounded-lg" style={{ background: c, outline: color === c ? "2px solid var(--ring)" : "none", outlineOffset: 2 }} />)}</div></Field>
-    <Field label="Payment terms (days)" hint="Used to estimate when invoices get paid."><Input type="number" value={terms} onChange={e => setTerms(e.target.value)} /></Field>
-    <Field label="Billing address (for invoices)"><Textarea rows={3} value={addr} onChange={e => setAddr(e.target.value)} placeholder={"Accounts Payable\nClient Ltd\nLondon"} /></Field>
+    <Field><FieldLabel>Client name</FieldLabel><Input value={name} onChange={e => setName(e.target.value)} autoFocus /></Field>
+    <Field><FieldLabel>Colour</FieldLabel><div className="flex flex-wrap gap-2">{CLIENT_COLORS.map(c => <button key={c} onClick={() => setColor(c)} className="w-8 h-8 rounded-lg" style={{ background: c, outline: color === c ? "2px solid var(--ring)" : "none", outlineOffset: 2 }} />)}</div></Field>
+    <Field><FieldLabel>Payment terms (days)</FieldLabel><Input type="number" value={terms} onChange={e => setTerms(e.target.value)} /><FieldDescription>Used to estimate when invoices get paid.</FieldDescription></Field>
+    <Field><FieldLabel>Billing address (for invoices)</FieldLabel><Textarea rows={3} value={addr} onChange={e => setAddr(e.target.value)} placeholder={"Accounts Payable\nClient Ltd\nLondon"} /></Field>
     </FieldGroup>
-  </Modal>);
+  <DialogFooter>{<>{client && <Button variant="destructive" className="mr-auto" onClick={del}><Trash2 size={14} /> Delete</Button>}<Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy || !name.trim()}>Save</Button></>}</DialogFooter></DialogContent></Dialog>);
 }
 
 export function ProjectModal({ org, project, clients, onClose, onSaved }) {
@@ -138,17 +139,16 @@ export function ProjectModal({ org, project, clients, onClose, onSaved }) {
   };
   const del = async () => { if (!(await confirm({ title: "Delete this project and its bookings?", confirmLabel: "Delete", destructive: true }))) return; await sb.from("projects").delete().eq("id", project.id); onSaved(); };
 
-  return (<Modal wide title={project ? "Edit project" : "Add project"} onClose={onClose}
-    footer={<>{project && <Button variant="destructive" className="mr-auto" onClick={del}><Trash2 size={14} /> Delete</Button>}<Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy || !name.trim()}>Save project</Button></>}>
+  return (<Dialog open onOpenChange={(o) => { if (!o) (onClose)?.(); }}><DialogContent className="sm:max-w-3xl max-h-[90svh] overflow-y-auto"><DialogHeader><DialogTitle>{project ? "Edit project" : "Add project"}</DialogTitle></DialogHeader>
     <FieldGroup>
-    <Field label="Project name"><Input value={name} onChange={e => setName(e.target.value)} autoFocus /></Field>
+    <Field><FieldLabel>Project name</FieldLabel><Input value={name} onChange={e => setName(e.target.value)} autoFocus /></Field>
     <div className="grid grid-cols-3 gap-3">
-      <Field label="Code"><Input value={code} onChange={e => setCode(e.target.value)} placeholder="HID0514" /></Field>
-      <Field label="Client"><Select value={clientId} onValueChange={setClientId} items={{"":"— none —",...Object.fromEntries(clients.map(c=>[c.id,c.name]))}}>
+      <Field><FieldLabel>Code</FieldLabel><Input value={code} onChange={e => setCode(e.target.value)} placeholder="HID0514" /></Field>
+      <Field><FieldLabel>Client</FieldLabel><Select value={clientId} onValueChange={setClientId} items={{"":"— none —",...Object.fromEntries(clients.map(c=>[c.id,c.name]))}}>
         <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
         <SelectContent><SelectGroup><SelectItem value="">— none —</SelectItem>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectGroup></SelectContent>
       </Select></Field>
-      <Field label="Value (£)"><Input type="number" value={cost} onChange={e => setCost(e.target.value)} /></Field>
+      <Field><FieldLabel>Value (£)</FieldLabel><Input type="number" value={cost} onChange={e => setCost(e.target.value)} /></Field>
     </div>
 
     <div className="flex items-center gap-2">
@@ -171,5 +171,5 @@ export function ProjectModal({ org, project, clients, onClose, onSaved }) {
     </div>
     <p className="text-xs text-muted-foreground">Days = working days scheduled. Hrs budget & Fee are optional — they power the Summary "hours vs budget" and the billing plan.</p>
     </FieldGroup>
-  </Modal>);
+  <DialogFooter>{<>{project && <Button variant="destructive" className="mr-auto" onClick={del}><Trash2 size={14} /> Delete</Button>}<Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy || !name.trim()}>Save project</Button></>}</DialogFooter></DialogContent></Dialog>);
 }

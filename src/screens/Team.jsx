@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
-import { Field, Modal, Card, Empty } from "../ui.jsx";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AVATAR_BG, initials } from "../studio/core.jsx";
 import { PERMISSIONS, PERMISSION_GROUPS, ROLES, ROLE_KEYS, effectivePermissions, isFromRole, can } from "../lib/permissions.js";
@@ -12,9 +11,12 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { FieldGroup, FieldSet, FieldLegend } from "@/components/ui/field";
+import { FieldGroup, FieldSet, FieldLegend, Field, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field";
 import { toast } from "@/components/ui/toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
 
 export default function Team({ org, me, members, reload, onNavigate }) {
   const confirm = useConfirm();
@@ -72,8 +74,8 @@ export default function Team({ org, me, members, reload, onNavigate }) {
         </Alert>
       )}
 
-      <Card title="Team members">
-        {members.length === 0 && <Empty title="No one here yet">Invite your team to get started.</Empty>}
+      <Card><CardHeader><CardTitle>Team members</CardTitle></CardHeader><CardContent>
+        {members.length === 0 && <Empty><EmptyHeader><EmptyTitle>No one here yet</EmptyTitle><EmptyDescription>Invite your team to get started.</EmptyDescription></EmptyHeader></Empty>}
         <div className="flex flex-col">
           {members.map((m, i) => {
             const role = ROLES[m.role] || ROLES.member;
@@ -93,10 +95,10 @@ export default function Team({ org, me, members, reload, onNavigate }) {
             </div>);
           })}
         </div>
-      </Card>
+      </CardContent></Card>
 
       {manage && invites.length > 0 && (
-        <Card title="Pending invitations">
+        <Card><CardHeader><CardTitle>Pending invitations</CardTitle></CardHeader><CardContent>
           <div className="flex flex-col">
             {invites.map(inv => (
               <div key={inv.id} className="flex items-center gap-3 border-b py-2.5 text-sm last:border-b-0">
@@ -119,13 +121,13 @@ export default function Team({ org, me, members, reload, onNavigate }) {
               </div>
             ))}
           </div>
-        </Card>
+        </CardContent></Card>
       )}
 
       {inviteOpen && <InviteModal org={org} onClose={() => setInviteOpen(false)} onSent={(email, altNote) => { setInviteOpen(false); toast.add({ title: altNote || ("Invitation sent to " + email), type: "success" }); loadInvites(); }} onSeatsFull={() => { setInviteOpen(false); setUpgradeOpen(true); }} />}
-      {upgradeOpen && <Modal title="Upgrade to add more people" onClose={() => setUpgradeOpen(false)} footer={<><Button variant="ghost" onClick={() => setUpgradeOpen(false)}>Not now</Button><Button variant="secondary" onClick={() => { setUpgradeOpen(false); onNavigate && onNavigate("settings"); }}>See plans</Button></>}>
+      {upgradeOpen && <Dialog open onOpenChange={(o) => { if (!o) (() => setUpgradeOpen(false))?.(); }}><DialogContent className="sm:max-w-lg max-h-[90svh] overflow-y-auto"><DialogHeader><DialogTitle>Upgrade to add more people</DialogTitle></DialogHeader>
         <p className="text-sm text-muted-foreground">You've reached the team limit on your current plan{unlimitedSeats ? "" : ` (${org.seats} member${org.seats === 1 ? "" : "s"})`}. Upgrade to a larger plan to invite more people.</p>
-      </Modal>}
+      <DialogFooter>{<><Button variant="ghost" onClick={() => setUpgradeOpen(false)}>Not now</Button><Button variant="secondary" onClick={() => { setUpgradeOpen(false); onNavigate && onNavigate("settings"); }}>See plans</Button></>}</DialogFooter></DialogContent></Dialog>}
       {editing && <AccessModal m={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />}
     </div></ScrollArea>
   );
@@ -152,19 +154,18 @@ export function InviteModal({ org, onClose, onSent, onSeatsFull }) {
     } catch (e) { setErr(e.message); }
     setBusy(false);
   };
-  return (<Modal title="Invite someone" onClose={onClose}
-    footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={send} disabled={busy}>{busy ? "Sending…" : "Send invitation"}</Button></>}>
+  return (<Dialog open onOpenChange={(o) => { if (!o) (onClose)?.(); }}><DialogContent className="sm:max-w-lg max-h-[90svh] overflow-y-auto"><DialogHeader><DialogTitle>Invite someone</DialogTitle></DialogHeader>
     <FieldGroup>
-      <Field label="Email address" error={err}><Input value={email} onChange={e => setEmail(e.target.value)} placeholder="name@studio.com" aria-invalid={err ? true : undefined} autoFocus /></Field>
-      <Field label="Access level" hint={ROLES[role]?.blurb}>
+      <Field data-invalid={(err) ? true : undefined}><FieldLabel>Email address</FieldLabel><Input value={email} onChange={e => setEmail(e.target.value)} placeholder="name@studio.com" aria-invalid={err ? true : undefined} autoFocus />{(err) ? <FieldError>{err}</FieldError> : null}</Field>
+      <Field><FieldLabel>Access level</FieldLabel>
         <Select value={role} onValueChange={setRole} items={Object.fromEntries(ROLE_KEYS.filter(k => k !== "owner").map(k => [k, ROLES[k].label]))}>
           <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
           <SelectContent><SelectGroup>{ROLE_KEYS.filter(k => k !== "owner").map(k => <SelectItem key={k} value={k}>{ROLES[k].label}</SelectItem>)}</SelectGroup></SelectContent>
         </Select>
-      </Field>
+      <FieldDescription>{ROLES[role]?.blurb}</FieldDescription></Field>
       <p className="text-sm text-muted-foreground">They'll receive an email with a link to set up their account and join {org.name}.</p>
     </FieldGroup>
-  </Modal>);
+  <DialogFooter>{<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={send} disabled={busy}>{busy ? "Sending…" : "Send invitation"}</Button></>}</DialogFooter></DialogContent></Dialog>);
 }
 
 function AccessModal({ m, onClose, onSaved }) {
@@ -204,22 +205,21 @@ function AccessModal({ m, onClose, onSaved }) {
     setBusy(false); onSaved();
   };
 
-  return (<Modal wide title={`Manage — ${m.display_name || m.email}`} onClose={onClose}
-    footer={<>{!isOwner && <Button variant="destructive" className="mr-auto" onClick={remove} disabled={busy}><Trash2 data-icon="inline-start" /> Remove from studio</Button>}<Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</Button></>}>
+  return (<Dialog open onOpenChange={(o) => { if (!o) (onClose)?.(); }}><DialogContent className="sm:max-w-3xl max-h-[90svh] overflow-y-auto"><DialogHeader><DialogTitle>{`Manage — ${m.display_name || m.email}`}</DialogTitle></DialogHeader>
     <FieldGroup>
       <FieldSet>
         <FieldLegend>Profile &amp; scheduling</FieldLegend>
         <FieldGroup>
           <div className="grid sm:grid-cols-2 gap-3">
-            <Field label="Display name"><Input value={name} onChange={e => setName(e.target.value)} placeholder={m.email} /></Field>
-            <Field label="Job title"><Input value={jobTitle} onChange={e => setJobTitle(e.target.value)} placeholder="Designer" /></Field>
+            <Field><FieldLabel>Display name</FieldLabel><Input value={name} onChange={e => setName(e.target.value)} placeholder={m.email} /></Field>
+            <Field><FieldLabel>Job title</FieldLabel><Input value={jobTitle} onChange={e => setJobTitle(e.target.value)} placeholder="Designer" /></Field>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <Field label="Hours / day"><Input type="number" value={daily} onChange={e => setDaily(e.target.value)} /></Field>
-            <Field label="Holiday (days/yr)"><Input type="number" value={allow} onChange={e => setAllow(e.target.value)} /></Field>
-            <Field label="Rate (£/hr)" hint="Guides billing cost."><Input type="number" value={rate} onChange={e => setRate(e.target.value)} placeholder="—" /></Field>
+            <Field><FieldLabel>Hours / day</FieldLabel><Input type="number" value={daily} onChange={e => setDaily(e.target.value)} /></Field>
+            <Field><FieldLabel>Holiday (days/yr)</FieldLabel><Input type="number" value={allow} onChange={e => setAllow(e.target.value)} /></Field>
+            <Field><FieldLabel>Rate (£/hr)</FieldLabel><Input type="number" value={rate} onChange={e => setRate(e.target.value)} placeholder="—" /><FieldDescription>Guides billing cost.</FieldDescription></Field>
           </div>
-          <Field label="Teams">
+          <Field><FieldLabel>Teams</FieldLabel>
             <div className="flex flex-wrap items-center gap-1.5">{teams.map(t => <Button key={t} variant="secondary" size="xs" onClick={() => toggleTeam(t)}>{t} ✕</Button>)}{teams.length === 0 && <span className="text-sm text-muted-foreground">No teams yet.</span>}</div>
             <div className="flex gap-2"><Input value={newTeam} onChange={e => setNewTeam(e.target.value)} placeholder="Add to a team…" onKeyDown={e => { if (e.key === "Enter" && newTeam.trim()) { if (!teams.includes(newTeam.trim())) setTeams([...teams, newTeam.trim()]); setNewTeam(""); } }} /><Button variant="outline" onClick={() => { if (newTeam.trim() && !teams.includes(newTeam.trim())) { setTeams([...teams, newTeam.trim()]); setNewTeam(""); } }}>Add</Button></div>
           </Field>
@@ -230,13 +230,13 @@ function AccessModal({ m, onClose, onSaved }) {
         ? <p className="text-sm text-muted-foreground">This is the studio owner — role and permissions can't be changed here.</p>
         : <>
           <div className="grid sm:grid-cols-2 gap-3">
-            <Field label="Role" hint={ROLES[role]?.blurb}>
+            <Field><FieldLabel>Role</FieldLabel>
               <Select value={role} onValueChange={setRole} items={Object.fromEntries(ROLE_KEYS.map(k => [k, ROLES[k].label]))}>
                 <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
                 <SelectContent><SelectGroup>{ROLE_KEYS.map(k => <SelectItem key={k} value={k}>{ROLES[k].label}</SelectItem>)}</SelectGroup></SelectContent>
               </Select>
-            </Field>
-            <Field label="Status">
+            <FieldDescription>{ROLES[role]?.blurb}</FieldDescription></Field>
+            <Field><FieldLabel>Status</FieldLabel>
               <Select value={status} onValueChange={setStatus} items={{active:"Active",suspended:"Suspended (cannot sign in)"}}>
                 <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
                 <SelectContent><SelectGroup><SelectItem value="active">Active</SelectItem><SelectItem value="suspended">Suspended (cannot sign in)</SelectItem></SelectGroup></SelectContent>
@@ -266,5 +266,5 @@ function AccessModal({ m, onClose, onSaved }) {
           <p className="text-sm text-muted-foreground">Greyed ticks come with the role. Tick extras to grant more on top. Use the copy-link on a pending invite to share sign-in details.</p>
         </>}
     </FieldGroup>
-  </Modal>);
+  <DialogFooter>{<>{!isOwner && <Button variant="destructive" className="mr-auto" onClick={remove} disabled={busy}><Trash2 data-icon="inline-start" /> Remove from studio</Button>}<Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</Button></>}</DialogFooter></DialogContent></Dialog>);
 }

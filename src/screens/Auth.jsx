@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { sb, DEMO } from "../lib/supabase.js";
-import { Field, Card } from "../ui.jsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { FieldGroup } from "@/components/ui/field";
+import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function Auth({ inviteToken, inviteError, productName }) {
   const [mode, setMode] = useState(inviteToken ? "signup" : "signin");
@@ -64,7 +64,7 @@ export default function Auth({ inviteToken, inviteError, productName }) {
           </p>
         </div>
 
-        <Card>
+        <Card><CardContent>
           <FieldGroup>
             {DEMO && (
               <Alert>
@@ -85,10 +85,10 @@ export default function Auth({ inviteToken, inviteError, productName }) {
             )}
 
             {mode === "signup" && (
-              <Field label="Your name"><Input value={name} onChange={e => setName(e.target.value)} placeholder="Alex Dangerfield" /></Field>
+              <Field><FieldLabel>Your name</FieldLabel><Input value={name} onChange={e => setName(e.target.value)} placeholder="Alex Dangerfield" /></Field>
             )}
-            <Field label="Work email"><Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@studio.com" autoComplete="email" /></Field>
-            <Field label="Password">
+            <Field><FieldLabel>Work email</FieldLabel><Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@studio.com" autoComplete="email" /></Field>
+            <Field><FieldLabel>Password</FieldLabel>
               <Input type="password" value={password} onChange={e => setPassword(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && submit()} autoComplete={mode === "signup" ? "new-password" : "current-password"} placeholder={mode === "signup" ? "At least 8 characters" : ""} />
             </Field>
@@ -109,7 +109,7 @@ export default function Auth({ inviteToken, inviteError, productName }) {
               <>Already have an account? <button className="font-medium text-foreground underline underline-offset-4" onClick={() => { setMode("signin"); setErr(""); }}>Sign in</button></>
             )}
           </div>
-        </Card>
+        </CardContent></Card>
 
         <p className="text-center text-[11px] text-muted-foreground mt-4">
           By continuing you agree to the Terms of Service and Privacy Policy.

@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
-import { Card, Modal, Field, Empty, Spinner } from "../ui.jsx";
 import { Search, Building2, Users, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { FieldGroup } from "@/components/ui/field";
+import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
+import { Spinner } from "@/components/ui/spinner";
 
 const PLANS = ["trial", "starter", "studio", "enterprise"];
 const STATUSES = ["active", "past_due", "suspended", "cancelled"];
@@ -35,7 +38,7 @@ export default function Admin() {
   };
   useEffect(() => { load(); }, []); // eslint-disable-line
 
-  if (orgs === null) return <Spinner label="Loading subscribers…" />;
+  if (orgs === null) return <div className="h-full grid place-items-center"><div className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner /> Loading subscribers…</div></div>;
 
   const shown = orgs.filter(o => !q || (o.name || "").toLowerCase().includes(q.toLowerCase()));
   const mrr = orgs.filter(o => o.status === "active" && o.plan !== "trial").reduce((s, o) => s + (PLAN_PRICE[o.plan] || 0), 0);
@@ -65,8 +68,8 @@ export default function Admin() {
         <Button variant="outline" onClick={load}>Refresh</Button>
       </div>
 
-      <Card title={`Studios (${shown.length})`}>
-        {shown.length === 0 && <Empty title="No studios yet">Subscribers appear here as they sign up.</Empty>}
+      <Card><CardHeader><CardTitle>{`Studios (${shown.length})`}</CardTitle></CardHeader><CardContent>
+        {shown.length === 0 && <Empty><EmptyHeader><EmptyTitle>No studios yet</EmptyTitle><EmptyDescription>Subscribers appear here as they sign up.</EmptyDescription></EmptyHeader></Empty>}
         <div className="flex flex-col">
           {shown.map(o => (
             <div key={o.id} className="flex items-center gap-3 border-b py-2.5 text-sm last:border-b-0">
@@ -80,7 +83,7 @@ export default function Admin() {
             </div>
           ))}
         </div>
-      </Card>
+      </CardContent></Card>
 
       {editing && <OrgModal o={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
     </div>
@@ -88,10 +91,10 @@ export default function Admin() {
 }
 
 function Stat({ icon, label, value }) {
-  return (<Card>
+  return (<Card><CardContent>
     <div className="text-xs text-muted-foreground flex items-center gap-1.5">{icon}{label}</div>
     <div className="text-lg font-semibold text-foreground">{value}</div>
-  </Card>);
+  </CardContent></Card>);
 }
 
 function OrgModal({ o, onClose, onSaved }) {
@@ -104,29 +107,28 @@ function OrgModal({ o, onClose, onSaved }) {
     await sb.from("organizations").update({ plan, status, seats: Number(seats) || 1 }).eq("id", o.id);
     setBusy(false); onSaved();
   };
-  return (<Modal title={o.name} onClose={onClose}
-    footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</Button></>}>
+  return (<Dialog open onOpenChange={(o) => { if (!o) (onClose)?.(); }}><DialogContent className="sm:max-w-lg max-h-[90svh] overflow-y-auto"><DialogHeader><DialogTitle>{o.name}</DialogTitle></DialogHeader>
     <FieldGroup>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Plan">
+        <Field><FieldLabel>Plan</FieldLabel>
           <Select value={plan} onValueChange={setPlan} items={Object.fromEntries(PLANS.map(p => [p, p]))}>
             <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
             <SelectContent><SelectGroup>{PLANS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectGroup></SelectContent>
           </Select>
         </Field>
-        <Field label="Seats"><Input type="number" min="1" value={seats} onChange={e => setSeats(e.target.value)} /></Field>
+        <Field><FieldLabel>Seats</FieldLabel><Input type="number" min="1" value={seats} onChange={e => setSeats(e.target.value)} /></Field>
       </div>
-      <Field label="Status" hint="Suspending blocks the studio's team from using the app.">
+      <Field><FieldLabel>Status</FieldLabel>
         <Select value={status} onValueChange={setStatus} items={Object.fromEntries(STATUSES.map(s => [s, s]))}>
           <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
           <SelectContent><SelectGroup>{STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectGroup></SelectContent>
         </Select>
-      </Field>
+      <FieldDescription>Suspending blocks the studio's team from using the app.</FieldDescription></Field>
       <div className="text-xs text-muted-foreground flex flex-col gap-1">
         <div>Organization ID: <code className="text-foreground">{o.id}</code></div>
         {o.stripe_customer_id && <div>Stripe customer: <code className="text-foreground">{o.stripe_customer_id}</code></div>}
         <div>Trial ends: {o.trial_ends_at ? String(o.trial_ends_at).slice(0, 10) : "—"}</div>
       </div>
     </FieldGroup>
-  </Modal>);
+  <DialogFooter>{<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</Button></>}</DialogFooter></DialogContent></Dialog>);
 }

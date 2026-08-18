@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
-import { Card } from "../ui.jsx";
 import { can } from "../lib/permissions.js";
 import { PlanCard } from "./PlanCard.jsx";
 import { ChevronDown } from "lucide-react";
@@ -8,6 +7,7 @@ import { toast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Card, CardContent } from "@/components/ui/card";
 
 /** Shown when the active studio has no active subscription. Owners/admins can subscribe here; others are told to ask an owner. */
 export default function Paywall({ org, me, memberships, onPickOrg, onSignOut }) {
@@ -63,11 +63,11 @@ export default function Paywall({ org, me, memberships, onPickOrg, onSignOut }) 
         </div>
 
         {!canPay ? (
-          <Card>
+          <Card><CardContent>
             <p className="text-center text-sm text-muted-foreground">Ask an owner or admin of <b>{org.name}</b> to subscribe, then you'll be able to sign in and use Huddle.</p>
-          </Card>
+          </CardContent></Card>
         ) : (
-          <Card>
+          <Card><CardContent>
             {plans === null && <div className="text-sm text-muted-foreground py-4 text-center">Loading plans…</div>}
             {plans !== null && plans.length === 0 && <Alert><AlertDescription>{plansMsg || "No plans found. Add products with recurring prices in Stripe."}</AlertDescription></Alert>}
             {plans !== null && plans.length > 0 && (
@@ -78,7 +78,7 @@ export default function Paywall({ org, me, memberships, onPickOrg, onSignOut }) 
             <div className="mt-4 text-center">
               <a href="mailto:hello@thealloy.com?subject=Huddle%20sign-up%20help" className="text-xs text-muted-foreground hover:text-foreground underline">Trouble signing up or signing in? Get in touch</a>
             </div>
-          </Card>
+          </CardContent></Card>
         )}
       </div>
     </div>

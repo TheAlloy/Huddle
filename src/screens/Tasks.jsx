@@ -1,18 +1,18 @@
 import React, { useState, useRef, useMemo, useCallback } from "react";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
-import { TASK_PRI, projectsByClient, ModalShell, ModalHead, ModalFoot, mapData, makeHandlers, AVATAR_BG, initials } from "../studio/core.jsx";
-import { Field, Pill } from "../ui.jsx";
+import { TASK_PRI, projectsByClient, mapData, makeHandlers, AVATAR_BG, initials } from "../studio/core.jsx";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { FieldGroup } from "@/components/ui/field";
+import { FieldGroup, Field, FieldLabel, FieldError } from "@/components/ui/field";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 function InternalBoard(ctx){
   const { data, myMemberId, teamList, editTask, setModal } = ctx;
@@ -53,7 +53,7 @@ function InternalBoard(ctx){
       <div className="text-sm font-medium">{t.title}</div>
       {t.notes && <div className="text-xs text-muted-foreground mt-0.5" style={{display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{t.notes}</div>}
       <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-        <Pill color={pr.color}>{pr.label}</Pill>
+        <Badge style={{ background: (pr.color) + "22", color: (pr.color) }}>{pr.label}</Badge>
         {t.projectId && (()=>{ const p=data.projects.find(x=>x.id===t.projectId); if(!p) return null; const ph=t.phaseId&&(p.phases||[]).find(x=>x.id===t.phaseId); return <Badge variant="secondary">{p.index}{ph?" · "+ph.name:""}</Badge>; })()}
         {t.team && <Badge variant="secondary">{t.team}</Badge>}
         {t.assigneeId && !memberById(t.assigneeId) && <span className="text-xs text-muted-foreground">(unknown)</span>}
@@ -96,7 +96,7 @@ function InternalBoard(ctx){
       {ghost && (()=>{ const pr=TASK_PRI[ghost.t.priority]||TASK_PRI.med; return (
         <div className="fixed z-50 pointer-events-none bg-card rounded-lg border shadow-lg px-2.5 py-2 w-56" style={{left:ghost.x,top:ghost.y,transform:"translate(-40%, -50%) rotate(-3deg) scale(1.03)",borderLeft:`3px solid ${pr.color}`,opacity:0.96}}>
           <div className="text-sm font-medium truncate">{ghost.t.title}</div>
-          <div className="flex items-center gap-1.5 mt-1"><Pill color={pr.color}>{pr.label}</Pill>{ghost.t.team&&<Badge variant="secondary">{ghost.t.team}</Badge>}</div>
+          <div className="flex items-center gap-1.5 mt-1"><Badge style={{ background: (pr.color) + "22", color: (pr.color) }}>{pr.label}</Badge>{ghost.t.team&&<Badge variant="secondary">{ghost.t.team}</Badge>}</div>
         </div>); })()}
     </div>
   );
@@ -116,12 +116,12 @@ function TaskForm({ task, members, teams=[], projects=[], clients=[], onSave, on
   const projectGroups=projectsByClient(projects,clients);
   const projectItems={"":"— none —",...Object.fromEntries(projects.map(p=>[p.id,`${p.index} — ${p.name}`]))};
   const save=()=>{ if(!title.trim()){ setTitleErr("Give the task a name."); return; } setTitleErr(""); onSave({...(task||{}),title:title.trim(),notes:notes.trim(),assigneeId:assigneeId||null,team:team||"",priority,status,projectId:projectId||null,phaseId:projectId?(phaseId||null):null}); };
-  return (<ModalShell onClose={onClose}><ModalHead title={task?"Edit task":"New task"}/>
+  return (<Dialog open onOpenChange={(o) => { if (!o) (onClose)?.(); }}><DialogContent className="sm:max-w-lg max-h-[92svh] overflow-y-auto"><DialogHeader><DialogTitle>{task?"Edit task":"New task"}</DialogTitle></DialogHeader>
     <FieldGroup>
-      <Field label="Task" error={titleErr}><Input value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. Improve onboarding flow" aria-invalid={titleErr?true:undefined} autoFocus/></Field>
-      <Field label="Notes (optional)"><Textarea rows={3} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Any detail…"/></Field>
+      <Field data-invalid={(titleErr) ? true : undefined}><FieldLabel>Task</FieldLabel><Input value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. Improve onboarding flow" aria-invalid={titleErr?true:undefined} autoFocus/>{(titleErr) ? <FieldError>{titleErr}</FieldError> : null}</Field>
+      <Field><FieldLabel>Notes (optional)</FieldLabel><Textarea rows={3} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Any detail…"/></Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Related project (optional)">
+        <Field><FieldLabel>Related project (optional)</FieldLabel>
           <Select value={projectId} onValueChange={(v)=>{setProjectId(v);setPhaseId("");}} items={projectItems}>
             <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
             <SelectContent>
@@ -135,7 +135,7 @@ function TaskForm({ task, members, teams=[], projects=[], clients=[], onSave, on
             </SelectContent>
           </Select>
         </Field>
-        {proj?.phases?.length>0 ? <Field label="Phase">
+        {proj?.phases?.length>0 ? <Field><FieldLabel>Phase</FieldLabel>
           <Select value={phaseId} onValueChange={setPhaseId} items={{"":"— none —",...Object.fromEntries(proj.phases.map(p=>[p.id,p.name]))}}>
             <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
             <SelectContent><SelectGroup><SelectItem value="">— none —</SelectItem>{proj.phases.map(p=><SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectGroup></SelectContent>
@@ -143,13 +143,13 @@ function TaskForm({ task, members, teams=[], projects=[], clients=[], onSave, on
         </Field> : <div/>}
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Assign to">
+        <Field><FieldLabel>Assign to</FieldLabel>
           <Select value={assigneeId} onValueChange={setAssigneeId} items={{"":"Unassigned",...Object.fromEntries(members.map(m=>[m.id,m.name]))}}>
             <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
             <SelectContent><SelectGroup><SelectItem value="">Unassigned</SelectItem>{members.map(m=><SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectGroup></SelectContent>
           </Select>
         </Field>
-        <Field label="Team">
+        <Field><FieldLabel>Team</FieldLabel>
           <Combobox items={teams} inputValue={team} onInputValueChange={setTeam}>
             <ComboboxInput placeholder="optional" />
             <ComboboxContent>
@@ -160,13 +160,13 @@ function TaskForm({ task, members, teams=[], projects=[], clients=[], onSave, on
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Importance">
+        <Field><FieldLabel>Importance</FieldLabel>
           <Select value={priority} onValueChange={setPriority} items={{high:"High",med:"Medium",low:"Low"}}>
             <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
             <SelectContent><SelectGroup><SelectItem value="high">High</SelectItem><SelectItem value="med">Medium</SelectItem><SelectItem value="low">Low</SelectItem></SelectGroup></SelectContent>
           </Select>
         </Field>
-        <Field label="Status">
+        <Field><FieldLabel>Status</FieldLabel>
           <Select value={status} onValueChange={setStatus} items={{todo:"To do",doing:"In progress",done:"Done"}}>
             <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
             <SelectContent><SelectGroup><SelectItem value="todo">To do</SelectItem><SelectItem value="doing">In progress</SelectItem><SelectItem value="done">Done</SelectItem></SelectGroup></SelectContent>
@@ -174,7 +174,7 @@ function TaskForm({ task, members, teams=[], projects=[], clients=[], onSave, on
         </Field>
       </div>
     </FieldGroup>
-  <ModalFoot onSave={save} onDelete={onDelete?()=>onDelete(task.id):null} saveLabel={task?"Save":"Add task"}/></ModalShell>);
+  <DialogFooter>{(onDelete?()=>onDelete(task.id):null) ? <Button variant="destructive" onClick={onDelete?()=>onDelete(task.id):null}><Trash2 data-icon="inline-start" /> Delete</Button> : null}<Button onClick={save}>{task?"Save":"Add task"}</Button></DialogFooter></DialogContent></Dialog>);
 }
 
 export default function Tasks({ org, me, data: cadData, reload }){

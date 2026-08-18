@@ -2,10 +2,9 @@ import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffe
 import { sb } from "../lib/supabase.js";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
-import { Field } from "../ui.jsx";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "@/components/ui/toast";
-import { phaseRanges, ModalShell, ModalHead, ModalFoot, PeoplePicker, AVATAR_BG, initials } from "../studio/core.jsx";
+import { phaseRanges, PeoplePicker, AVATAR_BG, initials } from "../studio/core.jsx";
 import { InviteModal } from "./Team.jsx";
 import { ProjectModal } from "./Projects.jsx";
 import { useConfirm } from "../components/confirm.tsx";
@@ -16,7 +15,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
-import { FieldGroup } from "@/components/ui/field";
+import { FieldGroup, Field, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
@@ -25,6 +24,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   Plus, X, ChevronLeft, ChevronRight, Search, Trash2, AlertTriangle,
   Pencil, ZoomIn, ZoomOut, Plane, Building2, Calendar, Play, Square,
@@ -415,7 +415,7 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
     else onSave({...base,kind:"work",projectId,phaseId:phaseId||null,leaveType:null}, phaseId?{projectId,phaseId,hours:phaseHours===""?null:Number(phaseHours)}:null);
   };
   {/* min-height pinned to the tallest tab so switching kinds doesn't resize the dialog */}
-  return (<ModalShell onClose={onClose}><ModalHead title={assignment?"Edit assignment":"Assign work"} onClose={onClose}/><FieldGroup className={assignment?undefined:"min-h-[30rem]"}>
+  return (<Dialog open onOpenChange={(o) => { if (!o) (onClose)?.(); }}><DialogContent className="sm:max-w-lg max-h-[92svh] overflow-y-auto"><DialogHeader><DialogTitle>{assignment?"Edit assignment":"Assign work"}</DialogTitle></DialogHeader><FieldGroup className={assignment?undefined:"min-h-[30rem]"}>
     {!assignment
       ? <Tabs value={kind} onValueChange={setKind}>
           <TabsList className="w-full">
@@ -423,7 +423,7 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
           </TabsList>
         </Tabs>
       : <div><Badge variant="secondary">{kind==="leave"?"Time off":kind==="internal"?"Task":"Project work"}</Badge></div>}
-    <Field label={kind==="internal"?"Assign to":"Person"} error={errs.memberId}>
+    <Field data-invalid={(errs.memberId) ? true : undefined}><FieldLabel>{kind==="internal"?"Assign to":"Person"}</FieldLabel>
       <Select value={memberId} onValueChange={(v)=>{ if(v==="__invite__"){ onInvite&&onInvite(); return; } setMemberId(v); }}
         items={{...Object.fromEntries(members.map(m=>[m.id,m.name])),...(onInvite?{__invite__:"Invite someone…"}:{})}}>
         <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
@@ -432,9 +432,9 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
           {onInvite && <SelectItem value="__invite__"><Plus/> Invite someone…</SelectItem>}
         </SelectGroup></SelectContent>
       </Select>
-    </Field>
+    {(errs.memberId) ? <FieldError>{errs.memberId}</FieldError> : null}</Field>
     {kind==="work" ? (<>
-      <Field label="Project">
+      <Field><FieldLabel>Project</FieldLabel>
         <Select value={projectId} onValueChange={(v)=>{ if(v==="__new__"){ onNewProject&&onNewProject(); return; } setProjectId(v);setPhaseId(""); }}
           items={{...Object.fromEntries(projects.map(p=>[p.id,`${p.index} — ${p.name}`])),...(onNewProject?{__new__:"New project / client…"}:{})}}>
           <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
@@ -450,15 +450,15 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
         </Select>
       </Field>
       {client && <div className="flex items-center gap-2 text-xs text-muted-foreground"><span className="w-3 h-3 rounded-xs" style={{background:client.color}}/>Client: <span className="font-medium text-foreground">{client.name} · {proj.index} {proj.name}</span></div>}
-      {proj?.phases?.length>0 && <Field label="Phase">
+      {proj?.phases?.length>0 && <Field><FieldLabel>Phase</FieldLabel>
         <Select value={phaseId} onValueChange={setPhaseId} items={{"":"— none —",...Object.fromEntries(proj.phases.map(p=>[p.id,p.name]))}}>
           <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
           <SelectContent><SelectGroup><SelectItem value="">— none —</SelectItem>{proj.phases.map(p=><SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectGroup></SelectContent>
         </Select>
       </Field>}
-      {phaseId && <Field label="Monitor designer hours for this phase (optional)" hint="Sets the hours budget for this phase across the whole project — the bar fills up as time is logged. Leave blank for no monitoring."><Input type="number" min="0" value={phaseHours} onChange={e=>setPhaseHours(e.target.value)} placeholder="e.g. 20"/></Field>}
+      {phaseId && <Field><FieldLabel>Monitor designer hours for this phase (optional)</FieldLabel><Input type="number" min="0" value={phaseHours} onChange={e=>setPhaseHours(e.target.value)} placeholder="e.g. 20"/><FieldDescription>Sets the hours budget for this phase across the whole project — the bar fills up as time is logged. Leave blank for no monitoring.</FieldDescription></Field>}
     </>) : kind==="internal" ? (<>
-      <Field label="Task" error={errs.taskId}>
+      <Field data-invalid={(errs.taskId) ? true : undefined}><FieldLabel>Task</FieldLabel>
         <Select value={taskId} onValueChange={setTaskId}
           items={{"":"Choose a task…",...Object.fromEntries(tasks.filter(t=>t.status!=="done").map(t=>[t.id,t.title])),__new__:"New task…"}}>
           <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
@@ -468,17 +468,17 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
             <SelectItem value="__new__"><Plus/> New task…</SelectItem>
           </SelectGroup></SelectContent>
         </Select>
-      </Field>
+      {(errs.taskId) ? <FieldError>{errs.taskId}</FieldError> : null}</Field>
       {taskId==="__new__" ? (<>
-        <Field label="New task" error={errs.taskTitle}><Input value={taskTitle} onChange={e=>setTaskTitle(e.target.value)} placeholder="e.g. Improve our SEO"/></Field>
+        <Field data-invalid={(errs.taskTitle) ? true : undefined}><FieldLabel>New task</FieldLabel><Input value={taskTitle} onChange={e=>setTaskTitle(e.target.value)} placeholder="e.g. Improve our SEO"/>{(errs.taskTitle) ? <FieldError>{errs.taskTitle}</FieldError> : null}</Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Importance">
+          <Field><FieldLabel>Importance</FieldLabel>
             <Select value={taskPri} onValueChange={setTaskPri} items={{high:"High",med:"Medium",low:"Low"}}>
               <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
               <SelectContent><SelectGroup><SelectItem value="high">High</SelectItem><SelectItem value="med">Medium</SelectItem><SelectItem value="low">Low</SelectItem></SelectGroup></SelectContent>
             </Select>
           </Field>
-          <Field label="Team (optional)">
+          <Field><FieldLabel>Team (optional)</FieldLabel>
             <Combobox items={teams} inputValue={taskTeam} onInputValueChange={setTaskTeam}>
               <ComboboxInput placeholder="optional" />
               <ComboboxContent>
@@ -491,7 +491,7 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
         <p className="text-xs text-muted-foreground">Creates the task on the Tasks board and puts it on this person's timeline.</p>
       </>) : <p className="text-xs text-muted-foreground">Puts this task on the person's timeline so it shows as one of today's projects and can be tracked.</p>}
     </>) : (
-      <Field label="Type">
+      <Field><FieldLabel>Type</FieldLabel>
         <Select value={leaveType} onValueChange={setLeaveType} items={Object.fromEntries(Object.entries(LEAVE_TYPES).map(([k,v])=>[k,v.label]))}>
           <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
           <SelectContent><SelectGroup>{Object.entries(LEAVE_TYPES).map(([k,v])=><SelectItem key={k} value={k}>{v.label}</SelectItem>)}</SelectGroup></SelectContent>
@@ -500,23 +500,23 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
     )}
     <div>
       <div className="grid grid-cols-3 gap-3">
-        <Field label="Start date"><DatePicker value={start} onChange={onStartCh}/></Field>
-        <Field label="Duration (weeks)"><Input type="number" min="0.2" step="0.5" value={dur} onChange={e=>onDurCh(e.target.value)}/></Field>
-        <Field label="End date" error={errs.dates}><DatePicker value={end} onChange={onEndCh}/></Field>
+        <Field><FieldLabel>Start date</FieldLabel><DatePicker value={start} onChange={onStartCh}/></Field>
+        <Field><FieldLabel>Duration (weeks)</FieldLabel><Input type="number" min="0.2" step="0.5" value={dur} onChange={e=>onDurCh(e.target.value)}/></Field>
+        <Field data-invalid={(errs.dates) ? true : undefined}><FieldLabel>End date</FieldLabel><DatePicker value={end} onChange={onEndCh}/>{(errs.dates) ? <FieldError>{errs.dates}</FieldError> : null}</Field>
       </div>
       <p className="text-xs text-muted-foreground mt-2">Set a start + duration and the end fills in (1 week = 5 working days), or pick the end date directly.</p>
     </div>
     {kind==="leave" && <div>
       <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer"><Checkbox checked={partDay} onCheckedChange={(v)=>setPartDay(!!v)}/> Part-day (take only part of the first / last day)</label>
       {partDay && <div className="mt-3 grid grid-cols-2 gap-3">
-        <Field label="First day starts"><Input type="time" value={sTime} onChange={e=>setSTime(e.target.value)}/></Field>
-        <Field label="Last day ends"><Input type="time" value={eTime} onChange={e=>setETime(e.target.value)}/></Field>
+        <Field><FieldLabel>First day starts</FieldLabel><Input type="time" value={sTime} onChange={e=>setSTime(e.target.value)}/></Field>
+        <Field><FieldLabel>Last day ends</FieldLabel><Input type="time" value={eTime} onChange={e=>setETime(e.target.value)}/></Field>
         <p className="col-span-2 text-xs text-muted-foreground">Based on a {WORKDAY_H}-hour day ({pad(WORK_START)}:00–{pad(WORK_END)}:00). For a single-day half, set both times on that day (e.g. 09:00–13:00 = half a day).</p>
       </div>}
     </div>}
     <p className="text-xs text-muted-foreground">Tip: on the board you can drag the bar to move it, or drag either end to change the dates.</p>
   </FieldGroup>
-  <ModalFoot onSave={save} onDelete={onDelete?()=>onDelete(assignment.id):null} saveLabel={assignment?"Save":"Assign"}/></ModalShell>);
+  <DialogFooter>{(onDelete?()=>onDelete(assignment.id):null) ? <Button variant="destructive" onClick={onDelete?()=>onDelete(assignment.id):null}><Trash2 data-icon="inline-start" /> Delete</Button> : null}<Button onClick={save}>{assignment?"Save":"Assign"}</Button></DialogFooter></DialogContent></Dialog>);
 }
 function DashTracker(ctx){
   const { data, myMemberId, addTimeLog, updateTimeLog, editTimeLog, delTimeLogs } = ctx;
@@ -789,7 +789,7 @@ function ProposalForm({ org, clients, members, anchor, onCreate, onClose }) {
   };
   const lastEnd=phases.length?phaseRanges(startDate,phases.map(p=>({id:p.id,name:p.name,days:Math.max(1,Math.round(p.days||1))}))).slice(-1)[0].end:null;
   if(step==="input"){
-    return (<ModalShell onClose={onClose}><ModalHead title="New project from a proposal" onClose={onClose}/><FieldGroup>
+    return (<Dialog open onOpenChange={(o) => { if (!o) (onClose)?.(); }}><DialogContent className="sm:max-w-lg max-h-[92svh] overflow-y-auto"><DialogHeader><DialogTitle>New project from a proposal</DialogTitle></DialogHeader><FieldGroup>
       <p className="text-sm text-muted-foreground flex items-start gap-2"><Sparkles size={16} className="mt-0.5 shrink-0"/> Drop in a proposal and AI will pull out the client, phases, durations and value for you to review.</p>
       <label className="block border-2 border-dashed border-border rounded-xl p-5 text-center cursor-pointer hover:border-primary hover:bg-primary/5">
         <input type="file" accept=".pdf,.txt,.md,.markdown,application/pdf,text/plain" className="hidden" onChange={e=>onFile(e.target.files[0])}/>
@@ -797,17 +797,17 @@ function ProposalForm({ org, clients, members, anchor, onCreate, onClose }) {
         <div className="text-sm text-muted-foreground">{fileName?<span className="inline-flex items-center gap-1.5 text-foreground font-medium"><FileText size={14}/>{fileName}</span>:"Click to choose a PDF or text file"}</div>
         <div className="text-muted-foreground mt-0.5" style={{fontSize:11}}>PDF or text file.</div>
       </label>
-      <Field label="…or paste the proposal text"><Textarea value={paste} onChange={e=>setPaste(e.target.value)} rows={5} placeholder="Paste here…"/></Field>
-      <Field label="Project start date"><DatePicker value={startDate} onChange={setStartDate}/></Field>
+      <Field><FieldLabel>…or paste the proposal text</FieldLabel><Textarea value={paste} onChange={e=>setPaste(e.target.value)} rows={5} placeholder="Paste here…"/></Field>
+      <Field><FieldLabel>Project start date</FieldLabel><DatePicker value={startDate} onChange={setStartDate}/></Field>
       {error && <p className="text-sm text-destructive">{error}</p>}
     </FieldGroup>
     <div className="flex items-center gap-2 px-5 py-4 border-t border-border/60">
       <Button className="ml-auto" onClick={extract} disabled={busy}><Sparkles data-icon="inline-start"/> {busy?"Reading proposal…":"Extract with AI"}</Button>
-    </div></ModalShell>);
+    </div></DialogContent></Dialog>);
   }
-  return (<ModalShell onClose={onClose}><ModalHead title="Review & create" onClose={onClose}/><FieldGroup>
+  return (<Dialog open onOpenChange={(o) => { if (!o) (onClose)?.(); }}><DialogContent className="sm:max-w-lg max-h-[92svh] overflow-y-auto"><DialogHeader><DialogTitle>Review & create</DialogTitle></DialogHeader><FieldGroup>
     {confidence && <Alert><AlertTriangle/><AlertDescription>{confidence} — check everything below before creating.</AlertDescription></Alert>}
-    <Field label="Client">
+    <Field><FieldLabel>Client</FieldLabel>
       <Tabs value={clientMode} onValueChange={setClientMode} className="mb-2">
         <TabsList className="w-full">
           {[["existing","Existing"],["new","New client"]].map(([v,l])=><TabsTrigger key={v} value={v} className="flex-1">{l}</TabsTrigger>)}
@@ -821,11 +821,11 @@ function ProposalForm({ org, clients, members, anchor, onCreate, onClose }) {
         : <div><Input className="mb-2" value={newClientName} onChange={e=>setNewClientName(e.target.value)} placeholder="Client name"/><div className="flex flex-wrap gap-2">{CLIENT_COLORS.map(c=><button key={c} onClick={()=>setNewClientColor(c)} className="w-7 h-7 rounded-lg" style={{background:c,outline:newClientColor===c?"2px solid var(--ring)":"none",outlineOffset:2}}/>)}</div></div>}
     </Field>
     <div className="grid grid-cols-3 gap-3">
-      <div className="col-span-1"><Field label="Code"><Input value={code} onChange={e=>setCode(e.target.value)} placeholder={autoCode()}/></Field></div>
-      <div className="col-span-2"><Field label="Project name"><Input value={projectName} onChange={e=>setProjectName(e.target.value)}/></Field></div>
+      <div className="col-span-1"><Field><FieldLabel>Code</FieldLabel><Input value={code} onChange={e=>setCode(e.target.value)} placeholder={autoCode()}/></Field></div>
+      <div className="col-span-2"><Field><FieldLabel>Project name</FieldLabel><Input value={projectName} onChange={e=>setProjectName(e.target.value)}/></Field></div>
     </div>
-    <Field label={`Project value ${currency?"("+currency+")":""}`}><Input type="number" min="0" value={cost} onChange={e=>setCost(e.target.value)} placeholder="0"/></Field>
-    <Field label="Phases & durations (working days)">
+    <Field><FieldLabel>{`Project value ${currency?"("+currency+")":""}`}</FieldLabel><Input type="number" min="0" value={cost} onChange={e=>setCost(e.target.value)} placeholder="0"/></Field>
+    <Field><FieldLabel>Phases & durations (working days)</FieldLabel>
       <div className="flex flex-col gap-1.5 mb-2">{phases.map((p,i)=>(
         <div key={p.id} className="flex items-center gap-2 text-sm">
           <span className="text-xs text-muted-foreground w-4 shrink-0">{i+1}</span>
@@ -837,10 +837,10 @@ function ProposalForm({ org, clients, members, anchor, onCreate, onClose }) {
       <Button variant="ghost" size="sm" onClick={()=>setPhases([...phases,{id:uid(),name:"",days:5}])}><Plus data-icon="inline-start"/> Add phase</Button>
     </Field>
     <div className="grid grid-cols-2 gap-3">
-      <Field label="Start date"><DatePicker value={startDate} onChange={setStartDate}/></Field>
-      <Field label="Finishes (calculated)"><Input readOnly disabled value={lastEnd?`${pad(parseISO(lastEnd).getDate())} ${MONTHS[parseISO(lastEnd).getMonth()]} ${parseISO(lastEnd).getFullYear()}`:"—"}/></Field>
+      <Field><FieldLabel>Start date</FieldLabel><DatePicker value={startDate} onChange={setStartDate}/></Field>
+      <Field><FieldLabel>Finishes (calculated)</FieldLabel><Input readOnly disabled value={lastEnd?`${pad(parseISO(lastEnd).getDate())} ${MONTHS[parseISO(lastEnd).getMonth()]} ${parseISO(lastEnd).getFullYear()}`:"—"}/></Field>
     </div>
-    <Field label="Assign people (one bar per phase each)">
+    <Field><FieldLabel>Assign people (one bar per phase each)</FieldLabel>
       <ToggleGroup multiple variant="outline" size="sm" className="flex-wrap" value={people} onValueChange={setPeople}>
         {members.map(m=><ToggleGroupItem key={m.id} value={m.id}>{m.name}</ToggleGroupItem>)}
       </ToggleGroup>
@@ -851,7 +851,7 @@ function ProposalForm({ org, clients, members, anchor, onCreate, onClose }) {
   <div className="flex items-center gap-2 px-5 py-4 border-t border-border/60">
     <Button variant="ghost" onClick={()=>{setStep("input");setError("");}}><ArrowLeft data-icon="inline-start"/> Back</Button>
     <Button className="ml-auto" onClick={confirm}>Create project &amp; schedule</Button>
-  </div></ModalShell>);
+  </div></DialogContent></Dialog>);
 }
 /* ============================ Huddle adapter + wired glue ======================= */
 function mapData(cad) {
@@ -986,12 +986,12 @@ function ClientForm({ org, client, canEdit, onClose, onSaved }){
   const [addr,setAddr]=useState(client?.billingAddress||"");
   const save=async()=>{ const row={org_id:org.id,name:name.trim(),color,payment_terms:Number(terms)||30,billing_address:addr.trim()||null}; if(client) await sb.from("clients").update(row).eq("id",client.id); else await sb.from("clients").insert(row); onSaved(); };
   const del=async()=>{ if(!(await confirm({title:"Delete this client?", confirmLabel:"Delete", destructive:true}))) return; await sb.from("clients").delete().eq("id",client.id); onSaved(); };
-  return (<ModalShell onClose={onClose}><ModalHead title={client?"Edit client":"Add client"} onClose={onClose}/><FieldGroup>
-    <Field label="Client name"><Input disabled={!canEdit} value={name} onChange={e=>setName(e.target.value)}/></Field>
-    <Field label="Colour"><div className="flex flex-wrap gap-2">{CLIENT_COLORS.map(c=><button key={c} disabled={!canEdit} onClick={()=>setColor(c)} className="w-8 h-8 rounded-lg" style={{background:c,outline:color===c?"2px solid var(--ring)":"none",outlineOffset:2}}/>)}</div></Field>
-    <Field label="Payment terms (days)"><Input type="number" disabled={!canEdit} value={terms} onChange={e=>setTerms(e.target.value)}/></Field>
-    <Field label="Billing address (for invoices)"><Textarea rows={3} disabled={!canEdit} value={addr} onChange={e=>setAddr(e.target.value)}/></Field>
-  </FieldGroup>{canEdit?<ModalFoot onSave={save} onDelete={client?del:null} saveLabel="Save"/>:<div className="px-5 py-4 border-t border-border/60 text-right"><Button variant="ghost" onClick={onClose}>Close</Button></div>}</ModalShell>);
+  return (<Dialog open onOpenChange={(o) => { if (!o) (onClose)?.(); }}><DialogContent className="sm:max-w-lg max-h-[92svh] overflow-y-auto"><DialogHeader><DialogTitle>{client?"Edit client":"Add client"}</DialogTitle></DialogHeader><FieldGroup>
+    <Field><FieldLabel>Client name</FieldLabel><Input disabled={!canEdit} value={name} onChange={e=>setName(e.target.value)}/></Field>
+    <Field><FieldLabel>Colour</FieldLabel><div className="flex flex-wrap gap-2">{CLIENT_COLORS.map(c=><button key={c} disabled={!canEdit} onClick={()=>setColor(c)} className="w-8 h-8 rounded-lg" style={{background:c,outline:color===c?"2px solid var(--ring)":"none",outlineOffset:2}}/>)}</div></Field>
+    <Field><FieldLabel>Payment terms (days)</FieldLabel><Input type="number" disabled={!canEdit} value={terms} onChange={e=>setTerms(e.target.value)}/></Field>
+    <Field><FieldLabel>Billing address (for invoices)</FieldLabel><Textarea rows={3} disabled={!canEdit} value={addr} onChange={e=>setAddr(e.target.value)}/></Field>
+  </FieldGroup>{canEdit?<DialogFooter>{(client?del:null) ? <Button variant="destructive" onClick={client?del:null}><Trash2 data-icon="inline-start" /> Delete</Button> : null}<Button onClick={save}>Save</Button></DialogFooter>:<div className="px-5 py-4 border-t border-border/60 text-right"><Button variant="ghost" onClick={onClose}>Close</Button></div>}</DialogContent></Dialog>);
 }
 
 function MemberForm({ org, member, teams, canEdit, onClose, onSaved }){
@@ -1003,19 +1003,19 @@ function MemberForm({ org, member, teams, canEdit, onClose, onSaved }){
   const [sel,setSel]=useState(member?.teams||[]);
   const [newTeam,setNewTeam]=useState("");
   const save=async()=>{ await sb.from("memberships").update({ display_name:name.trim(), job_title:role.trim()||null, daily_hours:Number(daily)||8, holiday_allowance:Number(allow)||0, hourly_rate:rate===""?null:Number(rate), teams:sel.length?sel:null }).eq("id",member.id); onSaved(); };
-  return (<ModalShell onClose={onClose}><ModalHead title={"Edit "+(member?.name||"person")} onClose={onClose}/><FieldGroup>
-    <Field label="Name"><Input disabled={!canEdit} value={name} onChange={e=>setName(e.target.value)}/></Field>
-    <Field label="Job title / role"><Input disabled={!canEdit} value={role} onChange={e=>setRole(e.target.value)} placeholder="Designer"/></Field>
+  return (<Dialog open onOpenChange={(o) => { if (!o) (onClose)?.(); }}><DialogContent className="sm:max-w-lg max-h-[92svh] overflow-y-auto"><DialogHeader><DialogTitle>{"Edit "+(member?.name||"person")}</DialogTitle></DialogHeader><FieldGroup>
+    <Field><FieldLabel>Name</FieldLabel><Input disabled={!canEdit} value={name} onChange={e=>setName(e.target.value)}/></Field>
+    <Field><FieldLabel>Job title / role</FieldLabel><Input disabled={!canEdit} value={role} onChange={e=>setRole(e.target.value)} placeholder="Designer"/></Field>
     <div className="grid grid-cols-3 gap-3">
-      <Field label="Hours / day"><Input type="number" disabled={!canEdit} value={daily} onChange={e=>setDaily(e.target.value)}/></Field>
-      <Field label="Holiday (days/yr)"><Input type="number" disabled={!canEdit} value={allow} onChange={e=>setAllow(e.target.value)}/></Field>
-      <Field label="Rate (£/hr)"><Input type="number" disabled={!canEdit} value={rate} onChange={e=>setRate(e.target.value)} placeholder="—"/></Field>
+      <Field><FieldLabel>Hours / day</FieldLabel><Input type="number" disabled={!canEdit} value={daily} onChange={e=>setDaily(e.target.value)}/></Field>
+      <Field><FieldLabel>Holiday (days/yr)</FieldLabel><Input type="number" disabled={!canEdit} value={allow} onChange={e=>setAllow(e.target.value)}/></Field>
+      <Field><FieldLabel>Rate (£/hr)</FieldLabel><Input type="number" disabled={!canEdit} value={rate} onChange={e=>setRate(e.target.value)} placeholder="—"/></Field>
     </div>
-    <Field label="Teams" hint="Roles, permissions and invites are managed on the People page.">
+    <Field><FieldLabel>Teams</FieldLabel>
       <ToggleGroup multiple variant="outline" size="sm" className="flex-wrap" value={sel} onValueChange={setSel} disabled={!canEdit}>
         {[...new Set([...teams,...sel])].map(t=><ToggleGroupItem key={t} value={t}>{t}</ToggleGroupItem>)}
       </ToggleGroup>
       {canEdit && <div className="flex gap-2 mt-2"><Input value={newTeam} onChange={e=>setNewTeam(e.target.value)} placeholder="New team name"/><Button variant="outline" onClick={()=>{ if(newTeam.trim()&&!sel.includes(newTeam.trim())){ setSel([...sel,newTeam.trim()]); setNewTeam(""); } }}>Add</Button></div>}
-    </Field>
-  </FieldGroup>{canEdit?<ModalFoot onSave={save} saveLabel="Save"/>:<div className="px-5 py-4 border-t border-border/60 text-right"><Button variant="ghost" onClick={onClose}>Close</Button></div>}</ModalShell>);
+    <FieldDescription>Roles, permissions and invites are managed on the People page.</FieldDescription></Field>
+  </FieldGroup>{canEdit?<DialogFooter><Button onClick={save}>Save</Button></DialogFooter>:<div className="px-5 py-4 border-t border-border/60 text-right"><Button variant="ghost" onClick={onClose}>Close</Button></div>}</DialogContent></Dialog>);
 }

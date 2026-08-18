@@ -3,8 +3,7 @@ import { sb } from "../lib/supabase.js";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
 import { ProjectModal } from "./Projects.jsx";
-import { MS, MONTHS, MONTHS_LONG, NAVY, CLIENT_COLORS, uid, pad, toISO, parseISO, startOfDay, addDays, addMonths, startOfMonth, endOfMonth, nextWeekday, money, phaseRanges, pfIncludes, PeoplePicker, ModalShell, ModalHead, ModalFoot, mapData, makeHandlers } from "../studio/core.jsx";
-import { Field } from "../ui.jsx";
+import { MS, MONTHS, MONTHS_LONG, NAVY, CLIENT_COLORS, uid, pad, toISO, parseISO, startOfDay, addDays, addMonths, startOfMonth, endOfMonth, nextWeekday, money, phaseRanges, pfIncludes, PeoplePicker, mapData, makeHandlers } from "../studio/core.jsx";
 import { toast } from "@/components/ui/toast";
 import { Plus, Minus, Pencil, Trash2, Download, Mail } from "lucide-react";
 import { useConfirm } from "../components/confirm.tsx";
@@ -14,11 +13,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FieldGroup } from "@/components/ui/field";
+import { FieldGroup, Field, FieldLabel, FieldError } from "@/components/ui/field";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Calendar as CalendarIcon } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 /* ---- fiscal-year (April → March) ---- */
 const FY_MONTHS = ["Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec","Jan","Feb","Mar"];
@@ -492,55 +492,55 @@ function BillingForm({ kind, entry, preset, members, projects=[], me, onSave, on
     else if(kind==="overhead"){ if(month!==""){ const mi=Number(month); meta={...(entry?.meta||{}),months:{...((entry&&entry.meta&&entry.meta.months)||{}),[mi]:amt}}; amt=0; } else meta=(entry?.meta||{}); }
     else meta=(p.meta||entry?.meta||{});
     const b={...(entry||{}),id:entry?.id,kind,title:title.trim(),client:client||"",amount:amt,status:status||null,date:kind==="overhead"?"":(date||""),memberId:memberId||null,projectId:(kind==="expense"?projectId:(p.projectId||entry?.projectId))||null,meta}; onSave(b); };
-  return (<><ModalHead title={(entry?"Edit ":"New ")+({pipeline:"pipeline job",overhead:"overhead",invoice:"invoice",expense:"expense"}[kind]||"entry")}/><FieldGroup>
-    <Field label={titleLabel} error={titleErr}><Input value={title} onChange={e=>setTitle(e.target.value)} autoFocus/></Field>
-    {(kind==="pipeline"||kind==="invoice") && <Field label="Client"><Input value={client} onChange={e=>setClient(e.target.value)} placeholder="Client name"/></Field>}
+  return (<><DialogHeader><DialogTitle>{(entry?"Edit ":"New ")+({pipeline:"pipeline job",overhead:"overhead",invoice:"invoice",expense:"expense"}[kind]||"entry")}</DialogTitle></DialogHeader><FieldGroup>
+    <Field data-invalid={(titleErr) ? true : undefined}><FieldLabel>{titleLabel}</FieldLabel><Input value={title} onChange={e=>setTitle(e.target.value)} autoFocus/>{(titleErr) ? <FieldError>{titleErr}</FieldError> : null}</Field>
+    {(kind==="pipeline"||kind==="invoice") && <Field><FieldLabel>Client</FieldLabel><Input value={client} onChange={e=>setClient(e.target.value)} placeholder="Client name"/></Field>}
     <div className="grid grid-cols-2 gap-3">
-      <Field label={kind==="overhead"?"£ amount":"Amount (£)"}><Input type="number" min="0" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0"/></Field>
-      {kind==="overhead" && <Field label="Applies to"><Select value={month} onValueChange={setMonth} items={{"":"Every month",...Object.fromEntries(FY_MONTHS.map((m,i)=>[String(i),m+" only"]))}}>
+      <Field><FieldLabel>{kind==="overhead"?"£ amount":"Amount (£)"}</FieldLabel><Input type="number" min="0" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0"/></Field>
+      {kind==="overhead" && <Field><FieldLabel>Applies to</FieldLabel><Select value={month} onValueChange={setMonth} items={{"":"Every month",...Object.fromEntries(FY_MONTHS.map((m,i)=>[String(i),m+" only"]))}}>
         <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
         <SelectContent><SelectGroup><SelectItem value="">Every month</SelectItem>{FY_MONTHS.map((m,i)=><SelectItem key={i} value={String(i)}>{m} only</SelectItem>)}</SelectGroup></SelectContent>
       </Select></Field>}
-      {kind==="pipeline" && <Field label="Status"><Select value={status} onValueChange={setStatus} items={Object.fromEntries(Object.entries(PIPE_STATUS).map(([k,v])=>[k,v.label]))}>
+      {kind==="pipeline" && <Field><FieldLabel>Status</FieldLabel><Select value={status} onValueChange={setStatus} items={Object.fromEntries(Object.entries(PIPE_STATUS).map(([k,v])=>[k,v.label]))}>
         <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
         <SelectContent><SelectGroup>{Object.entries(PIPE_STATUS).map(([k,v])=><SelectItem key={k} value={k}>{v.label}</SelectItem>)}</SelectGroup></SelectContent>
       </Select></Field>}
-      {kind==="invoice" && <Field label="Status"><Select value={status} onValueChange={setStatus} items={Object.fromEntries(Object.entries(INV_STATUS).map(([k,v])=>[k,v.label]))}>
+      {kind==="invoice" && <Field><FieldLabel>Status</FieldLabel><Select value={status} onValueChange={setStatus} items={Object.fromEntries(Object.entries(INV_STATUS).map(([k,v])=>[k,v.label]))}>
         <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
         <SelectContent><SelectGroup>{Object.entries(INV_STATUS).map(([k,v])=><SelectItem key={k} value={k}>{v.label}</SelectItem>)}</SelectGroup></SelectContent>
       </Select></Field>}
-      {kind==="expense" && <Field label="Miles (if mileage)"><Input type="number" min="0" value={miles} onChange={e=>setMiles(e.target.value)} placeholder="0"/></Field>}
+      {kind==="expense" && <Field><FieldLabel>Miles (if mileage)</FieldLabel><Input type="number" min="0" value={miles} onChange={e=>setMiles(e.target.value)} placeholder="0"/></Field>}
     </div>
     {kind==="expense" && <><div className="grid grid-cols-2 gap-3">
-      <Field label="Project"><Select value={projectId} onValueChange={setProjectId} items={{"":"— none —",...Object.fromEntries(projects.map(pr=>[pr.id,`${pr.index} — ${pr.name}`]))}}>
+      <Field><FieldLabel>Project</FieldLabel><Select value={projectId} onValueChange={setProjectId} items={{"":"— none —",...Object.fromEntries(projects.map(pr=>[pr.id,`${pr.index} — ${pr.name}`]))}}>
         <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
         <SelectContent><SelectGroup><SelectItem value="">— none —</SelectItem>{projects.map(pr=><SelectItem key={pr.id} value={pr.id}>{pr.index} — {pr.name}</SelectItem>)}</SelectGroup></SelectContent>
       </Select></Field>
-      <Field label="Month"><Input type="month" value={month} onChange={e=>setMonth(e.target.value)}/></Field>
+      <Field><FieldLabel>Month</FieldLabel><Input type="month" value={month} onChange={e=>setMonth(e.target.value)}/></Field>
     </div>
-    <Field label="Who's owed"><Select value={memberId} onValueChange={setMemberId} items={{"":"—",...Object.fromEntries(members.map(m=>[m.id,m.name]))}}>
+    <Field><FieldLabel>Who's owed</FieldLabel><Select value={memberId} onValueChange={setMemberId} items={{"":"—",...Object.fromEntries(members.map(m=>[m.id,m.name]))}}>
         <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
         <SelectContent><SelectGroup><SelectItem value="">—</SelectItem>{members.map(m=><SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectGroup></SelectContent>
       </Select></Field></>}
     {kind==="pipeline" && <><div className="grid grid-cols-2 gap-3">
-      <Field label="Expected start"><Popover open={sOpen} onOpenChange={setSOpen}>
+      <Field><FieldLabel>Expected start</FieldLabel><Popover open={sOpen} onOpenChange={setSOpen}>
         <PopoverTrigger render={<Button variant="outline" className="w-full tabular-nums" />}><CalendarIcon/> {pStart||"Pick a date"}</PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start"><CalendarPicker mode="single" selected={pStart?parseISO(pStart):undefined} onSelect={(d)=>{ if(d){ setPStart(toISO(d)); setSOpen(false); } }}/></PopoverContent>
       </Popover></Field>
-      <Field label="Expected end"><Popover open={eOpen} onOpenChange={setEOpen}>
+      <Field><FieldLabel>Expected end</FieldLabel><Popover open={eOpen} onOpenChange={setEOpen}>
         <PopoverTrigger render={<Button variant="outline" className="w-full tabular-nums" />}><CalendarIcon/> {pEnd||"Pick a date"}</PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start"><CalendarPicker mode="single" selected={pEnd?parseISO(pEnd):undefined} onSelect={(d)=>{ if(d){ setPEnd(toISO(d)); setEOpen(false); } }}/></PopoverContent>
       </Popover></Field>
     </div>
-    <Field label="Likelihood to convert"><Select value={likely} onValueChange={setLikely} items={{high:"Highly likely",low:"Less likely"}}>
+    <Field><FieldLabel>Likelihood to convert</FieldLabel><Select value={likely} onValueChange={setLikely} items={{high:"Highly likely",low:"Less likely"}}>
         <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
         <SelectContent><SelectGroup><SelectItem value="high">Highly likely</SelectItem><SelectItem value="low">Less likely</SelectItem></SelectGroup></SelectContent>
       </Select></Field></>}
-    {kind==="invoice" && <Field label="Invoice date"><Popover open={dOpen} onOpenChange={setDOpen}>
+    {kind==="invoice" && <Field><FieldLabel>Invoice date</FieldLabel><Popover open={dOpen} onOpenChange={setDOpen}>
         <PopoverTrigger render={<Button variant="outline" className="w-full tabular-nums" />}><CalendarIcon/> {date||"Pick a date"}</PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start"><CalendarPicker mode="single" selected={date?parseISO(date):undefined} onSelect={(d)=>{ if(d){ setDate(toISO(d)); setDOpen(false); } }}/></PopoverContent>
       </Popover></Field>}
-  </FieldGroup><ModalFoot onSave={save} onDelete={onDelete&&entry?()=>onDelete(entry.id):null} saveLabel={entry?"Save":"Add"}/></>);
+  </FieldGroup><DialogFooter>{(onDelete&&entry?()=>onDelete(entry.id):null) ? <Button variant="destructive" onClick={onDelete&&entry?()=>onDelete(entry.id):null}><Trash2 data-icon="inline-start" /> Delete</Button> : null}<Button onClick={save}>{entry?"Save":"Add"}</Button></DialogFooter></>);
 }
 
 export default function Billing({ org, me, data: cadData, reload }){
@@ -579,10 +579,10 @@ export default function Billing({ org, me, data: cadData, reload }){
     {!canEdit && <div className="px-4 py-2 text-xs bg-muted text-muted-foreground border-b">You can view billing but not edit it.</div>}
     <BillingPlan {...ctx} />
     {projEdit && <ProjectModal org={org} project={projEdit} clients={cadData.clients} onClose={()=>setProjEdit(null)} onSaved={()=>{ setProjEdit(null); reload(); }} />}
-    {modal?.type==="billing" && <ModalShell onClose={()=>setModal(null)}>
+    {modal?.type==="billing" && <Dialog open onOpenChange={(o) => { if (!o) (()=>setModal(null))?.(); }}><DialogContent className="sm:max-w-lg max-h-[92svh] overflow-y-auto">
       <BillingForm kind={modal.payload.kind} entry={modal.payload.entry} preset={modal.payload.preset} members={data.members} projects={data.projects} me={me.id}
         onSave={b=>{ if(b.id) H.editBilling(b); else H.addBilling(b); setModal(null); }}
         onDelete={modal.payload.entry?id=>{ H.delBilling(id); setModal(null); }:null} onClose={()=>setModal(null)} />
-    </ModalShell>}
+    </DialogContent></Dialog>}
   </div>);
 }

@@ -18,7 +18,7 @@ export function NavSecondary({
   return (
     <SidebarGroup {...props}>
       <SidebarGroupContent>
-        <SidebarMenu>
+        <SidebarMenu className="gap-1">
           {items.map((item) => (
             <SidebarMenuItem key={item.key}>
               <SidebarMenuButton isActive={item.isActive} onClick={item.onSelect}>

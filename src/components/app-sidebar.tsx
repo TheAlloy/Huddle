@@ -4,18 +4,18 @@ import { NavMain, type NavItem, type NavAction } from "@/components/nav-main"
 import { NavGroup } from "@/components/nav-group"
 import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser, type NavUserInfo } from "@/components/nav-user"
+import { TeamSwitcher, type Team } from "@/components/team-switcher"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
 export function AppSidebar({
-  brand,
+  teams,
+  activeTeamId,
+  onPickTeam,
   nav,
   action,
   groups,
@@ -25,7 +25,9 @@ export function AppSidebar({
   onSignOut,
   ...props
 }: {
-  brand: string
+  teams: Team[]
+  activeTeamId: string
+  onPickTeam: (id: string) => void
   nav: NavItem[]
   action?: NavAction
   groups?: { label: string; items: NavItem[] }[]
@@ -37,16 +39,9 @@ export function AppSidebar({
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton className="data-[slot=sidebar-menu-button]:p-1.5!">
-              <img src="/huddle-icon.png" alt="" className="size-5! rounded-md" />
-              <span className="text-base font-semibold">{brand}</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <TeamSwitcher teams={teams} activeId={activeTeamId} onPick={onPickTeam} />
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="gap-2">
         <NavMain items={nav} action={action} />
         {(groups || []).filter(g => g.items.length > 0).map(g => (
           <NavGroup key={g.label} label={g.label} items={g.items} />

@@ -17,7 +17,7 @@ export function NavGroup({
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
       <SidebarGroupLabel>{label}</SidebarGroupLabel>
-      <SidebarMenu>
+      <SidebarMenu className="gap-1">
         {items.map((item) => (
           <SidebarMenuItem key={item.key}>
             <SidebarMenuButton isActive={item.isActive} onClick={item.onSelect}>

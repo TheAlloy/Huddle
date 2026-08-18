@@ -628,6 +628,38 @@ per-item dropdown): primary nav = Schedule/Summary/Tasks/Tracker, then a
 **Manage** labelled group = Clients & projects/Billing/People; Settings
 moved to the bottom-pinned NavSecondary like the example.
 
+**Sidebar refinements (user-requested):** vertical spacing matched to the
+*live* dashboard-01 preview by measuring its computed styles (new-york's
+sidebar primitives carry gaps base-nova's don't): `gap-1` on the nav
+SidebarMenus, `gap-2` on SidebarContent — every other measurement already
+matched (full audit table in session notes; radius/colors differ by preset,
+intentionally). The static brand header was replaced with **sidebar-07's
+TeamSwitcher** poured as `team-switcher.tsx`: block markup verbatim
+(size-lg trigger with logo box + name + plan subtitle + ChevronsUpDown,
+right-side dropdown with group label, bordered logo boxes, ⌘n shortcut
+hints); content = memberships as teams, active org controlled by App,
+"Add team" item dropped (no in-app org creation), label "Studios". The
+SiteHeader's OrgSwitcher became redundant and was deleted.
+Two block-vs-base-nova incompatibilities found in NavUser: (1) dashboard-01
+puts `rounded-lg` on its avatars (authored against new-york's plain-circle
+Avatar), but base-nova's Avatar draws its border as an **always-circular
+`::after` ring** — the square override rendered a circle inside a square;
+overrides removed, stock circular avatar restored. (2) that same ring uses
+`after:mix-blend-darken`, and **any blended descendant turns the popup into
+an isolated backdrop root, cancelling the menu's frosted `backdrop-blur`** —
+which is why the NavUser menu rendered unblurred while the TeamSwitcher menu
+(plain initials boxes, no blend) frosted correctly. Fixed at the call site
+with `[&_[data-slot=avatar]]:after:mix-blend-normal` on that
+DropdownMenuContent — registry avatar untouched, ring kept, blur restored.
+(3) dashboard-01 reuses `DropdownMenuLabel` as a bare wrapper for the
+identity block, but base-nova styles that label `text-muted-foreground` (it is
+meant for section headings like "Studios"), so the user name rendered as
+secondary grey — added `text-foreground` to that wrapper; the email keeps its
+own muted class.
+Debugging note: `backdrop-filter` *does* capture in screenshots; to see it,
+put a high-contrast striped strip behind the popup — over plain white a
+70%-opacity popup looks identical blurred or not.
+
 **RULE (user-set, 2026-08-18): no shims.** Never wrap shadcn components in
 helper components — compose the stock anatomy inline at every call site,
 docs-style, even when it repeats lines. Wrappers hide the component and

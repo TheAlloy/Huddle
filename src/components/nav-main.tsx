@@ -44,7 +44,7 @@ export function NavMain({
             </SidebarMenuItem>
           </SidebarMenu>
         )}
-        <SidebarMenu>
+        <SidebarMenu className="gap-1">
           {items.map((item) => (
             <SidebarMenuItem key={item.key}>
               <SidebarMenuButton

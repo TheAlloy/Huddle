@@ -20,16 +20,16 @@ import Tracker from "./screens/Tracker.jsx";
 import Billing from "./screens/Billing.jsx";
 import { lsGet, fmtClock, initials } from "./studio/core.jsx";
 import { makeTerms } from "./lib/terms.js";
-import { CalendarDays, Table2, LayoutGrid, Landmark, Users, Settings as Cog, Clock, FolderKanban, Shield, ChevronDown, Gift } from "lucide-react";
+import { CalendarDays, Table2, LayoutGrid, Landmark, Users, Settings as Cog, Clock, FolderKanban, Shield, Gift } from "lucide-react";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Spinner } from "@/components/ui/spinner";
 
 const PRODUCT = "Huddle";
+const planLabel = (p) => !p || p === "trial" ? "Trial" : p.charAt(0).toUpperCase() + p.slice(1);
 
 export default function App() {
   const [session, setSession] = useState(undefined);
@@ -198,7 +198,9 @@ export default function App() {
     <SidebarProvider className="h-svh"
       style={{ "--sidebar-width": "calc(var(--spacing) * 72)", "--header-height": "calc(var(--spacing) * 12)" }}>
       <AppSidebar variant="inset"
-        brand={PRODUCT}
+        teams={memberships.map(m => ({ id: m.org_id, name: m.organizations?.name || "Studio", plan: planLabel(m.organizations?.plan) }))}
+        activeTeamId={active.org_id}
+        onPickTeam={(id) => { setOrgId(id); localStorage.setItem("cadence_org", id); }}
         nav={visible.filter(n => ["schedule", "summary", "tasks", "tracker"].includes(n.key)).map(navItem)}
         groups={[{ label: "Manage", items: visible.filter(n => ["projects", "billing", "people"].includes(n.key)).map(navItem) }]}
         action={{ title: "Leave feedback", icon: <Gift />, onSelect: () => setFeedbackOpen(true) }}
@@ -212,7 +214,6 @@ export default function App() {
       <SidebarInset className="overflow-hidden">
       <SiteHeader title={tab === "admin" && profile?.platform_admin ? "Subscribers" : (visible.find(n => n.key === current)?.label || "")}>
         {can(me, "time.track") && <HeaderTracker me={me} active={current === "tracker"} onOpen={() => setTab("tracker")} />}
-        <OrgSwitcher memberships={memberships} activeId={active.org_id} onPick={(id) => { setOrgId(id); localStorage.setItem("cadence_org", id); }} />
       </SiteHeader>
 
       {suspended && <div className="text-xs bg-destructive/10 border-b border-destructive/30 text-destructive px-4 py-2">
@@ -240,24 +241,6 @@ export default function App() {
       </SidebarInset>
     </SidebarProvider>
     </TooltipProvider>
-  );
-}
-
-function OrgSwitcher({ memberships, activeId, onPick }) {
-  const active = memberships.find(m => m.org_id === activeId);
-  if (!active) return null;
-  if (memberships.length === 1) return <span className="text-sm text-muted-foreground">{active.organizations?.name}</span>;
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="ghost" size="sm" />}>{active.organizations?.name} <ChevronDown data-icon="inline-end" /></DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-48 max-w-64">
-        {memberships.map(m => (
-          <DropdownMenuItem key={m.org_id} onClick={() => onPick(m.org_id)}>
-            <span className={`min-w-0 flex-1 truncate ${m.org_id === activeId ? "font-medium" : ""}`}>{m.organizations?.name}</span>
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 

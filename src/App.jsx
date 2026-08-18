@@ -3,7 +3,7 @@ import { sb, CONFIGURED, DEMO } from "./lib/supabase.js";
 import DemoSwitcher from "./lib/DemoSwitcher.jsx";
 import { loadOrgData, memberName } from "./lib/api.js";
 import { can } from "./lib/permissions.js";
-import { Avatar, Spinner } from "./ui.jsx";
+import { Spinner } from "./ui.jsx";
 import Auth from "./screens/Auth.jsx";
 import Onboarding from "./screens/Onboarding.jsx";
 import FeedbackModal from "./screens/Feedback.jsx";
@@ -19,12 +19,15 @@ import Tasks from "./screens/Tasks.jsx";
 import Projects from "./screens/Projects.jsx";
 import Tracker from "./screens/Tracker.jsx";
 import Billing from "./screens/Billing.jsx";
-import { lsGet, fmtClock } from "./studio/core.jsx";
+import { lsGet, fmtClock, initials } from "./studio/core.jsx";
 import { makeTerms } from "./lib/terms.js";
-import { CalendarDays, Table2, LayoutGrid, Landmark, Users, Settings as Cog, Clock, FolderKanban, Shield, ChevronDown } from "lucide-react";
-import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger } from "@/components/ui/sidebar";
+import { CalendarDays, Table2, LayoutGrid, Landmark, Users, Settings as Cog, Clock, FolderKanban, Shield, ChevronDown, Gift } from "lucide-react";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/app-sidebar";
+import { SiteHeader } from "@/components/site-header";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 const PRODUCT = "Huddle";
 
@@ -187,65 +190,38 @@ export default function App() {
   ];
   const visible = NAV.filter(n => !n.perm || can(me, n.perm));
   const current = visible.find(n => n.key === tab) ? tab : (visible[0]?.key || "settings");
+  const userName = me.display_name || me.email;
+  const navItem = (n) => { const Icon = n.icon; return { key: n.key, title: n.label, icon: <Icon />, isActive: current === n.key && tab !== "admin", onSelect: () => setTab(n.key) }; };
 
   return (
     <TooltipProvider>
-    <SidebarProvider>
-      <Sidebar collapsible="icon">
-        <SidebarHeader>
-          <div className="flex items-center gap-2 px-2 py-1.5">
-            <img src="/huddle-icon.png" alt="" className="w-6 h-6 rounded-md shrink-0" />
-            <span className="font-heading font-semibold group-data-[collapsible=icon]:hidden">{PRODUCT}</span>
-          </div>
-        </SidebarHeader>
-        <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {visible.map(n => {
-                  const Icon = n.icon;
-                  return (
-                    <SidebarMenuItem key={n.key}>
-                      <SidebarMenuButton isActive={current === n.key && tab !== "admin"} onClick={() => setTab(n.key)} tooltip={n.label}>
-                        <Icon /><span>{n.label}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </SidebarContent>
-        <SidebarFooter>
-          <div className="rounded-lg p-2.5 text-center bg-muted group-data-[collapsible=icon]:hidden">
-            <div className="text-[11px] font-semibold text-foreground/80 leading-snug">Want the chance to receive 1 month free?</div>
-            <Button size="sm" onClick={() => setFeedbackOpen(true)} className="mt-2 w-full">Leave feedback</Button>
-          </div>
-        </SidebarFooter>
-        <SidebarRail />
-      </Sidebar>
-      <SidebarInset className="h-svh overflow-hidden">
-      {/* header */}
-      <div className="flex items-center gap-3 px-4 h-14 bg-card border-b shrink-0">
-        <SidebarTrigger className="-ml-1" />
+    <SidebarProvider className="h-svh"
+      style={{ "--sidebar-width": "calc(var(--spacing) * 72)", "--header-height": "calc(var(--spacing) * 12)" }}>
+      <AppSidebar variant="inset"
+        brand={PRODUCT}
+        nav={visible.filter(n => ["schedule", "summary", "tasks", "tracker"].includes(n.key)).map(navItem)}
+        groups={[{ label: "Manage", items: visible.filter(n => ["projects", "billing", "people"].includes(n.key)).map(navItem) }]}
+        action={{ title: "Leave feedback", icon: <Gift />, onSelect: () => setFeedbackOpen(true) }}
+        secondary={[
+          ...visible.filter(n => n.key === "settings").map(navItem),
+          ...(profile?.platform_admin ? [{ key: "admin", title: "Admin console", icon: <Shield />, isActive: tab === "admin", onSelect: () => setTab("admin") }] : []),
+        ]}
+        user={{ name: userName, email: me.email, initials: initials(userName) }}
+        onAccount={() => setTab("settings")}
+        onSignOut={async () => { await sb.auth.signOut(); window.location.reload(); }} />
+      <SidebarInset className="overflow-hidden">
+      <SiteHeader title={tab === "admin" && profile?.platform_admin ? "Subscribers" : (visible.find(n => n.key === current)?.label || "")}>
+        {can(me, "time.track") && <HeaderTracker me={me} active={current === "tracker"} onOpen={() => setTab("tracker")} />}
         <OrgSwitcher memberships={memberships} activeId={active.org_id} onPick={(id) => { setOrgId(id); localStorage.setItem("cadence_org", id); }} />
-        <div className="ml-auto flex items-center gap-2">
-          {can(me, "time.track") && <HeaderTracker me={me} active={current === "tracker"} onOpen={() => setTab("tracker")} />}
-          {profile?.platform_admin && (
-            <button onClick={() => setTab("admin")} title="Subscriber console"
-              className={`flex items-center gap-1.5 text-xs px-2.5 h-7 rounded-md ${tab === "admin" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50"}`}><Shield size={13} /> Admin</button>
-          )}
-          <Avatar name={me.display_name || me.email} i={0} size={26} />
-        </div>
-      </div>
+      </SiteHeader>
 
       {suspended && <div className="text-xs bg-destructive/10 border-b border-destructive/30 text-destructive px-4 py-2">
         This studio's subscription is {org.status}. Ask an owner to update billing in Settings.
       </div>}
-      {err && <div className="text-xs bg-amber-50 border-b border-amber-200 text-amber-800 px-4 py-2">{err}</div>}
+      {err && <div className="text-xs bg-destructive/10 border-b border-destructive/30 text-destructive px-4 py-2">{err}</div>}
 
       {/* content */}
-      <main className="flex-1 min-h-0 bg-muted/30">
+      <main className="flex-1 min-h-0">
           {tab === "admin" && profile?.platform_admin ? <Admin />
             : current === "people" ? (can(me, "team.manage") ? <Team org={org} me={me} members={data.members} reload={reload} onNavigate={setTab} /> : <TeamLite members={data.members} />)
             : current === "settings" ? <Settings org={org} me={me} members={data.members} reload={() => { loadMe(); reload(); }} />
@@ -268,24 +244,21 @@ export default function App() {
 }
 
 function OrgSwitcher({ memberships, activeId, onPick }) {
-  const [open, setOpen] = useState(false);
   const active = memberships.find(m => m.org_id === activeId);
   if (!active) return null;
-  if (memberships.length === 1) return <span className="text-sm opacity-80">{active.organizations?.name}</span>;
-  return (<div className="relative">
-    <button onClick={() => setOpen(o => !o)} className="flex items-center gap-1 text-sm opacity-90 hover:opacity-100">
-      {active.organizations?.name}<ChevronDown size={14} />
-    </button>
-    {open && <><div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-      <div className="absolute z-40 mt-1 w-56 bg-card text-foreground/80 rounded-xl shadow-lg border border-border p-1">
+  if (memberships.length === 1) return <span className="text-sm text-muted-foreground">{active.organizations?.name}</span>;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button variant="ghost" size="sm" />}>{active.organizations?.name} <ChevronDown data-icon="inline-end" /></DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-48 max-w-64">
         {memberships.map(m => (
-          <button key={m.org_id} onClick={() => { onPick(m.org_id); setOpen(false); }}
-            className={`w-full text-left text-sm px-2.5 py-1.5 rounded-lg hover:bg-muted/50 ${m.org_id === activeId ? "font-semibold" : ""}`}>
-            {m.organizations?.name}
-          </button>
+          <DropdownMenuItem key={m.org_id} onClick={() => onPick(m.org_id)}>
+            <span className={`min-w-0 flex-1 truncate ${m.org_id === activeId ? "font-medium" : ""}`}>{m.organizations?.name}</span>
+          </DropdownMenuItem>
         ))}
-      </div></>}
-  </div>);
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 function HeaderTracker({ me, active, onOpen }) {
@@ -297,12 +270,11 @@ function HeaderTracker({ me, active, onOpen }) {
   }, [me.id]);
   const elapsed = run ? fmtClock((Date.now() - run.startedAt) / 1000) : null;
   return (
-    <button onClick={onOpen} title="Time tracker"
-      className={`flex items-center gap-1.5 text-xs px-2.5 h-7 rounded-md ${active ? "bg-muted text-foreground" : run ? "bg-emerald-500/15 text-foreground" : "text-muted-foreground hover:bg-muted/50"}`}>
+    <Button variant={active ? "secondary" : "ghost"} size="sm" title="Time tracker" onClick={onOpen}>
       {run
-        ? <><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" style={{ animation: "pulse 1.5s infinite" }} /> <span className="tabular-nums font-semibold">{elapsed}</span></>
-        : <><Clock size={13} /> Track</>}
-    </button>
+        ? <><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" style={{ animation: "pulse 1.5s infinite" }} /> <span className="tabular-nums">{elapsed}</span></>
+        : <><Clock data-icon="inline-start" /> Track</>}
+    </Button>
   );
 }
 

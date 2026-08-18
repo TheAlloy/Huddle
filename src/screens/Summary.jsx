@@ -13,7 +13,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
-import { Avatar } from "../ui.jsx";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 function SummaryView(ctx) {
@@ -202,7 +202,7 @@ function SummaryView(ctx) {
           const weekTotalOf=(m,wk)=>wk.days.reduce((s,d)=>s+bubblesFor(m.id,toISO(d)).reduce((x,g)=>x+g.mins,0),0);
           return (<div ref={calBoardRef} className="space-y-4">
             {visible.map(m=>(<div key={m.id} className="border border-border rounded-lg overflow-hidden">
-              <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 border-b border-border"><Avatar name={m.name} i={data.members.findIndex(x=>x.id===m.id)} size={24}/><span className="font-medium text-sm text-foreground">{m.name}</span><span className="ml-auto text-xs text-muted-foreground">Total <span className="font-medium text-foreground">{fmtH(memTotalOf(m)/60)}h</span></span></div>
+              <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 border-b border-border"><Avatar size="sm"><AvatarFallback className="text-white" style={{background:AVATAR_BG[data.members.findIndex(x=>x.id===m.id)%AVATAR_BG.length]}}>{initials(m.name)}</AvatarFallback></Avatar><span className="font-medium text-sm text-foreground">{m.name}</span><span className="ml-auto text-xs text-muted-foreground">Total <span className="font-medium text-foreground">{fmtH(memTotalOf(m)/60)}h</span></span></div>
               {isMonth
                 ? <div className="overflow-x-auto p-2"><div style={{display:"grid",gap:8,gridTemplateColumns:`repeat(${Math.max(1,weeks.length)}, minmax(150px, 1fr))`}}>
                     {weeks.map((wk,wi)=>(<div key={wi} className="space-y-1.5">

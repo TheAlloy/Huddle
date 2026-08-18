@@ -598,6 +598,49 @@ inside the coloured bubble); `native-select.tsx` deleted from the registry
 set; core.jsx's dead `inputCls`/`textareaCls` exports removed (no consumers
 left). Zero NativeSelects remain in the codebase.
 
+**App shell → dashboard-01 block** (user request): installed via
+`npx shadcn add dashboard-01`, kept only the shell files (`app-sidebar`,
+`site-header`, `nav-main`, `nav-secondary`, `nav-user` in src/components/) and
+deleted the demo content (section-cards/chart/data-table/nav-documents,
+src/app/, ui chart/drawer/sonner/breadcrumb, and their deps: dnd-kit,
+react-table, recharts, sonner, zod, next-themes). Shell files are the block's
+markup verbatim with content poured via props (nav items with isActive/
+onSelect instead of hrefs). Composition matches the block's page.tsx:
+`SidebarProvider` (h-svh + the block's --sidebar-width/--header-height vars)
+→ `AppSidebar variant="inset" collapsible="offcanvas"` → `SidebarInset`
+(overflow-hidden) → `SiteHeader` → screen. Content mapping: brand header =
+Huddle icon + name; the block's lime "Quick Create" slot = **Leave feedback**
+CTA (replaces the old footer promo box); NavSecondary = Admin console
+(platform admins, moved out of the header); NavUser footer = session user
+with Account (→ Settings) and Log out (replaces the header avatar);
+SiteHeader = trigger + tab title, right side keeps the Track pill (now a
+stock ghost/secondary Button) and the org name/OrgSwitcher (recomposed on
+stock DropdownMenu). Old icon-rail collapse is now the block's offcanvas.
+Note: base-nova's sidebar bg is near-white taupe, so the inset card edge is
+subtle by design (m-2 + rounded-xl + shadow-sm are applied — verified
+computed styles). Review round: audited the shell against the block —
+every kept class is byte-identical to the registry and the live geometry
+matches the block's numbers (288px sidebar, 32px rows, 8px group padding,
+gap-0 item list is stock base-nova). The perceived spacing mismatch was
+composition: the example's labelled middle group. Restored via
+`nav-group.tsx` (the block's nav-documents group markup minus its demo
+per-item dropdown): primary nav = Schedule/Summary/Tasks/Tracker, then a
+**Manage** labelled group = Clients & projects/Billing/People; Settings
+moved to the bottom-pinned NavSecondary like the example.
+
+**RULE (user-set, 2026-08-18): no shims.** Never wrap shadcn components in
+helper components — compose the stock anatomy inline at every call site,
+docs-style, even when it repeats lines. Wrappers hide the component and
+accumulate styling drift (the Avatar shim was caught overriding stock sizing
+with inline width/height/fontSize; it has been dissolved — all five call
+sites now compose stock `Avatar`/`AvatarFallback` directly, with only the
+identity data color poured). **Queued: dissolution sweep** of the remaining
+legacy shims — ui.jsx `Field`, `Card`, `Modal`, `Pill`, `Empty`, `Spinner`
+and core.jsx `ModalShell`/`ModalHead`/`ModalFoot` — inlining stock
+Field/Card/Dialog/Badge/Empty/Spinner anatomy at every call site, then
+deleting ui.jsx. Until then: never add new shim usages; inline when touching
+code that uses one.
+
 ## Risks
 
 - **Rendering drift at step 1.** *Mostly retired* — the breaking surface was

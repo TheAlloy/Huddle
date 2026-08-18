@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
-import { Field, Modal, Avatar, Card, Empty } from "../ui.jsx";
+import { Field, Modal, Card, Empty } from "../ui.jsx";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AVATAR_BG, initials } from "../studio/core.jsx";
 import { PERMISSIONS, PERMISSION_GROUPS, ROLES, ROLE_KEYS, effectivePermissions, isFromRole, can } from "../lib/permissions.js";
 import { Plus, Mail, Trash2, Pencil, RefreshCw, Link as LinkIcon, TriangleAlert } from "lucide-react";
 import { useConfirm } from "../components/confirm.tsx";
@@ -76,7 +78,7 @@ export default function Team({ org, me, members, reload, onNavigate }) {
           {members.map((m, i) => {
             const role = ROLES[m.role] || ROLES.member;
             return (<div key={m.id} className="flex items-center gap-3 border-b py-2.5 text-sm last:border-b-0">
-              <Avatar name={m.display_name || m.email} i={i} />
+              <Avatar><AvatarFallback className="text-white" style={{background:AVATAR_BG[i%AVATAR_BG.length]}}>{initials(m.display_name || m.email)}</AvatarFallback></Avatar>
               <div className="min-w-0">
                 <div className="font-medium truncate">{m.display_name || m.email || "Invited"} {m.user_id === me.user_id && <span className="text-muted-foreground font-normal">(you)</span>}</div>
                 <div className="text-xs text-muted-foreground truncate">{m.email}{m.job_title ? " · " + m.job_title : ""}</div>

@@ -37,6 +37,15 @@ nothing. Screens pour content into the stock components (see
 FieldGroup forms, popup Select with `items` map, ghost icon-sm row actions,
 Badge/semantic tokens for status colors, data colors kept for clients/leave/avatars).
 
+**No shims or wrapper components around shadcn components.** Always compose the
+stock components directly at the call site, exactly as the shadcn docs show —
+even when that repeats a few lines. Do not add convenience wrappers to `src/ui.jsx`,
+`src/studio/core.jsx`, or anywhere else: wrappers hide which component is in play
+and inevitably accumulate styling overrides. The legacy shims still in `ui.jsx`
+(Field, Card, Modal, Pill, Empty, Spinner) and core.jsx (ModalShell/ModalHead/
+ModalFoot) are scheduled for dissolution — inline their stock anatomy at call
+sites when touching code that uses them, and never add new usages.
+
 ## Architecture
 
 **Single-page app, no router.** `src/App.jsx` owns all top-level state (session,

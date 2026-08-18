@@ -1,5 +1,7 @@
 import React from "react";
-import { Card, Avatar } from "../ui.jsx";
+import { Card } from "../ui.jsx";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AVATAR_BG, initials } from "../studio/core.jsx";
 import { Lock } from "lucide-react";
 
 /** Shown wherever someone's permissions don't allow a screen. */
@@ -19,7 +21,7 @@ export function TeamLite({ members }) {
     <Card title="Your team">
       <div className="flex flex-col">
         {members.map((m, i) => (<div key={m.id} className="flex items-center gap-3 border-b py-2.5 text-sm last:border-b-0">
-          <Avatar name={m.display_name || m.email} i={i} />
+          <Avatar><AvatarFallback className="text-white" style={{background:AVATAR_BG[i%AVATAR_BG.length]}}>{initials(m.display_name || m.email)}</AvatarFallback></Avatar>
           <div><div>{m.display_name || m.email}</div><div className="text-xs text-muted-foreground">{m.job_title || m.role}</div></div>
         </div>))}
       </div>

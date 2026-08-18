@@ -2,7 +2,6 @@ import React from "react";
 import { NAVY, AVATAR_BG, initials } from "./studio/core.jsx";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Avatar as AvatarRoot, AvatarFallback } from "@/components/ui/avatar";
 import { Field as FieldRoot, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field";
 import { Card as CardRoot, CardHeader, CardTitle, CardAction, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -49,13 +48,6 @@ export function Modal({title, onClose, children, footer, wide}){
       {footer && <DialogFooter>{footer}</DialogFooter>}
     </DialogContent>
   </Dialog>);
-}
-
-// Stock Avatar; the indexed palette is data color (member identity).
-export function Avatar({name, i=0, size=28}){
-  return (<AvatarRoot style={{width:size, height:size}}>
-    <AvatarFallback className="text-white" style={{background:AVATAR_BG[i%AVATAR_BG.length], fontSize:size*0.4}}>{initials(name)}</AvatarFallback>
-  </AvatarRoot>);
 }
 
 // Stock Badge; color is data (status, role, priority).

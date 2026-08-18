@@ -1,8 +1,9 @@
 import React, { useState, useRef, useMemo, useCallback } from "react";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
-import { TASK_PRI, projectsByClient, ModalShell, ModalHead, ModalFoot, mapData, makeHandlers } from "../studio/core.jsx";
-import { Field, Avatar, Pill } from "../ui.jsx";
+import { TASK_PRI, projectsByClient, ModalShell, ModalHead, ModalFoot, mapData, makeHandlers, AVATAR_BG, initials } from "../studio/core.jsx";
+import { Field, Pill } from "../ui.jsx";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,7 +63,7 @@ function InternalBoard(ctx){
     <div data-col={id}
       className={`shrink-0 w-64 flex flex-col rounded-xl border ${overCol===id?"border-primary bg-primary/10":"bg-muted/50"}`} style={{maxHeight:520}}>
       <div className="px-3 py-2 flex items-center gap-2 border-b shrink-0">
-        {avatarIndex!=null && <Avatar name={title} i={avatarIndex} size={24} />}
+        {avatarIndex!=null && <Avatar size="sm"><AvatarFallback className="text-white" style={{background:AVATAR_BG[avatarIndex%AVATAR_BG.length]}}>{initials(title)}</AvatarFallback></Avatar>}
         <span className="text-sm font-medium truncate">{title}</span>
         <span className="ml-auto text-xs text-muted-foreground">{cards.length}</span>
       </div>

@@ -2,9 +2,10 @@ import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffe
 import { sb } from "../lib/supabase.js";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
-import { Field, Avatar } from "../ui.jsx";
+import { Field } from "../ui.jsx";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "@/components/ui/toast";
-import { phaseRanges, ModalShell, ModalHead, ModalFoot, PeoplePicker } from "../studio/core.jsx";
+import { phaseRanges, ModalShell, ModalHead, ModalFoot, PeoplePicker, AVATAR_BG, initials } from "../studio/core.jsx";
 import { InviteModal } from "./Team.jsx";
 import { ProjectModal } from "./Projects.jsx";
 import { useConfirm } from "../components/confirm.tsx";
@@ -98,9 +99,9 @@ function openFloatingTimer({ getTop, getElapsed, onStop }){
 /* ============================ board components (from studio tool) ================ */
 function PersonCell({ m, idx, width, onEdit, onAssign, canEdit }) {
   return (
-    <div className="shrink-0 border-r border-border px-3 py-3 flex items-start gap-2.5 group bg-card" style={{ width, position:"sticky", left:0, zIndex:15 }}>
-      <Avatar name={m.name} i={idx} size={32} />
-      <div className="min-w-0 flex-1"><div className="text-sm font-semibold text-foreground truncate">{m.name}</div><div className="text-xs text-muted-foreground/70 truncate">{m.role}</div></div>
+    <div className="shrink-0 border-r border-border px-3 py-3 flex items-center gap-2.5 group bg-card" style={{ width, position:"sticky", left:0, zIndex:15 }}>
+      <Avatar><AvatarFallback className="text-white" style={{background:AVATAR_BG[idx%AVATAR_BG.length]}}>{initials(m.name)}</AvatarFallback></Avatar>
+      <div className="min-w-0 flex-1"><div className="text-sm font-medium text-foreground truncate">{m.name}</div><div className="text-xs text-muted-foreground truncate">{m.role}</div></div>
       {canEdit && <div className="flex flex-col gap-1 shrink-0">
         <button onClick={onEdit} className="opacity-0 group-hover:opacity-100 transition grid place-items-center w-6 h-6 rounded-md text-muted-foreground/70 hover:bg-muted hover:text-primary-foreground" title={"Edit "+m.name}><Pencil size={13}/></button>
         <button onClick={onAssign} className="opacity-0 group-hover:opacity-100 transition grid place-items-center w-6 h-6 rounded-md text-muted-foreground/70 hover:bg-muted hover:text-primary-foreground" title={"Assign work to "+m.name}><Plus size={15}/></button>

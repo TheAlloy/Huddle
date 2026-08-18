@@ -481,7 +481,7 @@ around form field runs, `space-y-*` → `flex gap-*` sweeps, `aria-invalid` on
 controls alongside Field's `data-invalid`, checkbox → `Checkbox`, search boxes
 → `InputGroup`.
 
-**9. Screen-by-screen recomposition — IN PROGRESS.** Decision (Troy): stop
+**9. Screen-by-screen recomposition — DONE.** Decision (Troy): stop
 patching legacy markup; recompose each screen from stock shadcn composition.
 **People is the finished reference screen** — the pattern every other screen
 follows:

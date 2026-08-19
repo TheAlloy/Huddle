@@ -151,7 +151,7 @@ export function mapData(cad){
     clients: (cad.clients||[]).map(c=>({ id:c.id, name:c.name, color:c.color, paymentTerms:c.payment_terms, billingAddress:c.billing_address||"" })),
     projects: (cad.projects||[]).map(p=>({ id:p.id, index:p.code, name:p.name, clientId:p.client_id, phases:p.phases||[], cost:p.cost })),
     assignments: (cad.assignments||[]).map(a=>({ id:a.id, kind:a.kind==="task"?"internal":a.kind, memberId:a.membership_id, projectId:a.project_id, phaseId:a.phase_id, leaveType:a.leave_type, start:a.start_date, end:a.end_date, lane:Number.isFinite(a.lane)?a.lane:null, taskId:a.task_id, startTime:a.start_time, endTime:a.end_time, mode:a.mode, value:a.value })),
-    timeLogs: (cad.timeLogs||[]).map(l=>({ id:l.id, memberId:l.membership_id, projectId:l.project_id, phaseId:l.phase_id, taskId:l.task_id, date:l.log_date, minutes:l.minutes, source:l.source||"manual" })),
+    timeLogs: (cad.timeLogs||[]).map(l=>({ id:l.id, memberId:l.membership_id, projectId:l.project_id, phaseId:l.phase_id, taskId:l.task_id, date:l.log_date, minutes:l.minutes, source:l.source||"manual", note:l.note||"" })),
     internalTasks: (cad.tasks||[]).map(t=>({ id:t.id, title:t.title, notes:t.notes||"", assigneeId:t.assignee_id, status:t.status, priority:t.priority, team:t.team, projectId:t.project_id, phaseId:t.phase_id, ord:t.ord })),
     publicHolidays: (cad.holidays||[]).map(h=>({ id:h.id, day:h.day, name:h.name||"" })),
     billing: (cad.billing||[]).map(b=>({ id:b.id, kind:b.kind, title:b.title||"", client:b.client||"", amount:Number(b.amount)||0, status:b.status||"", date:b.entry_date||"", projectId:b.project_id||null, memberId:b.membership_id||null, meta:b.meta||{}, createdAt:b.created_at||null })),
@@ -162,9 +162,9 @@ export function mapData(cad){
 export function makeHandlers(org, reload, cadData){
   const R = () => reload();
   return {
-    addTimeLog: async ({memberId,projectId,phaseId,taskId,date,minutes,source}) => { await sb.from("time_logs").insert({org_id:org.id,membership_id:memberId,project_id:projectId||null,phase_id:phaseId||null,task_id:taskId||null,log_date:date,minutes,source:source||"manual"}); R(); },
+    addTimeLog: async ({memberId,projectId,phaseId,taskId,date,minutes,source,note}) => { await sb.from("time_logs").insert({org_id:org.id,membership_id:memberId,project_id:projectId||null,phase_id:phaseId||null,task_id:taskId||null,log_date:date,minutes,source:source||"manual",note:note||null}); R(); },
     updateTimeLog: async (id,minutes) => { if(minutes<=0){ await sb.from("time_logs").delete().eq("id",id); } else { await sb.from("time_logs").update({minutes}).eq("id",id); } R(); },
-    editTimeLog: async (id,patch) => { const row={}; if(patch.minutes!=null) row.minutes=patch.minutes; if("projectId" in patch) row.project_id=patch.projectId||null; if("phaseId" in patch) row.phase_id=patch.phaseId||null; if("taskId" in patch) row.task_id=patch.taskId||null; if(patch.minutes!=null && patch.minutes<=0){ await sb.from("time_logs").delete().eq("id",id); } else { await sb.from("time_logs").update(row).eq("id",id); } R(); },
+    editTimeLog: async (id,patch) => { const row={}; if(patch.minutes!=null) row.minutes=patch.minutes; if("projectId" in patch) row.project_id=patch.projectId||null; if("phaseId" in patch) row.phase_id=patch.phaseId||null; if("taskId" in patch) row.task_id=patch.taskId||null; if("note" in patch) row.note=patch.note||null; if(patch.minutes!=null && patch.minutes<=0){ await sb.from("time_logs").delete().eq("id",id); } else { await sb.from("time_logs").update(row).eq("id",id); } R(); },
     delTimeLogs: async (ids) => { if(!ids||!ids.length) return; await sb.from("time_logs").delete().in("id",ids); R(); },
     moveTimeLogs: async (ids,newDate) => { if(!ids||!ids.length||!newDate) return; await sb.from("time_logs").update({log_date:newDate}).in("id",ids); R(); },
     setTimeLogTotal: async ({ids,minutes,memberId,projectId,phaseId,taskId,date}) => {

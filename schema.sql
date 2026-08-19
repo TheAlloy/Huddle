@@ -123,6 +123,16 @@ create table if not exists tasks (
   ord double precision default 0, created_at timestamptz not null default now()
 );
 
+-- The live timer (one row per member while tracking); self-visible only.
+create table if not exists running_timers (
+  org_id uuid not null references organizations(id) on delete cascade,
+  membership_id uuid primary key references memberships(id) on delete cascade,
+  project_id uuid references projects(id) on delete set null,
+  phase_id text,
+  task_id uuid references tasks(id) on delete cascade,
+  started_at timestamptz not null default now()
+);
+
 create table if not exists billing_entries (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references organizations(id) on delete cascade,
@@ -202,6 +212,7 @@ alter table clients         enable row level security;
 alter table projects        enable row level security;
 alter table assignments     enable row level security;
 alter table time_logs       enable row level security;
+alter table running_timers  enable row level security;
 alter table tasks           enable row level security;
 alter table billing_entries enable row level security;
 alter table public_holidays enable row level security;
@@ -279,6 +290,18 @@ create policy tl_write on time_logs for all
     app_has(org_id,'summary.edit')
     or (app_has(org_id,'time.track')
         and membership_id in (select id from memberships where org_id = time_logs.org_id and user_id = auth.uid()))
+  );
+
+-- running timers: members with time.track read/write only their own row
+drop policy if exists rt_self on running_timers;
+create policy rt_self on running_timers for all
+  using (
+    app_has(org_id,'time.track')
+    and membership_id in (select id from memberships where org_id = running_timers.org_id and user_id = auth.uid())
+  )
+  with check (
+    app_has(org_id,'time.track')
+    and membership_id in (select id from memberships where org_id = running_timers.org_id and user_id = auth.uid())
   );
 
 drop policy if exists tasks_read on tasks;

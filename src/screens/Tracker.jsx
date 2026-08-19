@@ -3,6 +3,7 @@ import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
 import { NAVY, DOW, pad, toISO, parseISO, startOfDay, addDays, startOfWeekMon, hm, fmtClock, fmtH, projectsByClient, openFloatingTimer, mapData, makeHandlers } from "../studio/core.jsx";
 import { useRunningTimer, makeLabels, todayTracking } from "./tracker/shared.jsx";
+import { useConfirm } from "../components/confirm.tsx";
 import { Play, Square, PictureInPicture2, X, Plus, Pencil, Trash2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,11 +65,14 @@ export default function Tracker({ org, me, data: cadData, reload }){
   const H=useMemo(()=>makeHandlers(org,reload,cadData),[org,cadData]); // eslint-disable-line
   const { addTimeLog, updateTimeLog, editTimeLog, delTimeLogs } = H;
 
-  const { run, start, startTask, stop: stopTimer, cancel } = useRunningTimer(meId, { addTimeLog });
+  const myDaily=(data.members.find(m=>m.id===meId)||{}).daily||8;
+  const { run, start, startTask, stop: stopTimer, cancel, capMinutes } = useRunningTimer(meId, { addTimeLog, orgId: org.id, dailyHours: myDaily });
+  const confirm=useConfirm();
   const [now,setNow]=useState(Date.now());
+  const [stopNote,setStopNote]=useState("");
   const [selP,setSelP]=useState(""),[selPh,setSelPh]=useState("");
   const [mP,setMP]=useState(""),[mPh,setMPh]=useState(""),[mDate,setMDate]=useState(toISO(startOfDay(new Date()))),[mH,setMH]=useState(1),[mM,setMM]=useState(0),[mDateOpen,setMDateOpen]=useState(false);
-  const [editId,setEditId]=useState(null),[eH,setEH]=useState(0),[eM,setEM]=useState(0),[eProj,setEProj]=useState(""),[ePh,setEPh]=useState("");
+  const [editId,setEditId]=useState(null),[eH,setEH]=useState(0),[eM,setEM]=useState(0),[eProj,setEProj]=useState(""),[ePh,setEPh]=useState(""),[eNote,setENote]=useState("");
   const pip=useRef(null), pipActions=useRef({});
   const closePip=()=>{ if(pip.current){ try{pip.current.close();}catch(_){} pip.current=null; } };
   useEffect(()=>{ if(!run) return; const t=setInterval(()=>setNow(Date.now()),1000); return ()=>clearInterval(t); },[run]);
@@ -95,12 +99,15 @@ export default function Tracker({ org, me, data: cadData, reload }){
         recents.push({ key:"r:"+k, projectId:l.projectId, phaseId:l.phaseId||null, label:`${pr.index} — ${pr.name}${ph?" · "+ph:""}` }); });
   }
 
-  const stop=()=>stopTimer(todayISO);
+  const stop=()=>{ stopTimer(todayISO,{note:stopNote.trim()||null}); setStopNote(""); };
+  const discard=async()=>{ const mins=run?Math.round((Date.now()-run.startedAt)/60000):0;
+    if(mins>5 && !(await confirm({title:"Discard this timer?",description:hm(mins)+" of tracked time will be thrown away.",confirmLabel:"Discard",destructive:true}))) return;
+    setStopNote(""); cancel(); };
   const addManual=()=>{ const mins=Math.max(0,Number(mH||0)*60+Number(mM||0)); if(!mP||mins<=0) return; addTimeLog({memberId:meId,projectId:mP,phaseId:mPh||null,date:mDate||todayISO,minutes:mins,source:"manual"}); setMH(1); setMM(0); };
-  const beginEdit=(l)=>{ setEditId(l.id); setEH(Math.floor(l.minutes/60)); setEM(l.minutes%60); setEProj(l.projectId||""); setEPh(l.phaseId||""); };
-  const saveEdit=(l)=>{ const mins=Math.max(0,Number(eH||0)*60+Number(eM||0)); if(l&&l.taskId) editTimeLog(editId,{minutes:mins}); else editTimeLog(editId,{minutes:mins,projectId:eProj||null,phaseId:ePh||null}); setEditId(null); };
+  const beginEdit=(l)=>{ setEditId(l.id); setEH(Math.floor(l.minutes/60)); setEM(l.minutes%60); setEProj(l.projectId||""); setEPh(l.phaseId||""); setENote(l.note||""); };
+  const saveEdit=(l)=>{ const mins=Math.max(0,Number(eH||0)*60+Number(eM||0)); const note=eNote.trim()||null; if(l&&l.taskId) editTimeLog(editId,{minutes:mins,note}); else editTimeLog(editId,{minutes:mins,projectId:eProj||null,phaseId:ePh||null,note}); setEditId(null); };
   const selproj=projById(selP), mproj=projById(mP);
-  const elapsed=run?fmtClock((now-run.startedAt)/1000):null;
+  const elapsed=run?fmtClock(Math.min((now-run.startedAt)/1000,capMinutes*60)):null;
   const groups=projectsByClient(data.projects,data.clients);
 
   pipActions.current={ run, stop, top:()=>runTop(run) };
@@ -139,10 +146,11 @@ export default function Tracker({ org, me, data: cadData, reload }){
             <div className="flex items-center gap-3 flex-wrap">
               <span className="size-2.5 rounded-full bg-card" style={{animation:"pulse 1.5s infinite"}}/>
               <div><div className="text-xs opacity-90">{runTop(run)}{!run.taskId&&phName(run.projectId,run.phaseId)?" · "+phName(run.projectId,run.phaseId):""}</div><div className="text-3xl font-medium tabular-nums">{elapsed}</div></div>
-              <div className="ml-auto flex items-center gap-2">
+              <div className="ml-auto flex items-center gap-2 flex-wrap">
+                <Input value={stopNote} onChange={e=>setStopNote(e.target.value)} placeholder="Add a note… (optional)" className="w-52 bg-card text-foreground"/>
                 <Button variant="secondary" onClick={stop}><Square data-icon="inline-start"/> Stop &amp; log</Button>
                 <Button variant="secondary" size="icon" title="Pop out floating timer" onClick={openPip}><PictureInPicture2/></Button>
-                <Button variant="secondary" size="icon" title="Discard" onClick={cancel}><X/></Button>
+                <Button variant="secondary" size="icon" title="Discard" onClick={discard}><X/></Button>
               </div>
             </div>
           ) : <div className="text-sm text-muted-foreground">Not tracking — tap one of today's projects below, or start another.</div>}
@@ -195,10 +203,12 @@ export default function Tracker({ org, me, data: cadData, reload }){
               <div key={l.id} className="flex items-center gap-2 text-sm">
                 <span className="size-2.5 rounded-xs shrink-0" style={{background:l.taskId?NAVY:colorOf(l.projectId)}}/>
                 <span className="truncate">{l.taskId?("Task · "+((taskById(l.taskId)||{}).title||"task")):(labProj(l.projectId)+(phName(l.projectId,l.phaseId)?" · "+phName(l.projectId,l.phaseId):""))}</span>
+                {l.note && !editing && <span className="text-xs text-muted-foreground truncate max-w-40" title={l.note}>— {l.note}</span>}
                 <span className="text-xs text-muted-foreground">{l.source}</span>
                 {editing ? (<span className="ml-auto flex items-center gap-1 flex-wrap justify-end">
                   {!l.taskId && <ProjectCombobox selP={eProj} selPh={ePh} onPick={({projectId,phaseId})=>{setEProj(projectId);setEPh(phaseId||"");}} groups={groups} recents={recents} placeholder="No project" className="max-w-36"/>}
                   {!l.taskId && projById(eProj)?.phases?.length>0 && <PhaseSelect value={ePh} onValueChange={setEPh} phases={projById(eProj).phases} className="max-w-32"/>}
+                  <Input value={eNote} onChange={e=>setENote(e.target.value)} placeholder="Note (optional)" className="w-36"/>
                   <InputGroup className="w-20"><InputGroupInput type="number" min="0" value={eH} onChange={e=>setEH(e.target.value)}/><InputGroupAddon align="inline-end"><InputGroupText>h</InputGroupText></InputGroupAddon></InputGroup>
                   <InputGroup className="w-20"><InputGroupInput type="number" min="0" max="59" value={eM} onChange={e=>setEM(e.target.value)}/><InputGroupAddon align="inline-end"><InputGroupText>m</InputGroupText></InputGroupAddon></InputGroup>
                   <Button onClick={()=>saveEdit(l)}>Save</Button>

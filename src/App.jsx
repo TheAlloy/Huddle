@@ -19,7 +19,7 @@ import Projects from "./screens/Projects.jsx";
 import Tracker from "./screens/Tracker.jsx";
 import Billing from "./screens/Billing.jsx";
 import { fmtClock, initials } from "./studio/core.jsx";
-import { useRunningTimer } from "./screens/tracker/shared.jsx";
+import { useRunningTimer, TimerOverrunGuard } from "./screens/tracker/shared.jsx";
 import { makeTerms } from "./lib/terms.js";
 import { CalendarDays, Table2, LayoutGrid, Landmark, Users, Settings as Cog, Clock, FolderKanban, Shield, Gift } from "lucide-react";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -216,6 +216,7 @@ export default function App() {
       <SiteHeader title={tab === "admin" && profile?.platform_admin ? "Subscribers" : (visible.find(n => n.key === current)?.label || "")}>
         {can(me, "time.track") && <HeaderTracker me={me} active={current === "tracker"} onOpen={() => setTab("tracker")} />}
       </SiteHeader>
+      {can(me, "time.track") && <TimerOverrunGuard org={org} me={me} data={data} reload={reload} />}
 
       {suspended && <div className="text-xs bg-destructive/10 border-b border-destructive/30 text-destructive px-4 py-2">
         This studio's subscription is {org.status}. Ask an owner to update billing in Settings.
@@ -246,14 +247,14 @@ export default function App() {
 }
 
 function HeaderTracker({ me, active, onOpen }) {
-  const { run } = useRunningTimer(me.id);
+  const { run, capMinutes } = useRunningTimer(me.id, { dailyHours: me.daily_hours });
   const [, tick] = useState(0);
   useEffect(() => {
     if (!run) return;
     const iv = setInterval(() => tick(t => t + 1), 1000);
     return () => clearInterval(iv);
   }, [run]);
-  const elapsed = run ? fmtClock((Date.now() - run.startedAt) / 1000) : null;
+  const elapsed = run ? fmtClock(Math.min((Date.now() - run.startedAt) / 1000, capMinutes * 60)) : null;
   return (
     <Button variant={active ? "secondary" : "ghost"} size="sm" title="Time tracker" onClick={onOpen}>
       {run

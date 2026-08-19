@@ -194,13 +194,14 @@ to a project. Migration: `2026-08-task-log-projects.sql` (data backfill).*
 project-less task still logs and displays as before; Summary (legacy) and Time
 agree on totals.
 
-## Slice 7 — Retirement (gated on trust, possibly after merge to main)
+## Slice 7 — ~~Retirement~~ (void — decision revised)
 
-*Not started until Troy is happy with the Time screen in real use.*
-
-- Delete legacy Summary.jsx + its nav entry; Time takes the `summary` label's
-  place fully. Delete any remaining old-tracker leftovers.
-- Revisit D8: keep or drop notes based on actual use.
+*Superseded by the late-Aug revision recorded in the audit doc §5: Summary is
+no longer legacy. The personal screen became the single-person **Timesheet**
+(week grid, one aligned row per project); Summary stays as the manager's
+team overview and gets its own UX track (people scope, team editing,
+budgets, holiday all live there). The `time/sections.jsx` duplicates were
+deleted with the split. Revisit D8 (notes) based on actual use.*
 
 ---
 

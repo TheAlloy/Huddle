@@ -188,6 +188,17 @@ should be doing today. The highest-leverage model is therefore
 Outcome of the grilling session. These are the agreed intent — the spec/plan
 derives from here.
 
+> **Revision (late Aug 2026, after slices 1–6 shipped):** D9's full merge was
+> walked back once the merged screen was real. The personal tracking surface
+> is now the **Timesheet** — a single-person week grid (left column = my
+> projects, one aligned row per project across the day columns), deliberately
+> optimised for an employee tracking their own time only. **Summary stays**
+> as the manager's team overview/planning surface, to be redesigned on its
+> own track (absorbing what D9 gave the merged screen: people scope, team
+> editing, budgets, holiday). Slice 7 (delete Summary) is void; the
+> `anyPerm` nav case reverted to a plain `time.track` gate. Everything else
+> (D1–D8, D10–D13) stands and is shipped.
+
 ### Model
 
 - **D1 — Hybrid confirm+timer on schedule-prefilled rows.** The day arrives

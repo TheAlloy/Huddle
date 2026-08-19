@@ -16,7 +16,7 @@ import Schedule from "./screens/Schedule.jsx";
 import Summary from "./screens/Summary.jsx";
 import Tasks from "./screens/Tasks.jsx";
 import Projects from "./screens/Projects.jsx";
-import Time from "./screens/Time.jsx";
+import Timesheet from "./screens/Timesheet.jsx";
 import Billing from "./screens/Billing.jsx";
 import { initials } from "./studio/core.jsx";
 import { TimerOverrunGuard } from "./screens/tracker/shared.jsx";
@@ -182,8 +182,8 @@ export default function App() {
 
   const NAV = [
     { key: "schedule", label: "Schedule", icon: CalendarDays, perm: "schedule.view" },
-    { key: "time", label: "Time", icon: Clock, anyPerm: ["time.track", "summary.view"] },
-    { key: "summary", label: "Summary", icon: Table2, perm: "summary.view" }, // legacy — retires once the merged Time screen is trusted
+    { key: "time", label: "Timesheet", icon: Clock, perm: "time.track" },
+    { key: "summary", label: "Summary", icon: Table2, perm: "summary.view" }, // the manager's team overview — own UX track
     { key: "tasks", label: "Tasks", icon: LayoutGrid, perm: "tasks.view" },
     { key: "projects", label: terms.navProjects, icon: FolderKanban, perm: "projects.manage" },
     { key: "billing", label: "Billing", icon: Landmark, perm: "billing.view" },
@@ -230,7 +230,7 @@ export default function App() {
             : current === "people" ? (can(me, "team.manage") ? <Team org={org} me={me} members={data.members} reload={reload} onNavigate={setTab} /> : <TeamLite members={data.members} />)
             : current === "settings" ? <Settings org={org} me={me} members={data.members} reload={() => { loadMe(); reload(); }} />
             : current === "projects" ? <Projects org={org} me={me} data={data} reload={reload} terms={terms} />
-            : current === "time" ? <Time org={org} me={me} data={data} reload={reload} />
+            : current === "time" ? <Timesheet org={org} me={me} data={data} reload={reload} />
             : current === "schedule" ? (can(me, "schedule.view") ? <Schedule org={org} me={me} data={data} reload={reload} onNavigate={setTab} peopleFilter={peopleFilter} onPeopleFilter={setPeopleFilter} /> : <NoAccess what="the schedule" />)
             : current === "summary" ? (can(me, "summary.view") ? <Summary org={org} me={me} data={data} reload={reload} peopleFilter={peopleFilter} onPeopleFilter={setPeopleFilter} /> : <NoAccess what="summaries" />)
             : current === "tasks" ? (can(me, "tasks.view") ? <Tasks org={org} me={me} data={data} reload={reload} /> : <NoAccess what="tasks" />)

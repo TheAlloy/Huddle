@@ -91,10 +91,10 @@ export default function HeaderTracker({ org, me, data: cadData, reload, active, 
               <StartRow key={r.key} color={labels.colorOf(r.projectId)} label={r.label} mins={0} onStart={() => start(r.projectId, r.phaseId)} />
             ))}
             {bubbles.length === 0 && myTasks.length === 0 && recents.length === 0 &&
-              <div className="text-sm text-muted-foreground py-1">Nothing to suggest yet — open the Time screen to log or start work.</div>}
+              <div className="text-sm text-muted-foreground py-1">Nothing to suggest yet — open the timesheet to log or start work.</div>}
           </div>
         )}
-        <Button variant="ghost" size="sm" className="w-full mt-2" onClick={goTime}>Open Time <ArrowRight data-icon="inline-end" /></Button>
+        <Button variant="ghost" size="sm" className="w-full mt-2" onClick={goTime}>Open timesheet <ArrowRight data-icon="inline-end" /></Button>
       </PopoverContent>
     </Popover>
   );

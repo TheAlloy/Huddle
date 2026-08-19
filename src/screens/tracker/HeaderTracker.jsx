@@ -5,7 +5,7 @@
 // DashTracker; composed from the same shared pieces as the Time screen.
 import React, { useState, useEffect, useMemo } from "react";
 import { toISO, startOfDay, hm, fmtClock, mapData, makeHandlers, NAVY } from "../../studio/core.jsx";
-import { useRunningTimer, makeLabels, todayTracking, recentCombos, usePipTimer } from "./shared.jsx";
+import { useRunningTimer, makeLabels, todayTracking, recentCombos, usePipTimer, taskProject } from "./shared.jsx";
 import { useConfirm } from "../../components/confirm.tsx";
 import { Clock, Play, Square, PictureInPicture2, Trash2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -81,10 +81,10 @@ export default function HeaderTracker({ org, me, data: cadData, reload, active, 
           <div className="flex flex-col gap-1.5">
             {bubbles.length > 0 && <div className="text-xs font-medium text-muted-foreground">Today</div>}
             {bubbles.map((b) => b.internal
-              ? <StartRow key={"ib:" + b.taskId} color={NAVY} label={(labels.taskById(b.taskId) || {}).title || "task"} sub="Task" mins={minsForTask(b.taskId)} onStart={() => startTask(b.taskId)} />
+              ? <StartRow key={"ib:" + b.taskId} color={taskProject(data, b.taskId).projectId ? labels.colorOf(taskProject(data, b.taskId).projectId) : NAVY} label={(labels.taskById(b.taskId) || {}).title || "task"} sub="Task" mins={minsForTask(b.taskId)} onStart={() => startTask(b.taskId, taskProject(data, b.taskId))} />
               : <StartRow key={b.projectId + "|" + b.phaseId} color={labels.colorOf(b.projectId)} label={labels.labProj(b.projectId)} sub={labels.phName(b.projectId, b.phaseId)} mins={minsFor(b.projectId, b.phaseId)} onStart={() => start(b.projectId, b.phaseId)} />)}
             {myTasks.slice(0, 3).map((t) => (
-              <StartRow key={"task:" + t.id} color={NAVY} label={t.title} sub="Task" mins={minsForTask(t.id)} onStart={() => startTask(t.id)} />
+              <StartRow key={"task:" + t.id} color={t.projectId ? labels.colorOf(t.projectId) : NAVY} label={t.title} sub="Task" mins={minsForTask(t.id)} onStart={() => startTask(t.id, taskProject(data, t.id))} />
             ))}
             {recents.length > 0 && <div className="text-xs font-medium text-muted-foreground mt-1">Recent</div>}
             {recents.map((r) => (

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
 import { MONTHS, DOW, pad, toISO, parseISO, startOfDay, addDays, startOfWeekMon, isWeekday, hm, fmtClock, fmtH, NAVY, AVATAR_BG, initials, PeoplePicker, pfList, projectsByClient, mapData, makeHandlers } from "../studio/core.jsx";
-import { useRunningTimer, makeLabels, ProjectCombobox, recentCombos, parseHours, usePipTimer } from "./tracker/shared.jsx";
+import { useRunningTimer, makeLabels, ProjectCombobox, recentCombos, parseHours, usePipTimer, taskProject } from "./tracker/shared.jsx";
 import { BudgetSection, HolidaySection } from "./time/sections.jsx";
 import { useConfirm } from "../components/confirm.tsx";
 import { Play, Square, PictureInPicture2, X, Clock, ChevronLeft, ChevronRight, Plane, NotebookPen, Plus } from "lucide-react";
@@ -42,9 +42,10 @@ function HoursField({ mins, ghostMins, onCommit }) {
 function RowItem({ row, ghost, canEdit, showPlay, labels, onSetTotal, onStart, onSaveNote }) {
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteVal, setNoteVal] = useState(row.note || "");
-  const label = row.taskId ? ((labels.taskById(row.taskId) || {}).title || "task") : `${(labels.projById(row.projectId) || { index: "—" }).index}${labels.phName(row.projectId, row.phaseId) ? " · " + labels.phName(row.projectId, row.phaseId) : ""}`;
-  const full = row.taskId ? "Task · " + label : labels.labProj(row.projectId) + (labels.phName(row.projectId, row.phaseId) ? " · " + labels.phName(row.projectId, row.phaseId) : "");
-  const color = row.taskId ? NAVY : labels.colorOf(row.projectId);
+  const task = row.taskId ? labels.taskById(row.taskId) : null;
+  const label = row.taskId ? ((task || {}).title || "task") : `${(labels.projById(row.projectId) || { index: "—" }).index}${labels.phName(row.projectId, row.phaseId) ? " · " + labels.phName(row.projectId, row.phaseId) : ""}`;
+  const full = row.taskId ? "Task · " + label + (task?.projectId ? " — " + labels.labTop(task.projectId) : "") : labels.labProj(row.projectId) + (labels.phName(row.projectId, row.phaseId) ? " · " + labels.phName(row.projectId, row.phaseId) : "");
+  const color = row.taskId ? (task?.projectId ? labels.colorOf(task.projectId) : NAVY) : labels.colorOf(row.projectId);
   return (
     <div className={`rounded-md border px-1.5 py-1 ${ghost ? "border-dashed bg-muted/30" : "border-border bg-card"}`}>
       <div className="flex items-center gap-1 min-w-0">
@@ -171,7 +172,10 @@ export default function Time({ org, me, data: cadData, reload }) {
   };
 
   const setTotal = (member, dISO, row, minutes) => {
-    setTimeLogTotal({ ids: row.ids, minutes, memberId: member.id, projectId: row.taskId ? null : (row.projectId || null), phaseId: row.taskId ? null : (row.phaseId || null), taskId: row.taskId || null, date: dISO });
+    // Task rows attribute to the task's project/phase (slice 6) — also
+    // migrates any pre-attribution entries the row aggregates.
+    const attr = row.taskId ? taskProject(data, row.taskId) : { projectId: row.projectId || null, phaseId: row.phaseId || null };
+    setTimeLogTotal({ ids: row.ids, minutes, memberId: member.id, projectId: attr.projectId || null, phaseId: attr.phaseId || null, taskId: row.taskId || null, date: dISO });
   };
 
   const addPending = (member, dISO, pick) => {
@@ -209,14 +213,14 @@ export default function Time({ org, me, data: cadData, reload }) {
             <RowItem key={row.key} row={row} ghost={false} canEdit={editable} labels={labels}
               showPlay={member.id === meId && canTrack && isToday && !run}
               onSetTotal={(m) => setTotal(member, dISO, row, m)}
-              onStart={() => (row.taskId ? startTask(row.taskId) : start(row.projectId, row.phaseId))}
+              onStart={() => (row.taskId ? startTask(row.taskId, taskProject(data, row.taskId)) : start(row.projectId, row.phaseId))}
               onSaveNote={(note) => editTimeLog(row.ids[0], { note })} />
           ))}
           {editable && suggestions.map((row) => (
             <RowItem key={row.key} row={row} ghost canEdit={editable} labels={labels}
               showPlay={member.id === meId && canTrack && isToday && !run}
               onSetTotal={(m) => setTotal(member, dISO, row, m)}
-              onStart={() => (row.taskId ? startTask(row.taskId) : start(row.projectId, row.phaseId))} />
+              onStart={() => (row.taskId ? startTask(row.taskId, taskProject(data, row.taskId)) : start(row.projectId, row.phaseId))} />
           ))}
           {logged.length === 0 && suggestions.length === 0 && <div className="text-[10px] text-muted-foreground text-center py-1.5">—</div>}
           {editable && (adding === addKey

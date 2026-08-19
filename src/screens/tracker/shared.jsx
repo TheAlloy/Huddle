@@ -86,9 +86,11 @@ export function useRunningTimer(meId, { addTimeLog, orgId, dailyHours } = {}) {
     persistStart(orgId, meId, r).catch(() => {});
   }, [meId, orgId]);
 
-  const startTask = useCallback((taskId) => {
+  // Task time carries the task's project/phase when it has one (slice 6), so
+  // it rolls up into phase budgets; pass them via taskProject(data, taskId).
+  const startTask = useCallback((taskId, { projectId, phaseId } = {}) => {
     if (!taskId) return;
-    const r = { projectId: null, phaseId: null, taskId, startedAt: Date.now() };
+    const r = { projectId: projectId || null, phaseId: phaseId || null, taskId, startedAt: Date.now() };
     applyRun(meId, r);
     persistStart(orgId, meId, r).catch(() => {});
   }, [meId, orgId]);
@@ -115,6 +117,13 @@ export function useRunningTimer(meId, { addTimeLog, orgId, dailyHours } = {}) {
 
   return { run, start, startTask, stop, cancel, capMinutes };
 }
+
+// The project/phase a task's time should attribute to (empty when the task
+// isn't tied to a project).
+export const taskProject = (data, taskId) => {
+  const t = (data.internalTasks || []).find((x) => x.id === taskId);
+  return t ? { projectId: t.projectId || null, phaseId: t.phaseId || null } : {};
+};
 
 /* ------------------------------- PiP wiring ------------------------------- */
 // One owner for the document-Picture-in-Picture floating timer: closes it

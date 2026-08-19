@@ -3,7 +3,6 @@ import { sb } from "../lib/supabase.js";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { toast } from "@/components/ui/toast";
 import { phaseRanges, PeoplePicker, AVATAR_BG, initials } from "../studio/core.jsx";
 import { InviteModal } from "./Team.jsx";
 import { ProjectModal } from "./Projects.jsx";
@@ -27,8 +26,8 @@ import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   Plus, X, ChevronLeft, ChevronRight, Search, Trash2, AlertTriangle,
-  Pencil, ZoomIn, ZoomOut, Plane, Building2, Calendar, Play, Square,
-  PictureInPicture2, Sparkles, Upload, FileText, ArrowLeft, Clock,
+  Pencil, ZoomIn, ZoomOut, Plane, Building2, Calendar,
+  Sparkles, Upload, FileText, ArrowLeft,
 } from "lucide-react";
 
 /* ============================ helpers (from studio tool) ========================= */
@@ -55,10 +54,6 @@ const LEAVE_TYPES = { vacation:{label:"Holiday",color:"#f2994a"}, parental:{labe
 const pfIncludes = (pf,id) => pf==="all" || (Array.isArray(pf)?pf.includes(id):pf===id);
 const cfIncludes = (cf,id) => cf==="all" || (Array.isArray(cf)?(cf.length===0||cf.includes(id)):cf===id);
 const pfList = (members,pf) => pf==="all"?members:members.filter(m=>pfIncludes(pf,m.id));
-const hm = (min) => { min=Math.round(min); const h=Math.floor(min/60), m=min%60; return h?(m?`${h}h ${m}m`:`${h}h`):`${m}m`; };
-const fmtClock = (sec) => { sec=Math.max(0,Math.floor(sec)); const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60; return `${pad(h)}:${pad(m)}:${pad(s)}`; };
-const lsGet = (k) => { try{ const v=localStorage.getItem(k); return v==null?null:JSON.parse(v); }catch(_){ return null; } };
-const lsSet = (k,v) => { try{ v==null?localStorage.removeItem(k):localStorage.setItem(k,JSON.stringify(v)); }catch(_){} };
 function projectsByClient(projects, clients){
   const byId={}; clients.forEach(c=>{byId[c.id]={client:c,projects:[]};});
   const noClient={client:null,projects:[]};
@@ -66,33 +61,6 @@ function projectsByClient(projects, clients){
   const groups=clients.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(c=>byId[c.id]).filter(g=>g.projects.length);
   if(noClient.projects.length) groups.push(noClient);
   return groups;
-}
-function openFloatingTimer({ getTop, getElapsed, onStop }){
-  const html='<div style="padding:6px 10px;display:flex;align-items:center;gap:10px;height:100%;box-sizing:border-box;font-family:system-ui,-apple-system,sans-serif;color:#fff">'
-    +'<div style="min-width:0;flex:1;display:flex;flex-direction:column">'
-    +'<div id="pl" style="font-size:10px;font-weight:600;color:#d7deec;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>'
-    +'<div id="pt" style="font-size:17px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums"></div></div>'
-    +'<button id="ps" style="flex:none;display:flex;align-items:center;gap:5px;background:#fff;color:'+NAVY+';border:none;border-radius:7px;padding:6px 10px;font-size:11.5px;font-weight:700;white-space:nowrap;cursor:pointer">&#9632; Stop &amp; log</button></div>';
-  const wire=(win)=>{
-    if(!win) return null;
-    const d=win.document; try{ d.title="Time Tracker — "+getTop(); }catch(_){}
-    d.body.style.cssText="margin:0;background:"+NAVY+";overflow:hidden";
-    d.body.innerHTML=html;
-    const tEl=d.getElementById("pt"), lEl=d.getElementById("pl");
-    const paint=()=>{ try{ lEl.textContent=getTop(); tEl.textContent=getElapsed(); }catch(_){} };
-    paint();
-    d.getElementById("ps").addEventListener("click",()=>{ try{onStop();}catch(_){} try{win.close();}catch(_){} try{window.focus();}catch(_){} });
-    const int=setInterval(paint,1000);
-    const done=()=>{ try{clearInterval(int);}catch(_){} };
-    win.addEventListener("pagehide",done); win.addEventListener("beforeunload",done);
-    return { win, close:()=>{ done(); try{win.close();}catch(_){} } };
-  };
-  if(typeof window!=="undefined" && window.documentPictureInPicture){
-    return window.documentPictureInPicture.requestWindow({width:340,height:64}).then(wire).catch(()=>null);
-  }
-  const w=(typeof window!=="undefined") ? window.open("","studioTimer","width=340,height=120") : null;
-  if(!w){ toast.add({ title: "Pop-out was blocked — allow pop-ups for this site (or use Chrome/Edge for an always-on-top timer).", type: "error" }); return Promise.resolve(null); }
-  return Promise.resolve(wire(w));
 }
 
 
@@ -518,179 +486,6 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
   </FieldGroup>
   <DialogFooter>{(onDelete?()=>onDelete(assignment.id):null) ? <Button variant="destructive" onClick={onDelete?()=>onDelete(assignment.id):null}><Trash2 data-icon="inline-start" /> Delete</Button> : null}<Button onClick={save}>{assignment?"Save":"Assign"}</Button></DialogFooter></DialogContent></Dialog>);
 }
-function DashTracker(ctx){
-  const { data, myMemberId, addTimeLog, updateTimeLog, editTimeLog, delTimeLogs } = ctx;
-  const meId=myMemberId;
-  const [open,setOpen]=useState(false);
-  const [run,setRun]=useState(()=> meId? lsGet("tracker_run_"+meId): null);
-  const [now,setNow]=useState(Date.now());
-  const [selP,setSelP]=useState(""),[selPh,setSelPh]=useState("");
-  const [mP,setMP]=useState(""),[mPh,setMPh]=useState(""),[mDate,setMDate]=useState(toISO(startOfDay(new Date()))),[mH,setMH]=useState(1),[mM,setMM]=useState(0);
-  const [editId,setEditId]=useState(null),[eH,setEH]=useState(0),[eM,setEM]=useState(0),[eProj,setEProj]=useState(""),[ePh,setEPh]=useState("");
-  const [logOpen,setLogOpen]=useState(false);
-  const pip=useRef(null), pipActions=useRef({});
-  const closePip=()=>{ if(pip.current){ try{pip.current.close();}catch(_){} pip.current=null; } };
-  useEffect(()=>{ if(!run) return; const t=setInterval(()=>setNow(Date.now()),1000); return ()=>clearInterval(t); },[run]);
-  useEffect(()=>{ setRun(meId? lsGet("tracker_run_"+meId): null); },[meId]);
-  useEffect(()=>{ if(!run) closePip(); },[run]); // eslint-disable-line
-  useEffect(()=>()=>closePip(),[]); // eslint-disable-line
-  if(!meId) return (<div className="shrink-0 mt-2.5 px-3 py-2.5 bg-card border border-border rounded-xl shadow-xs text-xs text-muted-foreground/70 flex items-center gap-2"><Clock size={14}/> We couldn't match your login to a person on this team yet.</div>);
-  const me=data.members.find(m=>m.id===meId);
-  const projById=(id)=>data.projects.find(p=>p.id===id);
-  const clientOf=(pid)=>{ const pr=projById(pid); return pr && data.clients.find(c=>c.id===pr.clientId); };
-  const labProj=(pid)=>{ const pr=projById(pid); const cl=clientOf(pid); return pr? `${cl?cl.name+" - ":""}${pr.name}` : "—"; };
-  const labTop=(pid)=>{ const pr=projById(pid); const cl=clientOf(pid); return pr? `${cl?cl.name+" · ":""}${pr.index}` : "—"; };
-  const phName=(pid,phid)=>{ const pr=projById(pid); const ph=pr&&phid&&(pr.phases||[]).find(x=>x.id===phid); return ph?ph.name:""; };
-  const colorOf=(pid)=>{ const cl=clientOf(pid); return cl?cl.color:"#64748b"; };
-  const taskById=(id)=>(data.internalTasks||[]).find(t=>t.id===id);
-  const todayISO=toISO(startOfDay(new Date()));
-  const minsFor=(pid,phid)=>(data.timeLogs||[]).filter(l=>l.memberId===meId&&l.date===todayISO&&!l.taskId&&l.projectId===pid&&(l.phaseId||"")===(phid||"")).reduce((s,l)=>s+l.minutes,0);
-  const minsForTask=(tid)=>(data.timeLogs||[]).filter(l=>l.memberId===meId&&l.date===todayISO&&l.taskId===tid).reduce((s,l)=>s+l.minutes,0);
-  const todayMins=(data.timeLogs||[]).filter(l=>l.memberId===meId&&l.date===todayISO).reduce((s,l)=>s+l.minutes,0);
-  const seen=new Set(), bubbles=[];
-  const addBub=(pid,phid)=>{ if(!pid) return; const k=pid+"|"+(phid||""); if(seen.has(k)) return; seen.add(k); bubbles.push({projectId:pid,phaseId:phid||null}); };
-  data.assignments.filter(a=>a.memberId===meId&&a.kind==="work"&&a.start<=todayISO&&a.end>=todayISO).sort((a,b)=>parseISO(a.start)-parseISO(b.start)).forEach(a=>addBub(a.projectId,a.phaseId));
-  const internalAsgToday=data.assignments.filter(a=>a.memberId===meId&&a.kind==="internal"&&a.taskId&&a.start<=todayISO&&a.end>=todayISO);
-  const asgTaskIds=new Set(internalAsgToday.map(a=>a.taskId));
-  internalAsgToday.forEach(a=>{ const k="task:"+a.taskId; if(seen.has(k)) return; seen.add(k); bubbles.push({taskId:a.taskId,internal:true}); });
-  const myTasks=(data.internalTasks||[]).filter(t=>t.assigneeId===meId&&t.status!=="done"&&!asgTaskIds.has(t.id));
-  const todayEntries=(data.timeLogs||[]).filter(l=>l.memberId===meId&&l.date===todayISO);
-  const start=(pid,phid)=>{ if(!pid) return; const r={projectId:pid,phaseId:phid||null,taskId:null,startedAt:Date.now()}; lsSet("tracker_run_"+meId,r); setRun(r); };
-  const startTask=(tid)=>{ if(!tid) return; const r={projectId:null,phaseId:null,taskId:tid,startedAt:Date.now()}; lsSet("tracker_run_"+meId,r); setRun(r); };
-  const stop=()=>{ if(!run) return; const mins=Math.max(1,Math.round((Date.now()-run.startedAt)/60000)); addTimeLog({memberId:meId,projectId:run.projectId,phaseId:run.phaseId,taskId:run.taskId,date:todayISO,minutes:mins,source:"timer"}); lsSet("tracker_run_"+meId,null); setRun(null); };
-  const cancel=()=>{ lsSet("tracker_run_"+meId,null); setRun(null); };
-  const addManual=()=>{ const mins=Math.max(0,Number(mH||0)*60+Number(mM||0)); if(!mP||mins<=0) return; addTimeLog({memberId:meId,projectId:mP,phaseId:mPh||null,date:mDate||todayISO,minutes:mins,source:"manual"}); setMH(1); setMM(0); };
-  const beginEdit=(l)=>{ setEditId(l.id); setEH(Math.floor(l.minutes/60)); setEM(l.minutes%60); setEProj(l.projectId||""); setEPh(l.phaseId||""); };
-  const saveEdit=(l)=>{ const mins=Math.max(0,Number(eH||0)*60+Number(eM||0)); if(l.taskId) editTimeLog(editId,{minutes:mins}); else editTimeLog(editId,{minutes:mins,projectId:eProj||null,phaseId:ePh||null}); setEditId(null); };
-  const selproj=projById(selP);
-  const elapsed=run?fmtClock((now-run.startedAt)/1000):null;
-  const mproj=projById(mP);
-  const runTop=()=> run? (run.taskId? "Task · "+((taskById(run.taskId)||{}).title||"task") : labProj(run.projectId)) : "—";
-  const runColor=()=> run? (run.taskId? NAVY : colorOf(run.projectId)) : "#64748b";
-  const groups=projectsByClient(data.projects,data.clients);
-  // Plain render helpers (not components) so React keeps the Select element type
-  // stable across parent re-renders — an inline component would remount each tick.
-  const projSelect=(value,onChange,className,placeholder="Project…")=>(
-    <Select value={value} onValueChange={onChange} items={{"":placeholder,...Object.fromEntries(data.projects.map(p=>[p.id,`${p.index} — ${p.name}`]))}}>
-      <SelectTrigger className={className}><SelectValue/></SelectTrigger>
-      <SelectContent>
-        <SelectGroup><SelectItem value="">{placeholder}</SelectItem></SelectGroup>
-        {groups.map(g=>(<SelectGroup key={g.client?g.client.id:"none"}><SelectLabel>{g.client?g.client.name:"No client"}</SelectLabel>{g.projects.map(p=><SelectItem key={p.id} value={p.id}>{p.index} — {p.name}</SelectItem>)}</SelectGroup>))}
-      </SelectContent>
-    </Select>
-  );
-  const phaseSelect=(proj,value,onChange,className)=>(
-    <Select value={value} onValueChange={onChange} items={{"":"No phase",...Object.fromEntries((proj?.phases||[]).map(p=>[p.id,p.name]))}}>
-      <SelectTrigger className={className}><SelectValue/></SelectTrigger>
-      <SelectContent><SelectGroup><SelectItem value="">No phase</SelectItem>{(proj?.phases||[]).map(p=><SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectGroup></SelectContent>
-    </Select>
-  );
-  pipActions.current={ run, stop, top:runTop };
-  const openPip=async()=>{
-    if(!run) return; if(pip.current){ try{pip.current.win.focus();}catch(_){} return; }
-    const ctl=await openFloatingTimer({
-      getTop:()=>{ const a=pipActions.current; return a.top?a.top():"—"; },
-      getElapsed:()=>{ const r=pipActions.current.run; return r?fmtClock((Date.now()-r.startedAt)/1000):"0:00:00"; },
-      onStop:()=>{ const s=pipActions.current.stop; if(s) s(); },
-    });
-    if(ctl) pip.current=ctl;
-  };
-  return (
-    <div className="shrink-0 mt-2.5 bg-card border border-border rounded-xl shadow-xs">
-      <div onClick={()=>setOpen(o=>!o)} className="flex items-center gap-3 px-3 py-2 cursor-pointer select-none">
-        <span className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground shrink-0"><Clock size={15}/> Tracker <ChevronRight size={14} style={{transform:open?"rotate(90deg)":"none",transition:"transform .15s"}}/></span>
-        {run ? (
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="inline-flex items-center gap-2 rounded-lg px-2.5 py-1 text-white text-sm min-w-0" style={{background:runColor()}}>
-              <span className="w-1.5 h-1.5 rounded-full bg-card shrink-0" style={{animation:"pulse 1.5s infinite"}}/>
-              <span className="truncate font-semibold">{runTop()}</span>
-              {!run.taskId && phName(run.projectId,run.phaseId) && <span className="truncate opacity-90 hidden sm:inline">· {phName(run.projectId,run.phaseId)}</span>}
-              <span className="font-bold tabular-nums shrink-0">{elapsed}</span>
-            </span>
-            <Button className="shrink-0" onClick={e=>{e.stopPropagation();stop();}}><Square data-icon="inline-start"/> Stop &amp; log</Button>
-            <Button variant="outline" size="icon" className="shrink-0" title="Pop out a floating timer" onClick={e=>{e.stopPropagation();openPip();}}><PictureInPicture2/></Button>
-            <Button variant="ghost" size="icon-sm" className="shrink-0" title="Discard" onClick={e=>{e.stopPropagation();cancel();}}><X/></Button>
-          </div>
-        ) : (
-          <span className="text-sm text-muted-foreground/70 truncate">{me?me.name+" — tap a project to start":"Not tracking"}</span>
-        )}
-        <button onClick={e=>{e.stopPropagation(); ctx.openTrackerPage&&ctx.openTrackerPage();}} className="ml-auto text-xs font-medium text-muted-foreground hover:text-foreground underline underline-offset-4 shrink-0">Open full tracker →</button>
-      </div>
-      {open && !run && <div className="px-3 pb-3 border-t border-border/60 pt-2.5">
-        <div className="flex items-stretch gap-2 overflow-x-auto pb-1">
-          {bubbles.length===0 && myTasks.length===0 && <span className="text-xs text-muted-foreground/70 py-2">Nothing assigned to you today — use Manual below, or book yourself on the board.</span>}
-          {bubbles.map(b=>{ if(b.internal){ const tt=((taskById(b.taskId))||{}).title||"task"; return (
-            <button key={"ib:"+b.taskId} onClick={()=>startTask(b.taskId)} title={"Start · Task · "+tt}
-              className="shrink-0 text-left rounded-xl px-3 py-2 text-white transition hover:brightness-110" style={{background:NAVY,minWidth:150,maxWidth:230}}>
-              <div className="flex items-center gap-2">
-                <span className="grid place-items-center w-6 h-6 rounded-full bg-card shrink-0" style={{color:NAVY}}><Play size={12}/></span>
-                <div className="min-w-0"><div className="text-xs font-semibold leading-tight truncate">Task</div><div className="opacity-90 leading-tight truncate" style={{fontSize:11}}>{tt}</div></div>
-              </div>
-              <div className="opacity-80 mt-1" style={{fontSize:10.5}}>Today {hm(minsForTask(b.taskId))}</div>
-            </button>); } const c=colorOf(b.projectId); return (
-            <button key={b.projectId+"|"+b.phaseId} onClick={()=>start(b.projectId,b.phaseId)} title={"Start · "+labTop(b.projectId)+(phName(b.projectId,b.phaseId)?" · "+phName(b.projectId,b.phaseId):"")}
-              className="shrink-0 text-left rounded-xl px-3 py-2 text-white transition hover:brightness-110" style={{background:c,minWidth:150,maxWidth:230}}>
-              <div className="flex items-center gap-2">
-                <span className="grid place-items-center w-6 h-6 rounded-full bg-card shrink-0" style={{color:c}}><Play size={12}/></span>
-                <div className="min-w-0"><div className="text-xs font-semibold leading-tight truncate">{labProj(b.projectId)}</div><div className="opacity-90 leading-tight truncate" style={{fontSize:11}}>{phName(b.projectId,b.phaseId)||"—"}</div></div>
-              </div>
-              <div className="opacity-80 mt-1" style={{fontSize:10.5}}>Today {hm(minsFor(b.projectId,b.phaseId))}</div>
-            </button>);})}
-          {myTasks.map(t=>(
-            <button key={"task:"+t.id} onClick={()=>startTask(t.id)} title={"Start · Task · "+t.title}
-              className="shrink-0 text-left rounded-xl px-3 py-2 text-white transition hover:brightness-110" style={{background:NAVY,minWidth:150,maxWidth:230}}>
-              <div className="flex items-center gap-2">
-                <span className="grid place-items-center w-6 h-6 rounded-full bg-card shrink-0" style={{color:NAVY}}><Play size={12}/></span>
-                <div className="min-w-0"><div className="text-xs font-semibold leading-tight truncate">Task</div><div className="opacity-90 leading-tight truncate" style={{fontSize:11}}>{t.title}</div></div>
-              </div>
-              <div className="opacity-80 mt-1" style={{fontSize:10.5}}>Today {hm(minsForTask(t.id))}</div>
-            </button>))}
-        </div>
-        <div className="flex items-center gap-2 flex-wrap mt-2">
-          <span className="text-xs font-medium text-muted-foreground flex items-center gap-1 w-36 shrink-0"><Play size={12}/> Start another</span>
-          {projSelect(selP,(v)=>{setSelP(v);setSelPh("");},"w-48 shrink-0")}
-          {selproj?.phases?.length>0 && phaseSelect(selproj,selPh,setSelPh,"w-36")}
-          <Button onClick={()=>{ start(selP,selPh); setSelP(""); setSelPh(""); }} disabled={!selP}><Play data-icon="inline-start"/> Start</Button>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap mt-2">
-          <span className="text-xs font-medium text-muted-foreground flex items-center gap-1 w-36 shrink-0"><Plus size={12}/> Log time manually</span>
-          {projSelect(mP,(v)=>{setMP(v);setMPh("");},"w-48 shrink-0")}
-          {mproj?.phases?.length>0 && phaseSelect(mproj,mPh,setMPh,"w-36")}
-          <DatePicker value={mDate} onChange={setMDate} className="w-36"/>
-          <InputGroup className="w-20"><InputGroupInput type="number" min="0" value={mH} onChange={e=>setMH(e.target.value)}/><InputGroupAddon align="inline-end"><InputGroupText>h</InputGroupText></InputGroupAddon></InputGroup>
-          <InputGroup className="w-20"><InputGroupInput type="number" min="0" max="59" value={mM} onChange={e=>setMM(e.target.value)}/><InputGroupAddon align="inline-end"><InputGroupText>m</InputGroupText></InputGroupAddon></InputGroup>
-          <Button onClick={addManual} disabled={!mP}>Add</Button>
-        </div>
-        <div className="mt-3 pt-2.5 border-t border-border/60">
-          <button onClick={()=>setLogOpen(o=>!o)} className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground">
-            <ChevronRight size={13} style={{transform:logOpen?"rotate(90deg)":"none",transition:"transform .15s"}}/> Logged today <span className="font-semibold text-foreground/80">{hm(todayMins)}</span>
-          </button>
-          {logOpen && <div className="flex flex-col gap-1 mt-2">
-            {todayEntries.length===0 && <span className="text-xs text-muted-foreground/70">Nothing logged yet today.</span>}
-            {todayEntries.map(l=>{ const editing=editId===l.id; return (
-              <div key={l.id} className="flex items-center gap-2 text-sm">
-                <span className="w-2.5 h-2.5 rounded-xs shrink-0" style={{background:l.taskId?NAVY:colorOf(l.projectId)}}/>
-                <span className="text-foreground/80 truncate">{l.taskId?("Task · "+((taskById(l.taskId)||{}).title||"task")):(labProj(l.projectId)+(phName(l.projectId,l.phaseId)?" · "+phName(l.projectId,l.phaseId):""))}</span>
-                <span className="text-muted-foreground/40" style={{fontSize:11}}>{l.source}</span>
-                {editing ? (<span className="ml-auto flex items-center gap-1 flex-wrap justify-end">
-                  {!l.taskId && projSelect(eProj,(v)=>{setEProj(v);setEPh("");},"w-36","No project")}
-                  {!l.taskId && projById(eProj)?.phases?.length>0 && phaseSelect(projById(eProj),ePh,setEPh,"w-32")}
-                  <InputGroup className="w-18"><InputGroupInput type="number" min="0" value={eH} onChange={e=>setEH(e.target.value)}/><InputGroupAddon align="inline-end"><InputGroupText>h</InputGroupText></InputGroupAddon></InputGroup>
-                  <InputGroup className="w-18"><InputGroupInput type="number" min="0" max="59" value={eM} onChange={e=>setEM(e.target.value)}/><InputGroupAddon align="inline-end"><InputGroupText>m</InputGroupText></InputGroupAddon></InputGroup>
-                  <Button size="sm" onClick={()=>saveEdit(l)}>Save</Button>
-                  <Button variant="ghost" size="icon-sm" onClick={()=>setEditId(null)}><X/></Button>
-                </span>) : (<span className="ml-auto flex items-center gap-1">
-                  <span className="font-medium tabular-nums mr-1">{hm(l.minutes)}</span>
-                  <Button variant="ghost" size="icon-sm" onClick={()=>beginEdit(l)}><Pencil/></Button>
-                  <Button variant="ghost" size="icon-sm" onClick={()=>delTimeLogs([l.id])}><Trash2/></Button>
-                </span>)}
-              </div>);})}
-          </div>}
-        </div>
-      </div>}
-    </div>
-  );
-}
 function abToBase64(buf){ let bin=""; const bytes=new Uint8Array(buf); const chunk=0x8000; for(let i=0;i<bytes.length;i+=chunk){ bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+chunk)); } return btoa(bin); }
 function loadPdfJs(){
   if (typeof window==="undefined") return Promise.resolve(null);
@@ -865,7 +660,7 @@ function mapData(cad) {
   };
 }
 
-export default function Schedule({ org, me, data: cadData, reload, onNavigate, peopleFilter: pfProp, onPeopleFilter }) {
+export default function Schedule({ org, me, data: cadData, reload, peopleFilter: pfProp, onPeopleFilter }) {
   const canEdit = can(me, "schedule.edit");
   const [anchor,setAnchor]=useState(()=>startOfDay(new Date()));
   const [zoomT,setZoomT]=useState(0.55);
@@ -896,13 +691,9 @@ export default function Schedule({ org, me, data: cadData, reload, onNavigate, p
   const saveAssignment=async(a,ph)=>{ const row=asgRow(a); if(a.id) await sb.from("assignments").update(row).eq("id",a.id); else await sb.from("assignments").insert(row); if(ph&&ph.hours!=null){ const proj=(cadData.projects||[]).find(p=>p.id===ph.projectId); if(proj){ const phases=(proj.phases||[]).map(x=>x.id===ph.phaseId?{...x,hours:ph.hours}:x); await sb.from("projects").update({phases}).eq("id",proj.id); } } reload(); };
   const delAssign=async(id)=>{ await sb.from("assignments").delete().eq("id",id); reload(); };
   const saveInternalAssign=async({taskId,newTask,memberId,start,end})=>{ let tid=taskId; if(newTask){ const {data:t}=await sb.from("tasks").insert({org_id:org.id,title:newTask.title,priority:newTask.priority||"med",team:newTask.team||null,status:"todo",assignee_id:memberId||null,ord:Date.now()}).select().single(); tid=t&&t.id; } await sb.from("assignments").insert({org_id:org.id,kind:"task",membership_id:memberId,task_id:tid,start_date:start,end_date:end}); reload(); };
-  const addTimeLog=async({memberId,projectId,phaseId,taskId,date,minutes,source})=>{ await sb.from("time_logs").insert({org_id:org.id,membership_id:memberId,project_id:projectId||null,phase_id:phaseId||null,task_id:taskId||null,log_date:date,minutes,source:source||"manual"}); reload(); };
-  const updateTimeLog=async(id,minutes)=>{ if(minutes<=0){ await sb.from("time_logs").delete().eq("id",id); } else { await sb.from("time_logs").update({minutes}).eq("id",id); } reload(); };
-  const editTimeLog=async(id,patch)=>{ const row={}; if(patch.minutes!=null) row.minutes=patch.minutes; if("projectId" in patch) row.project_id=patch.projectId||null; if("phaseId" in patch) row.phase_id=patch.phaseId||null; if("taskId" in patch) row.task_id=patch.taskId||null; if(patch.minutes!=null && patch.minutes<=0){ await sb.from("time_logs").delete().eq("id",id); } else { await sb.from("time_logs").update(row).eq("id",id); } reload(); };
-  const delTimeLogs=async(ids)=>{ if(!ids||!ids.length) return; await sb.from("time_logs").delete().in("id",ids); reload(); };
   const createFromProposal=async({newClient,project,assignments})=>{ let clientId=project.clientId; if(newClient){ const {data:c}=await sb.from("clients").insert({org_id:org.id,name:newClient.name,color:newClient.color,payment_terms:30}).select().single(); clientId=c&&c.id; } const {data:p}=await sb.from("projects").insert({org_id:org.id,code:project.index,name:project.name,client_id:clientId,cost:project.cost,phases:project.phases}).select().single(); const projId=p&&p.id; if(projId&&assignments.length){ const rows=assignments.map(a=>({org_id:org.id,kind:"work",membership_id:a.memberId,project_id:projId,phase_id:a.phaseId||null,start_date:a.start,end_date:a.end})); await sb.from("assignments").insert(rows); } setModal(null); reload(); };
 
-  const ctx={ data:dataView, anchor, matches, setModal, moveAssign, peopleFilter, zoomT, holidayFilter, boardScroll, phaseLogged, projectById, clientById, colorOf, canEdit, myMemberId:me.id, addTimeLog, updateTimeLog, editTimeLog, delTimeLogs, openTrackerPage:()=>onNavigate&&onNavigate("tracker") };
+  const ctx={ data:dataView, anchor, matches, setModal, moveAssign, peopleFilter, zoomT, holidayFilter, boardScroll, phaseLogged, projectById, clientById, colorOf, canEdit, myMemberId:me.id };
 
   if(!can(me,"schedule.view")) return <NoAccess what="the schedule" />;
   const step=(dir)=>setAnchor(a=>addMonths(a,dir));
@@ -964,7 +755,6 @@ export default function Schedule({ org, me, data: cadData, reload, onNavigate, p
         </ButtonGroup>
       </div>
 
-      <DashTracker {...ctx} />
 
       {modal?.type==="assign" && <AssignForm assignment={modal.payload&&modal.payload.id?modal.payload:null} preset={modal.payload} members={data.members} projects={data.projects} clients={data.clients} anchor={anchor} tasks={data.internalTasks||[]} teams={teams}
         onInvite={canEdit?()=>setQuickModal("invite"):null} onNewProject={canEdit?()=>setQuickModal("newproject"):null}

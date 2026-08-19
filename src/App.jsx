@@ -18,7 +18,8 @@ import Tasks from "./screens/Tasks.jsx";
 import Projects from "./screens/Projects.jsx";
 import Tracker from "./screens/Tracker.jsx";
 import Billing from "./screens/Billing.jsx";
-import { lsGet, fmtClock, initials } from "./studio/core.jsx";
+import { fmtClock, initials } from "./studio/core.jsx";
+import { useRunningTimer } from "./screens/tracker/shared.jsx";
 import { makeTerms } from "./lib/terms.js";
 import { CalendarDays, Table2, LayoutGrid, Landmark, Users, Settings as Cog, Clock, FolderKanban, Shield, Gift } from "lucide-react";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -245,12 +246,13 @@ export default function App() {
 }
 
 function HeaderTracker({ me, active, onOpen }) {
-  const [run, setRun] = useState(() => lsGet("tracker_run_" + me.id));
+  const { run } = useRunningTimer(me.id);
   const [, tick] = useState(0);
   useEffect(() => {
-    const iv = setInterval(() => { const r = lsGet("tracker_run_" + me.id); setRun(r); tick(t => t + 1); try { localStorage.setItem("huddle_tracking", r ? "1" : "0"); } catch (_) {} }, 1000);
+    if (!run) return;
+    const iv = setInterval(() => tick(t => t + 1), 1000);
     return () => clearInterval(iv);
-  }, [me.id]);
+  }, [run]);
   const elapsed = run ? fmtClock((Date.now() - run.startedAt) / 1000) : null;
   return (
     <Button variant={active ? "secondary" : "ghost"} size="sm" title="Time tracker" onClick={onOpen}>

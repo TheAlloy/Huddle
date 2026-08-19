@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
-import { NAVY, DOW, pad, toISO, parseISO, startOfDay, addDays, startOfWeekMon, hm, fmtClock, fmtH, projectsByClient, lsGet, lsSet, openFloatingTimer, mapData, makeHandlers } from "../studio/core.jsx";
+import { NAVY, DOW, pad, toISO, parseISO, startOfDay, addDays, startOfWeekMon, hm, fmtClock, fmtH, projectsByClient, openFloatingTimer, mapData, makeHandlers } from "../studio/core.jsx";
+import { useRunningTimer, makeLabels, todayTracking } from "./tracker/shared.jsx";
 import { Play, Square, PictureInPicture2, X, Plus, Pencil, Trash2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,7 +49,7 @@ export default function Tracker({ org, me, data: cadData, reload }){
   const H=useMemo(()=>makeHandlers(org,reload,cadData),[org,cadData]); // eslint-disable-line
   const { addTimeLog, updateTimeLog, editTimeLog, delTimeLogs } = H;
 
-  const [run,setRun]=useState(()=>lsGet("tracker_run_"+meId));
+  const { run, start, startTask, stop: stopTimer, cancel } = useRunningTimer(meId, { addTimeLog });
   const [now,setNow]=useState(Date.now());
   const [selP,setSelP]=useState(""),[selPh,setSelPh]=useState("");
   const [mP,setMP]=useState(""),[mPh,setMPh]=useState(""),[mDate,setMDate]=useState(toISO(startOfDay(new Date()))),[mH,setMH]=useState(1),[mM,setMM]=useState(0),[mDateOpen,setMDateOpen]=useState(false);
@@ -56,49 +57,25 @@ export default function Tracker({ org, me, data: cadData, reload }){
   const pip=useRef(null), pipActions=useRef({});
   const closePip=()=>{ if(pip.current){ try{pip.current.close();}catch(_){} pip.current=null; } };
   useEffect(()=>{ if(!run) return; const t=setInterval(()=>setNow(Date.now()),1000); return ()=>clearInterval(t); },[run]);
-  useEffect(()=>{ setRun(lsGet("tracker_run_"+meId)); },[meId]);
   useEffect(()=>{ if(!run) closePip(); },[run]); // eslint-disable-line
   useEffect(()=>()=>closePip(),[]); // eslint-disable-line
 
   if(!can(me,"time.track")) return <NoAccess what="the time tracker" />;
   const mayManual = can(me,"time.manual");
 
-  const projById=(id)=>data.projects.find(p=>p.id===id);
-  const clientOf=(pid)=>{ const pr=projById(pid); return pr && data.clients.find(c=>c.id===pr.clientId); };
-  const labProj=(pid)=>{ const pr=projById(pid); const cl=clientOf(pid); return pr? `${cl?cl.name+" - ":""}${pr.name}` : "—"; };
-  const labTop=(pid)=>{ const pr=projById(pid); const cl=clientOf(pid); return pr? `${cl?cl.name+" · ":""}${pr.index}` : "—"; };
-  const phName=(pid,phid)=>{ const pr=projById(pid); const ph=pr&&phid&&(pr.phases||[]).find(x=>x.id===phid); return ph?ph.name:""; };
-  const colorOf=(pid)=>{ const cl=clientOf(pid); return cl?cl.color:"#64748b"; };
-  const taskById=(id)=>(data.internalTasks||[]).find(t=>t.id===id);
+  const { projById, labProj, labTop, phName, colorOf, taskById, runTop, runColor } = makeLabels(data);
   const todayISO=toISO(startOfDay(new Date()));
-  const minsFor=(pid,phid)=>(data.timeLogs||[]).filter(l=>l.memberId===meId&&l.date===todayISO&&!l.taskId&&l.projectId===pid&&(l.phaseId||"")===(phid||"")).reduce((s,l)=>s+l.minutes,0);
-  const minsForTask=(tid)=>(data.timeLogs||[]).filter(l=>l.memberId===meId&&l.date===todayISO&&l.taskId===tid).reduce((s,l)=>s+l.minutes,0);
-  const todayMins=(data.timeLogs||[]).filter(l=>l.memberId===meId&&l.date===todayISO).reduce((s,l)=>s+l.minutes,0);
+  const { bubbles, myTasks, todayEntries, minsFor, minsForTask, todayMins } = todayTracking(data, meId, todayISO);
 
-  const seen=new Set(), bubbles=[];
-  const addBub=(pid,phid)=>{ if(!pid) return; const k=pid+"|"+(phid||""); if(seen.has(k)) return; seen.add(k); bubbles.push({projectId:pid,phaseId:phid||null}); };
-  data.assignments.filter(a=>a.memberId===meId&&a.kind==="work"&&a.start<=todayISO&&a.end>=todayISO).forEach(a=>addBub(a.projectId,a.phaseId));
-  const internalAsgToday=data.assignments.filter(a=>a.memberId===meId&&a.kind==="internal"&&a.taskId&&a.start<=todayISO&&a.end>=todayISO);
-  const asgTaskIds=new Set(internalAsgToday.map(a=>a.taskId));
-  internalAsgToday.forEach(a=>{ const k="task:"+a.taskId; if(seen.has(k)) return; seen.add(k); bubbles.push({taskId:a.taskId,internal:true}); });
-  const myTasks=(data.internalTasks||[]).filter(t=>t.assigneeId===meId&&t.status!=="done"&&!asgTaskIds.has(t.id));
-  const todayEntries=(data.timeLogs||[]).filter(l=>l.memberId===meId&&l.date===todayISO);
-
-  const setRunning=(r)=>{ setRun(r); lsSet("tracker_run_"+meId,r); };
-  const start=(pid,phid)=>{ if(!pid) return; setRunning({projectId:pid,phaseId:phid||null,taskId:null,startedAt:Date.now()}); };
-  const startTask=(tid)=>{ if(!tid) return; setRunning({projectId:null,phaseId:null,taskId:tid,startedAt:Date.now()}); };
-  const stop=()=>{ if(!run) return; const mins=Math.max(1,Math.round((Date.now()-run.startedAt)/60000)); addTimeLog({memberId:meId,projectId:run.projectId,phaseId:run.phaseId,taskId:run.taskId,date:todayISO,minutes:mins,source:"timer"}); setRunning(null); };
-  const cancel=()=>setRunning(null);
+  const stop=()=>stopTimer(todayISO);
   const addManual=()=>{ const mins=Math.max(0,Number(mH||0)*60+Number(mM||0)); if(!mP||mins<=0) return; addTimeLog({memberId:meId,projectId:mP,phaseId:mPh||null,date:mDate||todayISO,minutes:mins,source:"manual"}); setMH(1); setMM(0); };
   const beginEdit=(l)=>{ setEditId(l.id); setEH(Math.floor(l.minutes/60)); setEM(l.minutes%60); setEProj(l.projectId||""); setEPh(l.phaseId||""); };
   const saveEdit=(l)=>{ const mins=Math.max(0,Number(eH||0)*60+Number(eM||0)); if(l&&l.taskId) editTimeLog(editId,{minutes:mins}); else editTimeLog(editId,{minutes:mins,projectId:eProj||null,phaseId:ePh||null}); setEditId(null); };
   const selproj=projById(selP), mproj=projById(mP);
   const elapsed=run?fmtClock((now-run.startedAt)/1000):null;
-  const runTop=()=> run? (run.taskId? "Task · "+((taskById(run.taskId)||{}).title||"task") : labProj(run.projectId)) : "—";
-  const runColor=()=> run? (run.taskId? NAVY : colorOf(run.projectId)) : "#64748b";
   const groups=projectsByClient(data.projects,data.clients);
 
-  pipActions.current={ run, stop, top:runTop };
+  pipActions.current={ run, stop, top:()=>runTop(run) };
   const openPip=async()=>{ if(!run) return; if(pip.current){ try{pip.current.win.focus();}catch(_){} return; }
     const ctl=await openFloatingTimer({ getTop:()=>{ const a=pipActions.current; return a.top?a.top():"—"; }, getElapsed:()=>{ const r=pipActions.current.run; return r?fmtClock((Date.now()-r.startedAt)/1000):"0:00:00"; }, onStop:()=>{ const s=pipActions.current.stop; if(s) s(); } });
     if(ctl) pip.current=ctl; };
@@ -129,11 +106,11 @@ export default function Tracker({ org, me, data: cadData, reload }){
       <div className="max-w-3xl mx-auto flex flex-col gap-4 p-4">
         <div className="flex items-center gap-2"><Clock size={18} className="text-muted-foreground"/><h2 className="text-base font-medium">Time tracker</h2><span className="ml-auto text-sm text-muted-foreground">This week <span className="font-medium text-foreground">{fmtH(weekTot/60)}h</span></span></div>
 
-        <div className={`rounded-xl p-4 ${run ? "text-white shadow-xs" : "border bg-card"}`} style={run ? { background: runColor() } : undefined}>
+        <div className={`rounded-xl p-4 ${run ? "text-white shadow-xs" : "border bg-card"}`} style={run ? { background: runColor(run) } : undefined}>
           {run ? (
             <div className="flex items-center gap-3 flex-wrap">
               <span className="size-2.5 rounded-full bg-card" style={{animation:"pulse 1.5s infinite"}}/>
-              <div><div className="text-xs opacity-90">{runTop()}{!run.taskId&&phName(run.projectId,run.phaseId)?" · "+phName(run.projectId,run.phaseId):""}</div><div className="text-3xl font-medium tabular-nums">{elapsed}</div></div>
+              <div><div className="text-xs opacity-90">{runTop(run)}{!run.taskId&&phName(run.projectId,run.phaseId)?" · "+phName(run.projectId,run.phaseId):""}</div><div className="text-3xl font-medium tabular-nums">{elapsed}</div></div>
               <div className="ml-auto flex items-center gap-2">
                 <Button variant="secondary" onClick={stop}><Square data-icon="inline-start"/> Stop &amp; log</Button>
                 <Button variant="secondary" size="icon" title="Pop out floating timer" onClick={openPip}><PictureInPicture2/></Button>

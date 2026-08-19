@@ -110,7 +110,6 @@ export default function Time({ org, me, data: cadData, reload }) {
   const rangeLabel = `${pad(rs.getDate())} ${MONTHS[rs.getMonth()]} – ${pad(re.getDate())} ${MONTHS[re.getMonth()]} ${re.getFullYear()}`;
 
   const visible = canTeam ? pfList(data.members, pf) : data.members.filter((m) => m.id === meId);
-  const selfOnly = visible.length === 1 && visible[0]?.id === meId;
   const editableFor = (m) => (m.id === meId ? canTrack : canEditOthers);
 
   const logKey = (l) => (l.taskId ? "T|" + l.taskId : (l.projectId || "none") + "|" + (l.phaseId || ""));
@@ -197,27 +196,29 @@ export default function Time({ org, me, data: cadData, reload }) {
     return { text: `${(labels.projById(row.projectId) || { index: "—" }).index}${ph ? " · " + ph : ""}`, full: labels.labProj(row.projectId) + (ph ? " · " + ph : ""), color: labels.colorOf(row.projectId) };
   };
 
-  // The aligned grid for one member: left label column (person's projects),
-  // one column per shown day, then the row's week total.
-  const MemberGrid = (member, shownDays) => {
+  // One member's slice of the unified grid: a divider row with their name and
+  // per-day subtotals, then one aligned row per project/task, then add-row.
+  // The day labels themselves live in the single header row at the top.
+  const MemberRows = (member, shownDays) => {
     const rows = memberRows(member);
     const editable = editableFor(member);
     const scheds = shownDays.map((d) => schedFor(member, toISO(d)));
-    const dayTots = shownDays.map((d) => { const dISO = toISO(d); return weekLogs(member.id).filter((l) => l.date === dISO).reduce((s, l) => s + l.minutes, 0); });
-    const rowTot = (row) => weekLogs(member.id).filter((l) => logKey(l) === row.key).reduce((s, l) => s + l.minutes, 0);
-    const gridCols = { gridTemplateColumns: `minmax(150px,200px) repeat(${shownDays.length}, minmax(0,1fr)) 56px` };
+    const logs = weekLogs(member.id);
+    const dayTot = (dISO) => logs.filter((l) => l.date === dISO).reduce((s, l) => s + l.minutes, 0);
+    const rowTot = (row) => logs.filter((l) => logKey(l) === row.key).reduce((s, l) => s + l.minutes, 0);
+    const wk = weekTot(member.id);
+    const mi = data.members.findIndex((x) => x.id === member.id);
     return (
-      <div className="grid gap-1 items-center" style={gridCols}>
-        {/* header row */}
-        <div />
-        {shownDays.map((d, i) => { const dISO = toISO(d); const isToday = dISO === todayISO; return (
-          <div key={dISO} className={`px-1 py-0.5 text-xs flex items-baseline justify-between ${isToday ? "font-medium text-foreground" : "text-muted-foreground"}`}>
-            <span>{DOW[d.getDay()]} {pad(d.getDate())}</span>
-            <span className="tabular-nums">{dayTots[i] ? fmtH(dayTots[i] / 60) + "h" : ""}</span>
-          </div>); })}
-        <div className="px-1 py-0.5 text-xs text-muted-foreground text-right">Week</div>
+      <React.Fragment key={member.id}>
+        <div className="col-span-full border-t border-border/60 mt-1.5" />
+        <div className="flex items-center gap-2 py-1 min-w-0">
+          <Avatar size="sm"><AvatarFallback className="text-white" style={{ background: AVATAR_BG[mi % AVATAR_BG.length] }}>{initials(member.name)}</AvatarFallback></Avatar>
+          <span className="font-medium text-sm truncate">{member.name}</span>
+        </div>
+        {shownDays.map((d) => { const dISO = toISO(d); const t = dayTot(dISO); return (
+          <div key={dISO} className={`px-1 text-xs tabular-nums text-right ${dISO === todayISO ? "text-foreground" : "text-muted-foreground"}`}>{t ? fmtH(t / 60) + "h" : ""}</div>); })}
+        <div className="px-1 text-xs font-medium tabular-nums text-right">{wk ? fmtH(wk / 60) + "h" : ""}</div>
 
-        {/* one row per project/task, cells aligned under the day columns */}
         {rows.map((row) => { const lab = rowLabel(row); const tot = rowTot(row); return (
           <React.Fragment key={row.key}>
             <div className="flex items-center gap-1.5 min-w-0 pr-1">
@@ -234,7 +235,6 @@ export default function Time({ org, me, data: cadData, reload }) {
             <div className="px-1 text-xs font-medium tabular-nums text-right">{tot ? fmtH(tot / 60) + "h" : ""}</div>
           </React.Fragment>); })}
 
-        {/* add-row */}
         {editable && (
           <React.Fragment>
             {adding === member.id
@@ -244,12 +244,23 @@ export default function Time({ org, me, data: cadData, reload }) {
             <div />
           </React.Fragment>
         )}
-        {rows.length === 0 && !editable && <>
-          <div className="text-xs text-muted-foreground col-span-full py-1">Nothing scheduled or logged this week.</div>
-        </>}
-      </div>
+        {rows.length === 0 && !editable &&
+          <div className="text-xs text-muted-foreground col-span-full py-1">Nothing scheduled or logged this week.</div>}
+      </React.Fragment>
     );
   };
+
+  // The whole board is ONE grid so the single day-header row aligns with
+  // every person's cells below it.
+  const Board = (shownDays) => (
+    <div className="grid gap-1 items-center" style={{ gridTemplateColumns: `minmax(150px,200px) repeat(${shownDays.length}, minmax(0,1fr)) 56px` }}>
+      <div />
+      {shownDays.map((d) => { const dISO = toISO(d); const isToday = dISO === todayISO; return (
+        <div key={dISO} className={`px-1 py-0.5 text-xs text-center rounded-md ${isToday ? "font-medium text-foreground bg-primary/10" : "text-muted-foreground"}`}>{DOW[d.getDay()]} {pad(d.getDate())}</div>); })}
+      <div className="px-1 py-0.5 text-xs text-muted-foreground text-right">Week</div>
+      {visible.map((m) => MemberRows(m, shownDays))}
+    </div>
+  );
 
   const focusDay = days.find((d) => toISO(d) === focusISO) || (days.find((d) => toISO(d) === todayISO) || days[0]);
 
@@ -288,16 +299,9 @@ export default function Time({ org, me, data: cadData, reload }) {
           )}
 
           {visible.length === 0 && <div className="rounded-xl border bg-card p-6 text-center text-sm text-muted-foreground">No people selected.</div>}
-          {visible.map((m) => (
-            <div key={m.id} className="rounded-xl border bg-card p-3">
-              {!selfOnly && (
-                <div className="flex items-center gap-2 mb-2">
-                  <Avatar size="sm"><AvatarFallback className="text-white" style={{ background: AVATAR_BG[data.members.findIndex((x) => x.id === m.id) % AVATAR_BG.length] }}>{initials(m.name)}</AvatarFallback></Avatar>
-                  <span className="font-medium text-sm">{m.name}</span>
-                  <span className="ml-auto text-xs text-muted-foreground">Week <span className="font-medium text-foreground">{fmtH(weekTot(m.id) / 60)}h</span></span>
-                </div>
-              )}
-              <div className="hidden md:block">{MemberGrid(m, days)}</div>
+          {visible.length > 0 && (
+            <div className="rounded-xl border bg-card p-3">
+              <div className="hidden md:block">{Board(days)}</div>
               <div className="md:hidden">
                 <div className="grid grid-cols-7 gap-1 mb-2">
                   {days.map((d) => { const iso = toISO(d); const sel = toISO(focusDay) === iso; return (
@@ -305,10 +309,10 @@ export default function Time({ org, me, data: cadData, reload }) {
                       {DOW[d.getDay()]}<br />{pad(d.getDate())}
                     </button>); })}
                 </div>
-                {MemberGrid(m, [focusDay])}
+                {Board([focusDay])}
               </div>
             </div>
-          ))}
+          )}
 
           {canTeam && <BudgetSection data={data} rs={rs} re={re} canSeeCost={can(me, "billing.view")} />}
         </> : (

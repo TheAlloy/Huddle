@@ -14,6 +14,7 @@ import { NAVY, toISO, startOfDay, hm, lsGet, lsSet, mapData, makeHandlers } from
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
+import { Combobox, ComboboxCollection, ComboboxContent, ComboboxEmpty, ComboboxGroup, ComboboxInput, ComboboxItem, ComboboxLabel, ComboboxList } from "@/components/ui/combobox";
 import { Trash2, Square } from "lucide-react";
 
 const keyFor = (meId) => "tracker_run_" + meId;
@@ -144,6 +145,72 @@ export function todayTracking(data, meId, todayISO) {
   const minsForTask = (tid) => todayEntries.filter((l) => l.taskId === tid).reduce((s, l) => s + l.minutes, 0);
   const todayMins = todayEntries.reduce((s, l) => s + l.minutes, 0);
   return { bubbles, myTasks, todayEntries, minsFor, minsForTask, todayMins };
+}
+
+// Distinct project+phase combos the member logged in the recent past, newest
+// first — the Recent group at the top of the project pickers.
+export function recentCombos(data, meId, { days = 14, max = 6 } = {}) {
+  const labels = makeLabels(data);
+  const cutoffISO = toISO(addDaysLocal(startOfDay(new Date()), -days));
+  const seen = new Set(), out = [];
+  (data.timeLogs || []).filter((l) => l.memberId === meId && !l.taskId && l.projectId && l.date >= cutoffISO)
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .forEach((l) => {
+      const k = l.projectId + "|" + (l.phaseId || "");
+      if (seen.has(k) || out.length >= max) return;
+      seen.add(k);
+      const pr = labels.projById(l.projectId); if (!pr) return;
+      const ph = labels.phName(l.projectId, l.phaseId);
+      out.push({ key: "r:" + k, projectId: l.projectId, phaseId: l.phaseId || null, label: `${pr.index} — ${pr.name}${ph ? " · " + ph : ""}` });
+    });
+  return out;
+}
+const addDaysLocal = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+
+// Screen-local composition shared by the Time screen and header popover:
+// searchable grouped project picker. Content-pour only — stock parts. Items
+// are {key, projectId, phaseId, label}; the Recent group's items carry the
+// phase they were last logged with, so picking one fills both.
+export function ProjectCombobox({ selP, selPh, onPick, groups, recents, placeholder = "Project…", className = "w-56" }) {
+  const items = [
+    ...(recents.length ? [{ value: "Recent", items: recents }] : []),
+    ...groups.map((g) => ({
+      value: g.client ? g.client.name : "No client",
+      items: g.projects.map((p) => ({ key: p.id, projectId: p.id, phaseId: null, label: `${p.index} — ${p.name}` })),
+    })),
+  ];
+  const flat = items.flatMap((g) => g.items);
+  const value = flat.find((i) => i.projectId === selP && (i.phaseId || "") === (selPh || "")) || flat.find((i) => i.projectId === selP) || null;
+  return (
+    <Combobox items={items} value={value} itemToStringValue={(i) => i.label}
+      onValueChange={(it) => onPick(it ? { projectId: it.projectId, phaseId: it.phaseId } : { projectId: "", phaseId: null })}>
+      <ComboboxInput placeholder={placeholder} className={className} showClear />
+      <ComboboxContent>
+        <ComboboxEmpty>No matching projects.</ComboboxEmpty>
+        <ComboboxList>
+          {(group) => (
+            <ComboboxGroup key={group.value} items={group.items}>
+              <ComboboxLabel>{group.value}</ComboboxLabel>
+              <ComboboxCollection>
+                {(item) => <ComboboxItem key={item.key} value={item}>{item.label}</ComboboxItem>}
+              </ComboboxCollection>
+            </ComboboxGroup>
+          )}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
+  );
+}
+
+// One free-text duration field: "1:30" → 90, "90m" → 90, "1.5" / "1,5" → 90.
+// Returns minutes, or null for empty/unparseable input.
+export function parseHours(str) {
+  const s = String(str || "").trim().toLowerCase().replace(",", ".");
+  if (!s) return null;
+  if (s.includes(":")) { const [h, m] = s.split(":"); const mins = Math.round(Number(h || 0) * 60 + Number(m || 0)); return Number.isFinite(mins) ? Math.max(0, mins) : null; }
+  if (s.endsWith("m") && !s.endsWith("hm")) { const mins = Math.round(parseFloat(s)); return Number.isFinite(mins) ? Math.max(0, mins) : null; }
+  const h = parseFloat(s);
+  return Number.isFinite(h) ? Math.max(0, Math.round(h * 60)) : null;
 }
 
 /* ----------------------------- overrun guard ------------------------------ */

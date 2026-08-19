@@ -16,7 +16,7 @@ import Schedule from "./screens/Schedule.jsx";
 import Summary from "./screens/Summary.jsx";
 import Tasks from "./screens/Tasks.jsx";
 import Projects from "./screens/Projects.jsx";
-import Tracker from "./screens/Tracker.jsx";
+import Time from "./screens/Time.jsx";
 import Billing from "./screens/Billing.jsx";
 import { fmtClock, initials } from "./studio/core.jsx";
 import { useRunningTimer, TimerOverrunGuard } from "./screens/tracker/shared.jsx";
@@ -128,7 +128,7 @@ export default function App() {
     if (didInitTab.current || !active) return;
     didInitTab.current = true;
     const senior = ["owner", "admin", "manager", "finance"].includes(active.role) || can(active, "billing.view") || can(active, "team.manage") || can(active, "schedule.edit");
-    setTab(senior ? "schedule" : (can(active, "time.track") ? "tracker" : "schedule"));
+    setTab(senior ? "schedule" : (can(active, "time.track") ? "time" : "schedule"));
   }, [active]);
 
   // Subscription gate: verify the active studio has a live subscription (checks Stripe if our record is stale).
@@ -181,15 +181,15 @@ export default function App() {
 
   const NAV = [
     { key: "schedule", label: "Schedule", icon: CalendarDays, perm: "schedule.view" },
-    { key: "summary", label: "Summary", icon: Table2, perm: "summary.view" },
+    { key: "time", label: "Time", icon: Clock, anyPerm: ["time.track", "summary.view"] },
+    { key: "summary", label: "Summary", icon: Table2, perm: "summary.view" }, // legacy — retires once the merged Time screen is trusted
     { key: "tasks", label: "Tasks", icon: LayoutGrid, perm: "tasks.view" },
-    { key: "tracker", label: "Tracker", icon: Clock, perm: "time.track" },
     { key: "projects", label: terms.navProjects, icon: FolderKanban, perm: "projects.manage" },
     { key: "billing", label: "Billing", icon: Landmark, perm: "billing.view" },
     { key: "people", label: "People", icon: Users, perm: "team.view" },
     { key: "settings", label: "Settings", icon: Cog, perm: null },
   ];
-  const visible = NAV.filter(n => !n.perm || can(me, n.perm));
+  const visible = NAV.filter(n => n.anyPerm ? n.anyPerm.some(p => can(me, p)) : (!n.perm || can(me, n.perm)));
   const current = visible.find(n => n.key === tab) ? tab : (visible[0]?.key || "settings");
   const userName = me.display_name || me.email;
   const navItem = (n) => { const Icon = n.icon; return { key: n.key, title: n.label, icon: <Icon />, isActive: current === n.key && tab !== "admin", onSelect: () => setTab(n.key) }; };
@@ -202,7 +202,7 @@ export default function App() {
         teams={memberships.map(m => ({ id: m.org_id, name: m.organizations?.name || "Studio", plan: planLabel(m.organizations?.plan) }))}
         activeTeamId={active.org_id}
         onPickTeam={(id) => { setOrgId(id); localStorage.setItem("cadence_org", id); }}
-        nav={visible.filter(n => ["schedule", "summary", "tasks", "tracker"].includes(n.key)).map(navItem)}
+        nav={visible.filter(n => ["schedule", "time", "summary", "tasks"].includes(n.key)).map(navItem)}
         groups={[{ label: "Manage", items: visible.filter(n => ["projects", "billing", "people"].includes(n.key)).map(navItem) }]}
         action={{ title: "Leave feedback", icon: <Gift />, onSelect: () => setFeedbackOpen(true) }}
         secondary={[
@@ -214,7 +214,7 @@ export default function App() {
         onSignOut={async () => { await sb.auth.signOut(); window.location.reload(); }} />
       <SidebarInset className="overflow-hidden">
       <SiteHeader title={tab === "admin" && profile?.platform_admin ? "Subscribers" : (visible.find(n => n.key === current)?.label || "")}>
-        {can(me, "time.track") && <HeaderTracker me={me} active={current === "tracker"} onOpen={() => setTab("tracker")} />}
+        {can(me, "time.track") && <HeaderTracker me={me} active={current === "time"} onOpen={() => setTab("time")} />}
       </SiteHeader>
       {can(me, "time.track") && <TimerOverrunGuard org={org} me={me} data={data} reload={reload} />}
 
@@ -229,7 +229,7 @@ export default function App() {
             : current === "people" ? (can(me, "team.manage") ? <Team org={org} me={me} members={data.members} reload={reload} onNavigate={setTab} /> : <TeamLite members={data.members} />)
             : current === "settings" ? <Settings org={org} me={me} members={data.members} reload={() => { loadMe(); reload(); }} />
             : current === "projects" ? <Projects org={org} me={me} data={data} reload={reload} terms={terms} />
-            : current === "tracker" ? <Tracker org={org} me={me} data={data} reload={reload} />
+            : current === "time" ? <Time org={org} me={me} data={data} reload={reload} />
             : current === "schedule" ? (can(me, "schedule.view") ? <Schedule org={org} me={me} data={data} reload={reload} onNavigate={setTab} peopleFilter={peopleFilter} onPeopleFilter={setPeopleFilter} /> : <NoAccess what="the schedule" />)
             : current === "summary" ? (can(me, "summary.view") ? <Summary org={org} me={me} data={data} reload={reload} peopleFilter={peopleFilter} onPeopleFilter={setPeopleFilter} /> : <NoAccess what="summaries" />)
             : current === "tasks" ? (can(me, "tasks.view") ? <Tasks org={org} me={me} data={data} reload={reload} /> : <NoAccess what="tasks" />)

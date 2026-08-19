@@ -7,6 +7,7 @@ import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
 import { MONTHS, DOW, pad, toISO, parseISO, startOfDay, addDays, startOfWeekMon, isWeekday, hm, fmtClock, fmtH, NAVY, projectsByClient, mapData, makeHandlers } from "../studio/core.jsx";
 import { useRunningTimer, makeLabels, ProjectCombobox, recentCombos, parseHours, usePipTimer, taskProject } from "./tracker/shared.jsx";
+import WeekCalendar from "./tracker/WeekCalendar.jsx";
 import { useConfirm } from "../components/confirm.tsx";
 import { Play, Square, PictureInPicture2, X, Clock, ChevronLeft, ChevronRight, NotebookPen, Plus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -269,6 +270,19 @@ export default function Timesheet({ org, me, data: cadData, reload }) {
             </div>
             {Board([focusDay])}
           </div>
+        </div>
+
+        <div className="hidden md:block">
+          <WeekCalendar days={days} todayISO={todayISO} logs={weekLogs} labelFor={rowLabel} groups={groups} recents={recents}
+            run={run} runColor={labels.runColor(run)}
+            onCreate={({ projectId, phaseId, date, startMin, minutes, note }) => addTimeLog({ memberId: meId, projectId, phaseId, taskId: null, date, minutes, startMin, source: "manual", note })}
+            onPatch={(id, patch) => editTimeLog(id, patch)} />
+        </div>
+        <div className="md:hidden">
+          <WeekCalendar days={[focusDay]} todayISO={todayISO} logs={weekLogs} labelFor={rowLabel} groups={groups} recents={recents}
+            run={run} runColor={labels.runColor(run)}
+            onCreate={({ projectId, phaseId, date, startMin, minutes, note }) => addTimeLog({ memberId: meId, projectId, phaseId, taskId: null, date, minutes, startMin, source: "manual", note })}
+            onPatch={(id, patch) => editTimeLog(id, patch)} />
         </div>
       </div>
     </ScrollArea>

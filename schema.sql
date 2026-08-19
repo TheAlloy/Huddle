@@ -108,6 +108,7 @@ create table if not exists time_logs (
   project_id uuid references projects(id) on delete set null,
   phase_id text, task_id uuid,
   log_date date not null, minutes integer not null default 0,
+  start_min integer, -- minutes from midnight; null = duration-only entry with no claimed time-of-day
   source text default 'manual', note text,
   created_at timestamptz not null default now()
 );

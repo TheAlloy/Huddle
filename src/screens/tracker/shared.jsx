@@ -96,7 +96,9 @@ export function useRunningTimer(meId, { addTimeLog, orgId, dailyHours } = {}) {
   }, [meId, orgId]);
 
   // Over the cap, time is attributed to the day the timer STARTED — a timer
-  // forgotten overnight must not write a phantom day onto today.
+  // forgotten overnight must not write a phantom day onto today. Timer
+  // entries carry their real start time-of-day (start_min) so the calendar
+  // can show when the work actually happened.
   const stop = useCallback((todayISO, { note, minutes } = {}) => {
     const r = store.meId === meId ? store.run : null;
     if (!r || !addTimeLog) return;
@@ -105,7 +107,9 @@ export function useRunningTimer(meId, { addTimeLog, orgId, dailyHours } = {}) {
     const over = elapsedMin > cap;
     const mins = Math.max(1, Math.min(minutes != null ? minutes : elapsedMin, cap));
     const date = over ? toISO(startOfDay(new Date(r.startedAt))) : todayISO;
-    addTimeLog({ memberId: meId, projectId: r.projectId, phaseId: r.phaseId, taskId: r.taskId, date, minutes: mins, source: "timer", note: note || null });
+    const startD = new Date(r.startedAt);
+    const startMin = startD.getHours() * 60 + startD.getMinutes();
+    addTimeLog({ memberId: meId, projectId: r.projectId, phaseId: r.phaseId, taskId: r.taskId, date, minutes: mins, source: "timer", note: note || null, startMin });
     applyRun(meId, null);
     persistClear(meId).catch(() => {});
   }, [meId, addTimeLog, dailyHours]);

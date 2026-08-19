@@ -198,6 +198,15 @@ derives from here.
 > editing, budgets, holiday). Slice 7 (delete Summary) is void; the
 > `anyPerm` nav case reverted to a plain `time.track` gate. Everything else
 > (D1–D8, D10–D13) stands and is shipped.
+>
+> **Calendar addendum (same revision cycle):** D3's "duration-only" was
+> relaxed — `time_logs.start_min` (nullable, minutes from midnight) records
+> optional time-of-day placement. Timer stops fill it from the real start;
+> the Timesheet's calendar lane (under the week grid) lets you drag to
+> create placed blocks, move/resize them, and drag unplaced entries into
+> position. Typed totals stay duration-only and sit in an "unplaced" strip —
+> placement is never fabricated. Duration remains the source of truth.
+> Migration: `2026-08-time-log-start.sql`, no backfill.
 
 ### Model
 

@@ -5,7 +5,7 @@ import { MONTHS, DOW, pad, toISO, parseISO, startOfDay, addDays, startOfWeekMon,
 import { useRunningTimer, makeLabels, ProjectCombobox, recentCombos, parseHours, usePipTimer, taskProject } from "./tracker/shared.jsx";
 import { BudgetSection, HolidaySection } from "./time/sections.jsx";
 import { useConfirm } from "../components/confirm.tsx";
-import { Play, Square, PictureInPicture2, X, Clock, ChevronLeft, ChevronRight, Plane, NotebookPen, Plus } from "lucide-react";
+import { Play, Square, PictureInPicture2, X, Clock, ChevronLeft, ChevronRight, Plane, NotebookPen, Plus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { Input } from "@/components/ui/input";
@@ -13,10 +13,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
-/* One free-text duration field per row: shows the logged total, commits on
-   Enter (empty input on a ghost row accepts the suggestion), Escape reverts.
-   Raw compact input by Summary's calendar-cell precedent — the board is a
-   data grid, not a form. */
+/* One free-text duration field per cell: shows the logged total, commits on
+   Enter (empty input on a suggested cell accepts the suggestion), Escape
+   reverts. Raw compact input by Summary's calendar-cell precedent — the board
+   is a data grid, not a form. */
 function HoursField({ mins, ghostMins, onCommit }) {
   const shown = mins != null ? fmtH(mins / 60) : "";
   const [val, setVal] = useState(shown);
@@ -33,48 +33,37 @@ function HoursField({ mins, ghostMins, onCommit }) {
     <input value={val} onChange={(e) => setVal(e.target.value)}
       onFocus={() => setFocus(true)} onBlur={() => { setFocus(false); setVal(shown); }}
       onKeyDown={(e) => { if (e.key === "Enter") { commit(); e.currentTarget.blur(); } if (e.key === "Escape") { setVal(shown); e.currentTarget.blur(); } }}
-      placeholder={ghostMins != null ? fmtH(ghostMins / 60) : "0"}
-      className="w-12 shrink-0 rounded-md border border-input bg-background px-1.5 py-0.5 text-xs tabular-nums outline-none focus:border-ring placeholder:text-muted-foreground/60"
+      placeholder={ghostMins != null ? fmtH(ghostMins / 60) : ""}
+      className="w-full min-w-0 flex-1 rounded-md border border-input bg-background px-1.5 py-0.5 text-xs tabular-nums outline-none focus:border-ring placeholder:text-muted-foreground/50"
       aria-label="Hours" />
   );
 }
 
-function RowItem({ row, ghost, canEdit, showPlay, labels, onSetTotal, onStart, onSaveNote }) {
+/* One row×day cell: hours field, one-tap accept when the schedule suggests
+   hours, note popover on logged cells, play verb on the member's own today. */
+function GridCell({ cell, editable, showPlay, isToday, wknd, onCommit, onStart, onSaveNote }) {
   const [noteOpen, setNoteOpen] = useState(false);
-  const [noteVal, setNoteVal] = useState(row.note || "");
-  const task = row.taskId ? labels.taskById(row.taskId) : null;
-  const label = row.taskId ? ((task || {}).title || "task") : `${(labels.projById(row.projectId) || { index: "—" }).index}${labels.phName(row.projectId, row.phaseId) ? " · " + labels.phName(row.projectId, row.phaseId) : ""}`;
-  const full = row.taskId ? "Task · " + label + (task?.projectId ? " — " + labels.labTop(task.projectId) : "") : labels.labProj(row.projectId) + (labels.phName(row.projectId, row.phaseId) ? " · " + labels.phName(row.projectId, row.phaseId) : "");
-  const color = row.taskId ? (task?.projectId ? labels.colorOf(task.projectId) : NAVY) : labels.colorOf(row.projectId);
+  const [noteVal, setNoteVal] = useState(cell.note || "");
   return (
-    <div className={`rounded-md border px-1.5 py-1 ${ghost ? "border-dashed bg-muted/30" : "border-border bg-card"}`}>
-      <div className="flex items-center gap-1 min-w-0">
-        <span className="size-2 rounded-xs shrink-0" style={{ background: color }} />
-        <span className="text-[11px] leading-tight truncate" title={full + (row.note ? " — " + row.note : "")}>{label}</span>
-        {row.note ? <NotebookPen size={10} className="text-muted-foreground shrink-0" /> : null}
-      </div>
-      <div className="flex items-center gap-1 mt-1">
-        {canEdit
-          ? <HoursField mins={ghost ? null : row.mins} ghostMins={ghost ? row.ghostMins : null} onCommit={onSetTotal} />
-          : <span className="text-xs font-medium tabular-nums">{ghost ? "" : fmtH(row.mins / 60) + "h"}</span>}
-        {ghost && canEdit && row.ghostMins != null &&
-          <Button variant="outline" size="sm" onClick={() => onSetTotal(row.ghostMins)}>Log {fmtH(row.ghostMins / 60)}h</Button>}
-        <span className="ml-auto flex items-center">
-          {!ghost && canEdit && onSaveNote && (
-            <Popover open={noteOpen} onOpenChange={(v) => { setNoteOpen(v); if (v) setNoteVal(row.note || ""); }}>
-              <PopoverTrigger render={<Button variant="ghost" size="icon-xs" title="Note" />}><NotebookPen /></PopoverTrigger>
-              <PopoverContent className="w-64 p-2" align="end">
-                <div className="flex items-center gap-2">
-                  <Input value={noteVal} onChange={(e) => setNoteVal(e.target.value)} placeholder="What was this time?"
-                    onKeyDown={(e) => { if (e.key === "Enter") { onSaveNote(noteVal.trim() || null); setNoteOpen(false); } }} />
-                  <Button onClick={() => { onSaveNote(noteVal.trim() || null); setNoteOpen(false); }}>Save</Button>
-                </div>
-              </PopoverContent>
-            </Popover>
-          )}
-          {showPlay && <Button variant="ghost" size="icon-xs" title="Start timer" onClick={onStart}><Play /></Button>}
-        </span>
-      </div>
+    <div className={`group flex items-center gap-0.5 rounded-md border px-1 py-1 ${isToday ? "border-primary/40 bg-primary/5" : cell.ghostMins != null ? "border-dashed border-border/70 bg-muted/30" : wknd ? "border-border/50 bg-muted/30" : "border-border/70 bg-card"}`}>
+      {editable
+        ? <HoursField mins={cell.mins} ghostMins={cell.ghostMins} onCommit={onCommit} />
+        : <span className="flex-1 text-xs font-medium tabular-nums px-1">{cell.mins != null ? fmtH(cell.mins / 60) : ""}</span>}
+      {editable && cell.ghostMins != null &&
+        <Button variant="ghost" size="icon-xs" title={"Log " + fmtH(cell.ghostMins / 60) + "h (planned)"} onClick={() => onCommit(cell.ghostMins)}><Check /></Button>}
+      {cell.mins != null && editable && onSaveNote && (
+        <Popover open={noteOpen} onOpenChange={(v) => { setNoteOpen(v); if (v) setNoteVal(cell.note || ""); }}>
+          <PopoverTrigger render={<Button variant="ghost" size="icon-xs" title={cell.note || "Add note"} className={cell.note ? "" : "opacity-0 group-hover:opacity-100"} />}><NotebookPen /></PopoverTrigger>
+          <PopoverContent className="w-64 p-2" align="end">
+            <div className="flex items-center gap-2">
+              <Input value={noteVal} onChange={(e) => setNoteVal(e.target.value)} placeholder="What was this time?"
+                onKeyDown={(e) => { if (e.key === "Enter") { onSaveNote(noteVal.trim() || null); setNoteOpen(false); } }} />
+              <Button onClick={() => { onSaveNote(noteVal.trim() || null); setNoteOpen(false); }}>Save</Button>
+            </div>
+          </PopoverContent>
+        </Popover>
+      )}
+      {showPlay && <Button variant="ghost" size="icon-xs" title="Start timer" onClick={onStart}><Play /></Button>}
     </div>
   );
 }
@@ -101,8 +90,8 @@ export default function Time({ org, me, data: cadData, reload }) {
   const [mode, setMode] = useState("week");
   const [pf, setPf] = useState(() => [meId]);
   const [focusISO, setFocusISO] = useState(() => toISO(startOfDay(new Date())));
-  const [adding, setAdding] = useState(null); // "mid|dISO" of the open add-row
-  const [pending, setPending] = useState({}); // "mid|dISO" -> [{projectId,phaseId}]
+  const [adding, setAdding] = useState(null); // member id with the add-row combobox open
+  const [pending, setPending] = useState({}); // member id -> [{key, projectId, phaseId}]
 
   const labels = makeLabels(data);
   const todayISO = toISO(startOfDay(new Date()));
@@ -116,6 +105,7 @@ export default function Time({ org, me, data: cadData, reload }) {
   const teams = [...new Set(data.members.flatMap((m) => m.teams || []))].sort();
 
   const rs = startOfWeekMon(anchor), re = addDays(rs, 6);
+  const rsISO = toISO(rs), reISO = toISO(re);
   const days = Array.from({ length: 7 }, (_, i) => addDays(rs, i));
   const rangeLabel = `${pad(rs.getDate())} ${MONTHS[rs.getMonth()]} – ${pad(re.getDate())} ${MONTHS[re.getMonth()]} ${re.getFullYear()}`;
 
@@ -123,65 +113,73 @@ export default function Time({ org, me, data: cadData, reload }) {
   const selfOnly = visible.length === 1 && visible[0]?.id === meId;
   const editableFor = (m) => (m.id === meId ? canTrack : canEditOthers);
 
-  const logsIn = (mid, a, b) => (data.timeLogs || []).filter((l) => l.memberId === mid && l.date >= a && l.date <= b);
-  const weekTot = (mid) => logsIn(mid, toISO(rs), toISO(re)).reduce((s, l) => s + l.minutes, 0);
+  const logKey = (l) => (l.taskId ? "T|" + l.taskId : (l.projectId || "none") + "|" + (l.phaseId || ""));
+  const weekLogs = (mid) => (data.timeLogs || []).filter((l) => l.memberId === mid && l.date >= rsISO && l.date <= reISO);
+  const weekTot = (mid) => weekLogs(mid).reduce((s, l) => s + l.minutes, 0);
   const grandTot = visible.reduce((s, m) => s + weekTot(m.id), 0);
 
-  // Rows for one member-day: logged entries grouped to day totals, then
-  // schedule-derived ghost suggestions (weekdays only) for what isn't logged
-  // yet. Ghost hours = the assignment's hours_per_day when set, else the
-  // member's daily hours split across that day's scheduled items (D4).
-  const cellRows = (member, dISO) => {
-    const logged = new Map();
-    (data.timeLogs || []).forEach((l) => {
-      if (l.memberId !== member.id || l.date !== dISO) return;
-      const key = l.taskId ? "T|" + l.taskId : (l.projectId || "none") + "|" + (l.phaseId || "");
-      const g = logged.get(key) || { key, ids: [], mins: 0, projectId: l.projectId, phaseId: l.phaseId, taskId: l.taskId, note: "" };
-      g.ids.push(l.id); g.mins += l.minutes; if (l.note && !g.note) g.note = l.note;
-      logged.set(key, g);
+  // The person's row list for the week: every project(+phase) or task they
+  // logged against, are scheduled on, or have open assigned tasks for —
+  // one row, aligned across all seven day columns.
+  const memberRows = (member) => {
+    const rows = new Map();
+    const put = (key, r) => { if (!rows.has(key)) rows.set(key, r); };
+    weekLogs(member.id).forEach((l) => put(logKey(l), { key: logKey(l), projectId: l.taskId ? null : l.projectId, phaseId: l.taskId ? null : (l.phaseId || null), taskId: l.taskId || null }));
+    data.assignments.forEach((a) => {
+      if (a.memberId !== member.id || a.start > reISO || a.end < rsISO) return;
+      if (a.kind === "work" && a.projectId) { const k = a.projectId + "|" + (a.phaseId || ""); put(k, { key: k, projectId: a.projectId, phaseId: a.phaseId || null, taskId: null }); }
+      else if (a.kind === "internal" && a.taskId) { const k = "T|" + a.taskId; put(k, { key: k, projectId: null, phaseId: null, taskId: a.taskId }); }
     });
-    const sched = []; const seen = new Set();
-    if (isWeekday(parseISO(dISO))) {
-      data.assignments.forEach((a) => {
-        if (a.memberId !== member.id || a.start > dISO || a.end < dISO) return;
-        if (a.kind === "work" && a.projectId) {
-          const key = a.projectId + "|" + (a.phaseId || ""); if (seen.has(key)) return; seen.add(key);
-          sched.push({ key, projectId: a.projectId, phaseId: a.phaseId || null, taskId: null, value: (a.mode === "hours_per_day" && a.value > 0) ? a.value : null });
-        } else if (a.kind === "internal" && a.taskId) {
-          const key = "T|" + a.taskId; if (seen.has(key)) return; seen.add(key);
-          sched.push({ key, projectId: null, phaseId: null, taskId: a.taskId, value: null });
-        }
-      });
+    if (todayISO >= rsISO && todayISO <= reISO) {
+      (data.internalTasks || []).forEach((t) => { if (t.assigneeId !== member.id || t.status === "done") return; put("T|" + t.id, { key: "T|" + t.id, projectId: null, phaseId: null, taskId: t.id }); });
     }
-    // Unscheduled open tasks assigned to the member surface on today only.
-    if (dISO === todayISO) {
-      (data.internalTasks || []).forEach((t) => {
-        if (t.assigneeId !== member.id || t.status === "done") return;
-        const key = "T|" + t.id; if (seen.has(key)) return; seen.add(key);
-        sched.push({ key, projectId: null, phaseId: null, taskId: t.id, value: null, unplanned: true });
-      });
-    }
-    const denom = sched.filter((s) => !s.taskId).length || 1;
-    const suggestions = sched.filter((s) => !logged.has(s.key)).map((s) => ({
-      ...s, ids: [], mins: 0, note: "",
-      ghostMins: s.taskId ? null : Math.round((s.value != null ? s.value : (member.daily || 8) / denom) * 60),
-    }));
-    const pend = (pending[member.id + "|" + dISO] || []).filter((p) => !logged.has(p.key) && !seen.has(p.key))
-      .map((p) => ({ ...p, ids: [], mins: 0, note: "", ghostMins: null }));
-    return { logged: [...logged.values()].sort((a, b) => b.mins - a.mins), suggestions: [...suggestions, ...pend] };
+    (pending[member.id] || []).forEach((p) => put(p.key, { ...p }));
+    const arr = [...rows.values()];
+    const sortLbl = (r) => (r.taskId ? "￿" + ((labels.taskById(r.taskId) || {}).title || "") : `${(labels.projById(r.projectId) || { index: "" }).index}|${labels.phName(r.projectId, r.phaseId)}`);
+    arr.sort((a, b) => sortLbl(a).localeCompare(sortLbl(b)));
+    return arr;
   };
 
-  const setTotal = (member, dISO, row, minutes) => {
+  // What the schedule says this member should be on for one day (weekdays
+  // only): row key -> planned hours (null = no explicit hours).
+  const schedFor = (member, dISO) => {
+    const values = new Map();
+    if (!isWeekday(parseISO(dISO))) return { values, projCount: 0 };
+    data.assignments.forEach((a) => {
+      if (a.memberId !== member.id || a.start > dISO || a.end < dISO) return;
+      if (a.kind === "work" && a.projectId) { const k = a.projectId + "|" + (a.phaseId || ""); if (!values.has(k)) values.set(k, (a.mode === "hours_per_day" && a.value > 0) ? a.value : null); }
+      else if (a.kind === "internal" && a.taskId) { const k = "T|" + a.taskId; if (!values.has(k)) values.set(k, null); }
+    });
+    const projCount = [...values.keys()].filter((k) => !k.startsWith("T|")).length;
+    return { values, projCount };
+  };
+
+  // One row×day cell. Ghost hours (D4): the assignment's hours_per_day when
+  // set, else the member's daily hours split across that day's scheduled
+  // projects. Tasks get a ghost cell without suggested hours.
+  const cellFor = (member, row, dISO, sched) => {
+    const logs = (data.timeLogs || []).filter((l) => l.memberId === member.id && l.date === dISO && logKey(l) === row.key);
+    const mins = logs.length ? logs.reduce((s, l) => s + l.minutes, 0) : null;
+    const note = logs.map((l) => l.note).find(Boolean) || "";
+    let ghostMins = null;
+    if (mins == null && sched.values.has(row.key) && !row.taskId) {
+      const v = sched.values.get(row.key);
+      ghostMins = Math.round((v != null ? v : (member.daily || 8) / (sched.projCount || 1)) * 60);
+    }
+    return { ids: logs.map((l) => l.id), mins, note, ghostMins };
+  };
+
+  const setTotal = (member, dISO, row, cell, minutes) => {
     // Task rows attribute to the task's project/phase (slice 6) — also
-    // migrates any pre-attribution entries the row aggregates.
+    // migrates any pre-attribution entries the cell aggregates.
     const attr = row.taskId ? taskProject(data, row.taskId) : { projectId: row.projectId || null, phaseId: row.phaseId || null };
-    setTimeLogTotal({ ids: row.ids, minutes, memberId: member.id, projectId: attr.projectId || null, phaseId: attr.phaseId || null, taskId: row.taskId || null, date: dISO });
+    setTimeLogTotal({ ids: cell.ids, minutes, memberId: member.id, projectId: attr.projectId || null, phaseId: attr.phaseId || null, taskId: row.taskId || null, date: dISO });
   };
 
-  const addPending = (member, dISO, pick) => {
+  const addPending = (member, pick) => {
     if (!pick.projectId) return;
     const key = pick.projectId + "|" + (pick.phaseId || "");
-    setPending((p) => { const k = member.id + "|" + dISO; const list = p[k] || []; if (list.some((x) => x.key === key)) return p; return { ...p, [k]: [...list, { key, projectId: pick.projectId, phaseId: pick.phaseId || null, taskId: null }] }; });
+    setPending((p) => { const list = p[member.id] || []; if (list.some((x) => x.key === key)) return p; return { ...p, [member.id]: [...list, { key, projectId: pick.projectId, phaseId: pick.phaseId || null, taskId: null }] }; });
     setAdding(null);
   };
 
@@ -191,42 +189,64 @@ export default function Time({ org, me, data: cadData, reload }) {
     setStopNote(""); cancel();
   };
   const elapsed = run ? fmtClock(Math.min((now - run.startedAt) / 1000, capMinutes * 60)) : null;
-
   const shift = (dir) => setAnchor((a) => addDays(a, dir * 7));
 
-  const DayCell = (member, d) => {
-    const dISO = toISO(d);
-    const { logged, suggestions } = cellRows(member, dISO);
-    const dayTot = logged.reduce((s, r) => s + r.mins, 0);
-    const isToday = dISO === todayISO;
-    const wknd = !isWeekday(d);
+  const rowLabel = (row) => {
+    if (row.taskId) { const t = labels.taskById(row.taskId); return { text: (t || {}).title || "task", full: "Task · " + ((t || {}).title || "task") + (t?.projectId ? " — " + labels.labTop(t.projectId) : ""), color: t?.projectId ? labels.colorOf(t.projectId) : NAVY }; }
+    const ph = labels.phName(row.projectId, row.phaseId);
+    return { text: `${(labels.projById(row.projectId) || { index: "—" }).index}${ph ? " · " + ph : ""}`, full: labels.labProj(row.projectId) + (ph ? " · " + ph : ""), color: labels.colorOf(row.projectId) };
+  };
+
+  // The aligned grid for one member: left label column (person's projects),
+  // one column per shown day, then the row's week total.
+  const MemberGrid = (member, shownDays) => {
+    const rows = memberRows(member);
     const editable = editableFor(member);
-    const addKey = member.id + "|" + dISO;
+    const scheds = shownDays.map((d) => schedFor(member, toISO(d)));
+    const dayTots = shownDays.map((d) => { const dISO = toISO(d); return weekLogs(member.id).filter((l) => l.date === dISO).reduce((s, l) => s + l.minutes, 0); });
+    const rowTot = (row) => weekLogs(member.id).filter((l) => logKey(l) === row.key).reduce((s, l) => s + l.minutes, 0);
+    const gridCols = { gridTemplateColumns: `minmax(150px,200px) repeat(${shownDays.length}, minmax(0,1fr)) 56px` };
     return (
-      <div key={dISO} className={`rounded-lg border flex flex-col ${isToday ? "border-primary/40 bg-primary/5" : wknd ? "bg-muted/40 border-border/60" : "border-border"}`}>
-        <div className="px-2 py-1 border-b border-border/60 flex items-center justify-between text-xs">
-          <span className={`font-medium ${isToday ? "text-foreground" : "text-muted-foreground"}`}>{DOW[d.getDay()]} {pad(d.getDate())}</span>
-          <span className="text-muted-foreground tabular-nums">{dayTot ? fmtH(dayTot / 60) + "h" : ""}</span>
-        </div>
-        <div className="p-1.5 flex flex-col gap-1 flex-1" style={{ minHeight: 64 }}>
-          {logged.map((row) => (
-            <RowItem key={row.key} row={row} ghost={false} canEdit={editable} labels={labels}
-              showPlay={member.id === meId && canTrack && isToday && !run}
-              onSetTotal={(m) => setTotal(member, dISO, row, m)}
-              onStart={() => (row.taskId ? startTask(row.taskId, taskProject(data, row.taskId)) : start(row.projectId, row.phaseId))}
-              onSaveNote={(note) => editTimeLog(row.ids[0], { note })} />
-          ))}
-          {editable && suggestions.map((row) => (
-            <RowItem key={row.key} row={row} ghost canEdit={editable} labels={labels}
-              showPlay={member.id === meId && canTrack && isToday && !run}
-              onSetTotal={(m) => setTotal(member, dISO, row, m)}
-              onStart={() => (row.taskId ? startTask(row.taskId, taskProject(data, row.taskId)) : start(row.projectId, row.phaseId))} />
-          ))}
-          {logged.length === 0 && suggestions.length === 0 && <div className="text-[10px] text-muted-foreground text-center py-1.5">—</div>}
-          {editable && (adding === addKey
-            ? <ProjectCombobox selP="" selPh="" onPick={(pick) => addPending(member, dISO, pick)} groups={groups} recents={member.id === meId ? recents : recentCombos(data, member.id)} placeholder="Add project…" className="w-full" />
-            : <button onClick={() => setAdding(addKey)} className="flex items-center justify-center gap-1 rounded-md border border-dashed border-border/60 py-0.5 text-[11px] text-muted-foreground/70 hover:text-foreground hover:border-border transition"><Plus size={11} /> Add</button>)}
-        </div>
+      <div className="grid gap-1 items-center" style={gridCols}>
+        {/* header row */}
+        <div />
+        {shownDays.map((d, i) => { const dISO = toISO(d); const isToday = dISO === todayISO; return (
+          <div key={dISO} className={`px-1 py-0.5 text-xs flex items-baseline justify-between ${isToday ? "font-medium text-foreground" : "text-muted-foreground"}`}>
+            <span>{DOW[d.getDay()]} {pad(d.getDate())}</span>
+            <span className="tabular-nums">{dayTots[i] ? fmtH(dayTots[i] / 60) + "h" : ""}</span>
+          </div>); })}
+        <div className="px-1 py-0.5 text-xs text-muted-foreground text-right">Week</div>
+
+        {/* one row per project/task, cells aligned under the day columns */}
+        {rows.map((row) => { const lab = rowLabel(row); const tot = rowTot(row); return (
+          <React.Fragment key={row.key}>
+            <div className="flex items-center gap-1.5 min-w-0 pr-1">
+              <span className="size-2.5 rounded-xs shrink-0" style={{ background: lab.color }} />
+              <span className="text-xs truncate" title={lab.full}>{lab.text}</span>
+              {row.taskId && <span className="text-[10px] text-muted-foreground shrink-0">task</span>}
+            </div>
+            {shownDays.map((d, i) => { const dISO = toISO(d); const cell = cellFor(member, row, dISO, scheds[i]); return (
+              <GridCell key={dISO} cell={cell} editable={editable} isToday={dISO === todayISO} wknd={!isWeekday(d)}
+                showPlay={member.id === meId && canTrack && dISO === todayISO && !run}
+                onCommit={(m) => setTotal(member, dISO, row, cell, m)}
+                onStart={() => (row.taskId ? startTask(row.taskId, taskProject(data, row.taskId)) : start(row.projectId, row.phaseId))}
+                onSaveNote={cell.ids.length ? (note) => editTimeLog(cell.ids[0], { note }) : null} />); })}
+            <div className="px-1 text-xs font-medium tabular-nums text-right">{tot ? fmtH(tot / 60) + "h" : ""}</div>
+          </React.Fragment>); })}
+
+        {/* add-row */}
+        {editable && (
+          <React.Fragment>
+            {adding === member.id
+              ? <ProjectCombobox selP="" selPh="" onPick={(pick) => addPending(member, pick)} groups={groups} recents={member.id === meId ? recents : recentCombos(data, member.id)} placeholder="Add project…" className="w-full" />
+              : <button onClick={() => setAdding(member.id)} className="flex items-center gap-1 rounded-md border border-dashed border-border/60 px-1.5 py-1 text-[11px] text-muted-foreground/70 hover:text-foreground hover:border-border transition"><Plus size={11} /> Add project</button>}
+            {shownDays.map((d) => <div key={toISO(d)} />)}
+            <div />
+          </React.Fragment>
+        )}
+        {rows.length === 0 && !editable && <>
+          <div className="text-xs text-muted-foreground col-span-full py-1">Nothing scheduled or logged this week.</div>
+        </>}
       </div>
     );
   };
@@ -268,7 +288,7 @@ export default function Time({ org, me, data: cadData, reload }) {
           )}
 
           {visible.length === 0 && <div className="rounded-xl border bg-card p-6 text-center text-sm text-muted-foreground">No people selected.</div>}
-          {visible.map((m, mi) => (
+          {visible.map((m) => (
             <div key={m.id} className="rounded-xl border bg-card p-3">
               {!selfOnly && (
                 <div className="flex items-center gap-2 mb-2">
@@ -277,7 +297,7 @@ export default function Time({ org, me, data: cadData, reload }) {
                   <span className="ml-auto text-xs text-muted-foreground">Week <span className="font-medium text-foreground">{fmtH(weekTot(m.id) / 60)}h</span></span>
                 </div>
               )}
-              <div className="hidden md:grid grid-cols-7 gap-1.5">{days.map((d) => DayCell(m, d))}</div>
+              <div className="hidden md:block">{MemberGrid(m, days)}</div>
               <div className="md:hidden">
                 <div className="grid grid-cols-7 gap-1 mb-2">
                   {days.map((d) => { const iso = toISO(d); const sel = toISO(focusDay) === iso; return (
@@ -285,7 +305,7 @@ export default function Time({ org, me, data: cadData, reload }) {
                       {DOW[d.getDay()]}<br />{pad(d.getDate())}
                     </button>); })}
                 </div>
-                {DayCell(m, focusDay)}
+                {MemberGrid(m, [focusDay])}
               </div>
             </div>
           ))}

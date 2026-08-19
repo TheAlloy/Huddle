@@ -6,31 +6,46 @@ import { useRunningTimer, makeLabels, todayTracking } from "./tracker/shared.jsx
 import { Play, Square, PictureInPicture2, X, Plus, Pencil, Trash2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox, ComboboxCollection, ComboboxContent, ComboboxEmpty, ComboboxGroup, ComboboxInput, ComboboxItem, ComboboxLabel, ComboboxList } from "@/components/ui/combobox";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-// Screen-local composition: grouped project picker used by "start another",
-// "log manually" and inline edit rows. Content-pour only — stock parts.
-function ProjectSelect({ value, onValueChange, groups, placeholder = "Project…", className = "w-56" }) {
-  const items = { "": placeholder };
-  groups.forEach(g => g.projects.forEach(p => { items[p.id] = `${p.index} — ${p.name}`; }));
+// Screen-local composition: searchable grouped project picker used by "start
+// another", "log manually" and inline edit rows. Content-pour only — stock
+// parts. Items are {key, projectId, phaseId, label}; the Recent group's items
+// carry the phase they were last logged with, so picking one fills both.
+function ProjectCombobox({ selP, selPh, onPick, groups, recents, placeholder = "Project…", className = "w-56" }) {
+  const items = [
+    ...(recents.length ? [{ value: "Recent", items: recents }] : []),
+    ...groups.map(g => ({
+      value: g.client ? g.client.name : "No client",
+      items: g.projects.map(p => ({ key: p.id, projectId: p.id, phaseId: null, label: `${p.index} — ${p.name}` })),
+    })),
+  ];
+  const flat = items.flatMap(g => g.items);
+  const value = flat.find(i => i.projectId === selP && (i.phaseId || "") === (selPh || "")) || flat.find(i => i.projectId === selP) || null;
   return (
-    <Select value={value} onValueChange={onValueChange} items={items}>
-      <SelectTrigger className={className}><SelectValue/></SelectTrigger>
-      <SelectContent>
-        <SelectGroup><SelectItem value="">{placeholder}</SelectItem></SelectGroup>
-        {groups.map(g => (
-          <SelectGroup key={g.client ? g.client.id : "none"}>
-            <SelectLabel>{g.client ? g.client.name : "No client"}</SelectLabel>
-            {g.projects.map(p => <SelectItem key={p.id} value={p.id}>{p.index} — {p.name}</SelectItem>)}
-          </SelectGroup>
-        ))}
-      </SelectContent>
-    </Select>
+    <Combobox items={items} value={value} itemToStringValue={(i) => i.label}
+      onValueChange={(it) => onPick(it ? { projectId: it.projectId, phaseId: it.phaseId } : { projectId: "", phaseId: null })}>
+      <ComboboxInput placeholder={placeholder} className={className} showClear />
+      <ComboboxContent>
+        <ComboboxEmpty>No matching projects.</ComboboxEmpty>
+        <ComboboxList>
+          {(group) => (
+            <ComboboxGroup key={group.value} items={group.items}>
+              <ComboboxLabel>{group.value}</ComboboxLabel>
+              <ComboboxCollection>
+                {(item) => <ComboboxItem key={item.key} value={item}>{item.label}</ComboboxItem>}
+              </ComboboxCollection>
+            </ComboboxGroup>
+          )}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
   );
 }
 
@@ -66,6 +81,19 @@ export default function Tracker({ org, me, data: cadData, reload }){
   const { projById, labProj, labTop, phName, colorOf, taskById, runTop, runColor } = makeLabels(data);
   const todayISO=toISO(startOfDay(new Date()));
   const { bubbles, myTasks, todayEntries, minsFor, minsForTask, todayMins } = todayTracking(data, meId, todayISO);
+
+  // Distinct project+phase combos I've logged in the last 14 days, newest
+  // first — surfaced as the Recent group at the top of the project pickers.
+  const cutoffISO=toISO(addDays(startOfDay(new Date()),-14));
+  const recents=[];
+  { const seen=new Set();
+    (data.timeLogs||[]).filter(l=>l.memberId===meId&&!l.taskId&&l.projectId&&l.date>=cutoffISO)
+      .sort((a,b)=>b.date.localeCompare(a.date))
+      .forEach(l=>{ const k=l.projectId+"|"+(l.phaseId||""); if(seen.has(k)||recents.length>=6) return; seen.add(k);
+        const pr=projById(l.projectId); if(!pr) return;
+        const ph=phName(l.projectId,l.phaseId);
+        recents.push({ key:"r:"+k, projectId:l.projectId, phaseId:l.phaseId||null, label:`${pr.index} — ${pr.name}${ph?" · "+ph:""}` }); });
+  }
 
   const stop=()=>stopTimer(todayISO);
   const addManual=()=>{ const mins=Math.max(0,Number(mH||0)*60+Number(mM||0)); if(!mP||mins<=0) return; addTimeLog({memberId:meId,projectId:mP,phaseId:mPh||null,date:mDate||todayISO,minutes:mins,source:"manual"}); setMH(1); setMM(0); };
@@ -139,14 +167,14 @@ export default function Tracker({ org, me, data: cadData, reload }){
 
         {!run && <div className="rounded-xl border bg-card p-3 flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium flex items-center gap-1 shrink-0"><Play size={12}/> Start another</span>
-          <ProjectSelect value={selP} onValueChange={(v)=>{setSelP(v);setSelPh("");}} groups={groups}/>
+          <ProjectCombobox selP={selP} selPh={selPh} onPick={({projectId,phaseId})=>{setSelP(projectId);setSelPh(phaseId||"");}} groups={groups} recents={recents}/>
           {selproj?.phases?.length>0 && <PhaseSelect value={selPh} onValueChange={setSelPh} phases={selproj.phases}/>}
           <Button onClick={()=>{ start(selP,selPh); setSelP(""); setSelPh(""); }} disabled={!selP}><Play data-icon="inline-start"/> Start</Button>
         </div>}
 
         {mayManual && <div className="rounded-xl border bg-card p-3 flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium flex items-center gap-1 shrink-0"><Plus size={12}/> Log manually</span>
-          <ProjectSelect value={mP} onValueChange={(v)=>{setMP(v);setMPh("");}} groups={groups}/>
+          <ProjectCombobox selP={mP} selPh={mPh} onPick={({projectId,phaseId})=>{setMP(projectId);setMPh(phaseId||"");}} groups={groups} recents={recents}/>
           {mproj?.phases?.length>0 && <PhaseSelect value={mPh} onValueChange={setMPh} phases={mproj.phases}/>}
           <Popover open={mDateOpen} onOpenChange={setMDateOpen}>
             <PopoverTrigger render={<Button variant="outline" className="tabular-nums" />}><CalendarIcon/> {mDate}</PopoverTrigger>
@@ -169,7 +197,7 @@ export default function Tracker({ org, me, data: cadData, reload }){
                 <span className="truncate">{l.taskId?("Task · "+((taskById(l.taskId)||{}).title||"task")):(labProj(l.projectId)+(phName(l.projectId,l.phaseId)?" · "+phName(l.projectId,l.phaseId):""))}</span>
                 <span className="text-xs text-muted-foreground">{l.source}</span>
                 {editing ? (<span className="ml-auto flex items-center gap-1 flex-wrap justify-end">
-                  {!l.taskId && <ProjectSelect value={eProj} onValueChange={(v)=>{setEProj(v);setEPh("");}} groups={groups} placeholder="No project" className="max-w-36"/>}
+                  {!l.taskId && <ProjectCombobox selP={eProj} selPh={ePh} onPick={({projectId,phaseId})=>{setEProj(projectId);setEPh(phaseId||"");}} groups={groups} recents={recents} placeholder="No project" className="max-w-36"/>}
                   {!l.taskId && projById(eProj)?.phases?.length>0 && <PhaseSelect value={ePh} onValueChange={setEPh} phases={projById(eProj).phases} className="max-w-32"/>}
                   <InputGroup className="w-20"><InputGroupInput type="number" min="0" value={eH} onChange={e=>setEH(e.target.value)}/><InputGroupAddon align="inline-end"><InputGroupText>h</InputGroupText></InputGroupAddon></InputGroup>
                   <InputGroup className="w-20"><InputGroupInput type="number" min="0" max="59" value={eM} onChange={e=>setEM(e.target.value)}/><InputGroupAddon align="inline-end"><InputGroupText>m</InputGroupText></InputGroupAddon></InputGroup>
@@ -177,6 +205,7 @@ export default function Tracker({ org, me, data: cadData, reload }){
                   <Button variant="ghost" size="icon" title="Cancel" onClick={()=>setEditId(null)}><X/></Button>
                 </span>) : (<span className="ml-auto flex items-center gap-1">
                   <span className="font-medium tabular-nums">{hm(l.minutes)}</span>
+                  {!run && <Button variant="ghost" size="icon-sm" title="Continue — start a new timer on this" onClick={()=>l.taskId?startTask(l.taskId):start(l.projectId,l.phaseId)}><Play/></Button>}
                   <Button variant="ghost" size="icon-sm" title="Edit" onClick={()=>beginEdit(l)}><Pencil/></Button>
                   <Button variant="ghost" size="icon-sm" title="Delete" onClick={()=>delTimeLogs([l.id])}><Trash2/></Button>
                 </span>)}

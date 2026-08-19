@@ -10,7 +10,7 @@
 // stub makes that a silent no-op in demo mode.
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { sb } from "../../lib/supabase.js";
-import { NAVY, toISO, startOfDay, hm, lsGet, lsSet, mapData, makeHandlers } from "../../studio/core.jsx";
+import { NAVY, toISO, startOfDay, hm, fmtClock, lsGet, lsSet, mapData, makeHandlers, openFloatingTimer } from "../../studio/core.jsx";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
@@ -114,6 +114,27 @@ export function useRunningTimer(meId, { addTimeLog, orgId, dailyHours } = {}) {
   }, [meId]);
 
   return { run, start, startTask, stop, cancel, capMinutes };
+}
+
+/* ------------------------------- PiP wiring ------------------------------- */
+// One owner for the document-Picture-in-Picture floating timer: closes it
+// when the run ends or the owning component unmounts. Returns openPip.
+export function usePipTimer({ run, stop, top, capMinutes }) {
+  const pip = React.useRef(null), actions = React.useRef({});
+  actions.current = { run, stop, top, capMinutes };
+  const closePip = () => { if (pip.current) { try { pip.current.close(); } catch (_) {} pip.current = null; } };
+  useEffect(() => { if (!run) closePip(); }, [run]); // eslint-disable-line
+  useEffect(() => () => closePip(), []); // eslint-disable-line
+  return async function openPip() {
+    if (!actions.current.run) return;
+    if (pip.current) { try { pip.current.win.focus(); } catch (_) {} return; }
+    const ctl = await openFloatingTimer({
+      getTop: () => { const a = actions.current; return a.top ? a.top() : "—"; },
+      getElapsed: () => { const a = actions.current; const r = a.run; return r ? fmtClock(Math.min((Date.now() - r.startedAt) / 1000, (a.capMinutes || 720) * 60)) : "0:00:00"; },
+      onStop: () => { const s = actions.current.stop; if (s) s(); },
+    });
+    if (ctl) pip.current = ctl;
+  };
 }
 
 /* ------------------------------ labels & today ----------------------------- */

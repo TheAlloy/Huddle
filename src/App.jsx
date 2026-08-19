@@ -18,8 +18,9 @@ import Tasks from "./screens/Tasks.jsx";
 import Projects from "./screens/Projects.jsx";
 import Time from "./screens/Time.jsx";
 import Billing from "./screens/Billing.jsx";
-import { fmtClock, initials } from "./studio/core.jsx";
-import { useRunningTimer, TimerOverrunGuard } from "./screens/tracker/shared.jsx";
+import { initials } from "./studio/core.jsx";
+import { TimerOverrunGuard } from "./screens/tracker/shared.jsx";
+import HeaderTracker from "./screens/tracker/HeaderTracker.jsx";
 import { makeTerms } from "./lib/terms.js";
 import { CalendarDays, Table2, LayoutGrid, Landmark, Users, Settings as Cog, Clock, FolderKanban, Shield, Gift } from "lucide-react";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -214,7 +215,7 @@ export default function App() {
         onSignOut={async () => { await sb.auth.signOut(); window.location.reload(); }} />
       <SidebarInset className="overflow-hidden">
       <SiteHeader title={tab === "admin" && profile?.platform_admin ? "Subscribers" : (visible.find(n => n.key === current)?.label || "")}>
-        {can(me, "time.track") && <HeaderTracker me={me} active={current === "time"} onOpen={() => setTab("time")} />}
+        {can(me, "time.track") && <HeaderTracker org={org} me={me} data={data} reload={reload} active={current === "time"} onOpen={() => setTab("time")} />}
       </SiteHeader>
       {can(me, "time.track") && <TimerOverrunGuard org={org} me={me} data={data} reload={reload} />}
 
@@ -243,24 +244,6 @@ export default function App() {
       </SidebarInset>
     </SidebarProvider>
     </TooltipProvider>
-  );
-}
-
-function HeaderTracker({ me, active, onOpen }) {
-  const { run, capMinutes } = useRunningTimer(me.id, { dailyHours: me.daily_hours });
-  const [, tick] = useState(0);
-  useEffect(() => {
-    if (!run) return;
-    const iv = setInterval(() => tick(t => t + 1), 1000);
-    return () => clearInterval(iv);
-  }, [run]);
-  const elapsed = run ? fmtClock(Math.min((Date.now() - run.startedAt) / 1000, capMinutes * 60)) : null;
-  return (
-    <Button variant={active ? "secondary" : "ghost"} size="sm" title="Time tracker" onClick={onOpen}>
-      {run
-        ? <><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" style={{ animation: "pulse 1.5s infinite" }} /> <span className="tabular-nums">{elapsed}</span></>
-        : <><Clock data-icon="inline-start" /> Track</>}
-    </Button>
   );
 }
 

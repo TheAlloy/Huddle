@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
-import { MONTHS, DOW, pad, toISO, parseISO, startOfDay, addDays, startOfWeekMon, isWeekday, hm, fmtClock, fmtH, NAVY, AVATAR_BG, initials, PeoplePicker, pfList, projectsByClient, openFloatingTimer, mapData, makeHandlers } from "../studio/core.jsx";
-import { useRunningTimer, makeLabels, ProjectCombobox, recentCombos, parseHours } from "./tracker/shared.jsx";
+import { MONTHS, DOW, pad, toISO, parseISO, startOfDay, addDays, startOfWeekMon, isWeekday, hm, fmtClock, fmtH, NAVY, AVATAR_BG, initials, PeoplePicker, pfList, projectsByClient, mapData, makeHandlers } from "../studio/core.jsx";
+import { useRunningTimer, makeLabels, ProjectCombobox, recentCombos, parseHours, usePipTimer } from "./tracker/shared.jsx";
 import { BudgetSection, HolidaySection } from "./time/sections.jsx";
 import { useConfirm } from "../components/confirm.tsx";
 import { Play, Square, PictureInPicture2, X, Clock, ChevronLeft, ChevronRight, Plane, NotebookPen, Plus } from "lucide-react";
@@ -95,10 +95,6 @@ export default function Time({ org, me, data: cadData, reload }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => { if (!run) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [run]);
   const [stopNote, setStopNote] = useState("");
-  const pip = useRef(null), pipActions = useRef({});
-  const closePip = () => { if (pip.current) { try { pip.current.close(); } catch (_) {} pip.current = null; } };
-  useEffect(() => { if (!run) closePip(); }, [run]); // eslint-disable-line
-  useEffect(() => () => closePip(), []); // eslint-disable-line
 
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
   const [mode, setMode] = useState("week");
@@ -107,13 +103,16 @@ export default function Time({ org, me, data: cadData, reload }) {
   const [adding, setAdding] = useState(null); // "mid|dISO" of the open add-row
   const [pending, setPending] = useState({}); // "mid|dISO" -> [{projectId,phaseId}]
 
+  const labels = makeLabels(data);
+  const todayISO = toISO(startOfDay(new Date()));
+  const stop = () => { stopTimer(todayISO, { note: stopNote.trim() || null }); setStopNote(""); };
+  const openPip = usePipTimer({ run, stop, top: () => labels.runTop(run), capMinutes });
+
   if (!canTrack && !canTeam) return <NoAccess what="time tracking" />;
 
-  const labels = makeLabels(data);
   const groups = projectsByClient(data.projects, data.clients);
   const recents = recentCombos(data, meId);
   const teams = [...new Set(data.members.flatMap((m) => m.teams || []))].sort();
-  const todayISO = toISO(startOfDay(new Date()));
 
   const rs = startOfWeekMon(anchor), re = addDays(rs, 6);
   const days = Array.from({ length: 7 }, (_, i) => addDays(rs, i));
@@ -182,21 +181,10 @@ export default function Time({ org, me, data: cadData, reload }) {
     setAdding(null);
   };
 
-  const stop = () => { stopTimer(todayISO, { note: stopNote.trim() || null }); setStopNote(""); };
   const discard = async () => {
     const mins = run ? Math.round((Date.now() - run.startedAt) / 60000) : 0;
     if (mins > 5 && !(await confirm({ title: "Discard this timer?", description: hm(mins) + " of tracked time will be thrown away.", confirmLabel: "Discard", destructive: true }))) return;
     setStopNote(""); cancel();
-  };
-  pipActions.current = { run, stop, top: () => labels.runTop(run) };
-  const openPip = async () => {
-    if (!run) return; if (pip.current) { try { pip.current.win.focus(); } catch (_) {} return; }
-    const ctl = await openFloatingTimer({
-      getTop: () => { const a = pipActions.current; return a.top ? a.top() : "—"; },
-      getElapsed: () => { const r = pipActions.current.run; return r ? fmtClock(Math.min((Date.now() - r.startedAt) / 1000, capMinutes * 60)) : "0:00:00"; },
-      onStop: () => { const s = pipActions.current.stop; if (s) s(); },
-    });
-    if (ctl) pip.current = ctl;
   };
   const elapsed = run ? fmtClock(Math.min((now - run.startedAt) / 1000, capMinutes * 60)) : null;
 

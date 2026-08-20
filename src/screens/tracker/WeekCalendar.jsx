@@ -18,7 +18,13 @@ const SNAP = 15;  // snap grid, minutes
 const fmtT = (m) => `${Math.floor(m / 60)}:${String(Math.round(m) % 60).padStart(2, "0")}`;
 const snap = (m) => Math.round(m / SNAP) * SNAP;
 
-export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, recents, run, runColor, onCreate, onPatch }) {
+// `frameless`: render just the calendar body (no outline card, no collapse
+// header) so a parent section — e.g. a stock Card in the timesheet-lab
+// variations — can provide the chrome. `template`/`trailing`/`showDayHeaders`
+// let a parent align the calendar's columns with a table above it (the
+// unified V2.1 experiment): pass the parent's gridTemplateColumns, emit a
+// trailing spacer column, and skip the calendar's own day-label row.
+export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, recents, run, runColor, onCreate, onPatch, frameless = false, template = null, trailing = false, showDayHeaders = true }) {
   const [open, setOpen] = useState(true);
   const [preview, setPreview] = useState(null); // {id|"new", dISO, startMin, minutes, color}
   const [draft, setDraft] = useState(null);     // committed create-drag awaiting project pick
@@ -108,18 +114,23 @@ export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, r
   };
 
   return (
-    <div className="border-t border-border/60 pt-3 mt-1">
-      <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-1.5 text-sm font-medium w-full">
-        <ChevronRight size={14} style={{ transform: open ? "rotate(90deg)" : "none", transition: "transform .15s" }} />
-        Calendar
-        <span className="text-xs font-normal text-muted-foreground">drag on a day to log a block · drag blocks to say when work happened</span>
-      </button>
-      {open && (
-        <div className="mt-2 grid" style={{ gridTemplateColumns: `56px repeat(${days.length}, minmax(0,1fr))` }}>
+    <div className={frameless ? undefined : "rounded-xl border border-border p-4"}>
+      {!frameless && (
+        <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-1.5 text-sm font-medium w-full">
+          <ChevronRight size={14} style={{ transform: open ? "rotate(90deg)" : "none", transition: "transform .15s" }} />
+          Calendar
+          <span className="text-xs font-normal text-muted-foreground">drag on a day to log a block · drag blocks to say when work happened</span>
+        </button>
+      )}
+      {(frameless || open) && (
+        <div className={`grid ${frameless ? "" : "mt-2"}`} style={{ gridTemplateColumns: template || `56px repeat(${days.length}, minmax(0,1fr))` }}>
           {/* header + unplaced strips */}
-          <div />
-          {days.map((d) => { const dISO = toISO(d); return (
-            <div key={dISO} className={`px-1.5 py-1 text-sm text-center ${dISO === todayISO ? "font-medium text-foreground" : "text-muted-foreground"}`}>{DOW[d.getDay()]} {pad(d.getDate())}</div>); })}
+          {showDayHeaders && <>
+            <div />
+            {days.map((d) => { const dISO = toISO(d); return (
+              <div key={dISO} className={`px-1.5 py-1 text-sm text-center ${dISO === todayISO ? "font-medium text-foreground" : "text-muted-foreground"}`}>{DOW[d.getDay()]} {pad(d.getDate())}</div>); })}
+            {trailing && <div />}
+          </>}
           <div className="pr-1.5 pt-1 text-[10px] text-muted-foreground text-right leading-tight">no<br />time</div>
           {days.map((d) => { const dISO = toISO(d); const un = logs.filter((l) => l.date === dISO && l.startMin == null); return (
             <div key={dISO} className="min-h-7 border-b border-border/60 px-0.5 pb-1 flex flex-col gap-1">
@@ -130,6 +141,7 @@ export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, r
                   {lab.text} · {fmtH(l.minutes / 60)}h
                 </div>); })}
             </div>); })}
+          {trailing && <div className="border-b border-border/60" />}
 
           {/* hour axis */}
           <div className="relative" style={{ height: rangeH * PPH }}>
@@ -172,6 +184,7 @@ export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, r
                 </div>
               )}
             </div>); })}
+          {trailing && <div className="border-l border-border/60" style={{ height: rangeH * PPH }} />}
         </div>
       )}
     </div>

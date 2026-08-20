@@ -12,7 +12,7 @@ import { ChevronRight, X, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-const PPH = 48;   // pixels per hour
+const PPH = 56;   // pixels per hour
 const SNAP = 15;  // snap grid, minutes
 
 const fmtT = (m) => `${Math.floor(m / 60)}:${String(Math.round(m) % 60).padStart(2, "0")}`;
@@ -88,7 +88,7 @@ export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, r
   };
 
   const hourMarks = Array.from({ length: rangeH + 1 }, (_, i) => rangeStart + i);
-  const blockStyle = (startMin, minutes) => ({ top: ((startMin - rangeStart * 60) / 60) * PPH, height: Math.max(13, (minutes / 60) * PPH) });
+  const blockStyle = (startMin, minutes) => ({ top: ((startMin - rangeStart * 60) / 60) * PPH, height: Math.max(16, (minutes / 60) * PPH) });
 
   const Block = (l) => {
     const lab = labelFor(l);
@@ -99,8 +99,8 @@ export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, r
         style={{ ...blockStyle(s, m), background: lab.color, touchAction: "none" }}
         title={`${lab.full} · ${fmtT(s)} – ${fmtT(s + m)}${l.note ? " — " + l.note : ""}`}
         onPointerDown={(e) => beginDrag(e, { mode: "move", id: l.id, dISO: l.date, startMin: l.startMin, minutes: l.minutes, grab: yToMin(l.date, e.clientY) - l.startMin, color: lab.color })}>
-        <div className="px-1 pt-0.5 text-[10px] font-semibold leading-tight truncate">{lab.text}</div>
-        {m >= 30 && <div className="px-1 text-[9px] opacity-90 leading-tight">{fmtT(s)} – {fmtT(s + m)}</div>}
+        <div className="px-1.5 pt-0.5 text-xs font-semibold leading-tight truncate">{lab.text}</div>
+        {m >= 30 && <div className="px-1.5 text-[11px] opacity-90 leading-tight">{fmtT(s)} – {fmtT(s + m)}</div>}
         <div className="absolute top-0 inset-x-0 h-1.5 cursor-ns-resize" onPointerDown={(e) => beginDrag(e, { mode: "t", id: l.id, dISO: l.date, startMin: l.startMin, startMin0: l.startMin, minutes: l.minutes, minutes0: l.minutes, color: lab.color })} />
         <div className="absolute bottom-0 inset-x-0 h-1.5 cursor-ns-resize" onPointerDown={(e) => beginDrag(e, { mode: "b", id: l.id, dISO: l.date, startMin: l.startMin, minutes: l.minutes, color: lab.color })} />
       </div>
@@ -108,23 +108,23 @@ export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, r
   };
 
   return (
-    <div className="rounded-xl border bg-card p-3">
+    <div className="border-t border-border/60 pt-3 mt-1">
       <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-1.5 text-sm font-medium w-full">
         <ChevronRight size={14} style={{ transform: open ? "rotate(90deg)" : "none", transition: "transform .15s" }} />
         Calendar
         <span className="text-xs font-normal text-muted-foreground">drag on a day to log a block · drag blocks to say when work happened</span>
       </button>
       {open && (
-        <div className="mt-2 grid" style={{ gridTemplateColumns: `40px repeat(${days.length}, minmax(0,1fr))` }}>
+        <div className="mt-2 grid" style={{ gridTemplateColumns: `56px repeat(${days.length}, minmax(0,1fr))` }}>
           {/* header + unplaced strips */}
           <div />
           {days.map((d) => { const dISO = toISO(d); return (
-            <div key={dISO} className={`px-1 py-0.5 text-xs text-center ${dISO === todayISO ? "font-medium text-foreground" : "text-muted-foreground"}`}>{DOW[d.getDay()]} {pad(d.getDate())}</div>); })}
-          <div className="pr-1 pt-1 text-[9px] text-muted-foreground text-right leading-tight">no<br />time</div>
+            <div key={dISO} className={`px-1.5 py-1 text-sm text-center ${dISO === todayISO ? "font-medium text-foreground" : "text-muted-foreground"}`}>{DOW[d.getDay()]} {pad(d.getDate())}</div>); })}
+          <div className="pr-1.5 pt-1 text-[10px] text-muted-foreground text-right leading-tight">no<br />time</div>
           {days.map((d) => { const dISO = toISO(d); const un = logs.filter((l) => l.date === dISO && l.startMin == null); return (
-            <div key={dISO} className="min-h-6 border-b border-border/60 px-0.5 pb-1 flex flex-col gap-0.5">
+            <div key={dISO} className="min-h-7 border-b border-border/60 px-0.5 pb-1 flex flex-col gap-1">
               {un.map((l) => { const lab = labelFor(l); return (
-                <div key={l.id} className="rounded-sm text-white text-[10px] px-1 py-0.5 truncate select-none cursor-grab active:cursor-grabbing" style={{ background: lab.color, touchAction: "none" }}
+                <div key={l.id} className="rounded-sm text-white text-xs px-1.5 py-1 truncate select-none cursor-grab active:cursor-grabbing" style={{ background: lab.color, touchAction: "none" }}
                   title={`${lab.full} · ${fmtH(l.minutes / 60)}h — drag into the day to place it`}
                   onPointerDown={(e) => beginDrag(e, { mode: "place", id: l.id, dISO, startMin: 9 * 60, minutes: l.minutes, grab: 0, color: lab.color })}>
                   {lab.text} · {fmtH(l.minutes / 60)}h
@@ -133,7 +133,7 @@ export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, r
 
           {/* hour axis */}
           <div className="relative" style={{ height: rangeH * PPH }}>
-            {hourMarks.map((h) => <div key={h} className="absolute right-1 -translate-y-1/2 text-[9px] text-muted-foreground tabular-nums" style={{ top: (h - rangeStart) * PPH }}>{h}:00</div>)}
+            {hourMarks.filter((h) => h > rangeStart).map((h) => <div key={h} className="absolute right-1.5 -translate-y-1/2 text-xs text-muted-foreground tabular-nums" style={{ top: (h - rangeStart) * PPH }}>{h}:00</div>)}
           </div>
 
           {/* day columns */}
@@ -148,14 +148,14 @@ export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, r
               {/* ghost while creating or placing */}
               {preview && (preview.id === "new" || !dayPlaced.some((l) => l.id === preview.id)) && preview.dISO === dISO && (
                 <div className="absolute left-0.5 right-0.5 rounded-md pointer-events-none opacity-70 text-white z-10" style={{ ...blockStyle(preview.startMin, preview.minutes), background: preview.color || "var(--primary)" }}>
-                  <div className="px-1 pt-0.5 text-[9px]">{fmtT(preview.startMin)} – {fmtT(preview.startMin + preview.minutes)}</div>
+                  <div className="px-1.5 pt-0.5 text-[11px]">{fmtT(preview.startMin)} – {fmtT(preview.startMin + preview.minutes)}</div>
                 </div>
               )}
 
               {/* live running timer */}
               {run && dISO === todayISO && (() => { const sd = new Date(run.startedAt); const s = sd.getHours() * 60 + sd.getMinutes(); const m = Math.max(1, (Date.now() - run.startedAt) / 60000); return (
                 <div className="absolute left-0.5 right-0.5 rounded-md pointer-events-none text-white opacity-90" style={{ ...blockStyle(s, m), background: runColor, animation: "pulse 3s infinite" }}>
-                  <div className="px-1 pt-0.5 text-[9px] font-semibold">recording…</div>
+                  <div className="px-1.5 pt-0.5 text-[11px] font-semibold">recording…</div>
                 </div>); })()}
 
               {/* create panel */}

@@ -18,8 +18,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 
 /* One free-text duration field per cell: shows the logged total, commits on
    Enter (empty input on a suggested cell accepts the suggestion), Escape
-   reverts. Raw compact input by Summary's calendar-cell precedent — the board
-   is a data grid, not a form. */
+   reverts. Stock Input, so it sits on the same control tier as every other
+   field in the app. */
 function HoursField({ mins, ghostMins, onCommit }) {
   const shown = mins != null ? fmtH(mins / 60) : "";
   const [val, setVal] = useState(shown);
@@ -33,11 +33,11 @@ function HoursField({ mins, ghostMins, onCommit }) {
     if (m != null) onCommit(m);
   };
   return (
-    <input value={val} onChange={(e) => setVal(e.target.value)}
+    <Input value={val} onChange={(e) => setVal(e.target.value)}
       onFocus={() => setFocus(true)} onBlur={() => { setFocus(false); setVal(shown); }}
       onKeyDown={(e) => { if (e.key === "Enter") { commit(); e.currentTarget.blur(); } if (e.key === "Escape") { setVal(shown); e.currentTarget.blur(); } }}
       placeholder={ghostMins != null ? fmtH(ghostMins / 60) : ""}
-      className="w-full min-w-0 flex-1 rounded-md border border-input bg-background px-1.5 py-0.5 text-xs tabular-nums outline-none focus:border-ring placeholder:text-muted-foreground/50"
+      className="flex-1 tabular-nums"
       aria-label="Hours" />
   );
 }
@@ -48,13 +48,13 @@ function GridCell({ cell, showPlay, isToday, wknd, onCommit, onStart, onSaveNote
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteVal, setNoteVal] = useState(cell.note || "");
   return (
-    <div className={`group flex items-center gap-0.5 rounded-md border px-1 py-1 ${isToday ? "border-primary/40 bg-primary/5" : cell.ghostMins != null ? "border-dashed border-border/70 bg-muted/30" : wknd ? "border-border/50 bg-muted/30" : "border-border/70 bg-card"}`}>
+    <div className={`group flex items-center gap-1 rounded-md border px-1.5 py-1 ${isToday ? "border-primary/40 bg-primary/5" : cell.ghostMins != null ? "border-dashed border-border/70 bg-muted/30" : wknd ? "border-border/50 bg-muted/30" : "border-border/70 bg-card"}`}>
       <HoursField mins={cell.mins} ghostMins={cell.ghostMins} onCommit={onCommit} />
       {cell.ghostMins != null &&
-        <Button variant="ghost" size="icon-xs" title={"Log " + fmtH(cell.ghostMins / 60) + "h (planned)"} onClick={() => onCommit(cell.ghostMins)}><Check /></Button>}
+        <Button variant="ghost" size="icon" title={"Log " + fmtH(cell.ghostMins / 60) + "h (planned)"} onClick={() => onCommit(cell.ghostMins)}><Check /></Button>}
       {cell.mins != null && onSaveNote && (
         <Popover open={noteOpen} onOpenChange={(v) => { setNoteOpen(v); if (v) setNoteVal(cell.note || ""); }}>
-          <PopoverTrigger render={<Button variant="ghost" size="icon-xs" title={cell.note || "Add note"} className={cell.note ? "" : "opacity-0 group-hover:opacity-100"} />}><NotebookPen /></PopoverTrigger>
+          <PopoverTrigger render={<Button variant="ghost" size="icon" title={cell.note || "Add note"} className={cell.note ? "" : "opacity-0 group-hover:opacity-100"} />}><NotebookPen /></PopoverTrigger>
           <PopoverContent className="w-64 p-2" align="end">
             <div className="flex items-center gap-2">
               <Input value={noteVal} onChange={(e) => setNoteVal(e.target.value)} placeholder="What was this time?"
@@ -64,7 +64,7 @@ function GridCell({ cell, showPlay, isToday, wknd, onCommit, onStart, onSaveNote
           </PopoverContent>
         </Popover>
       )}
-      {showPlay && <Button variant="ghost" size="icon-xs" title="Start timer" onClick={onStart}><Play /></Button>}
+      {showPlay && <Button variant="ghost" size="icon" title="Start timer" onClick={onStart}><Play /></Button>}
     </div>
   );
 }
@@ -194,21 +194,21 @@ export default function Timesheet({ org, me, data: cadData, reload }) {
   const Board = (shownDays) => {
     const scheds = shownDays.map((d) => schedFor(toISO(d)));
     return (
-      <div className="grid gap-1 items-center" style={{ gridTemplateColumns: `minmax(150px,200px) repeat(${shownDays.length}, minmax(0,1fr)) 56px` }}>
+      <div className="grid gap-1.5 items-center" style={{ gridTemplateColumns: `minmax(180px,240px) repeat(${shownDays.length}, minmax(0,1fr)) 72px` }}>
         <div />
         {shownDays.map((d) => { const dISO = toISO(d); const isToday = dISO === todayISO; const t = dayTot(dISO); return (
-          <div key={dISO} className={`px-1 py-0.5 text-xs flex items-baseline justify-between rounded-md ${isToday ? "font-medium text-foreground bg-primary/10" : "text-muted-foreground"}`}>
+          <div key={dISO} className={`px-1.5 py-1 text-sm flex items-baseline justify-between rounded-md ${isToday ? "font-medium text-foreground bg-primary/10" : "text-muted-foreground"}`}>
             <span>{DOW[d.getDay()]} {pad(d.getDate())}</span>
-            <span className="tabular-nums">{t ? fmtH(t / 60) + "h" : ""}</span>
+            <span className="text-xs tabular-nums">{t ? fmtH(t / 60) + "h" : ""}</span>
           </div>); })}
-        <div className="px-1 py-0.5 text-xs text-muted-foreground text-right">Week</div>
+        <div className="px-1.5 py-1 text-sm text-muted-foreground text-right">Week</div>
 
         {rows.map((row) => { const lab = rowLabel(row); const tot = rowTot(row); return (
           <React.Fragment key={row.key}>
-            <div className="flex items-center gap-1.5 min-w-0 pr-1">
-              <span className="size-2.5 rounded-xs shrink-0" style={{ background: lab.color }} />
-              <span className="text-xs truncate" title={lab.full}>{lab.text}</span>
-              {row.taskId && <span className="text-[10px] text-muted-foreground shrink-0">task</span>}
+            <div className="flex items-center gap-2 min-w-0 pr-1">
+              <span className="size-3 rounded-xs shrink-0" style={{ background: lab.color }} />
+              <span className="text-sm truncate" title={lab.full}>{lab.text}</span>
+              {row.taskId && <span className="text-xs text-muted-foreground shrink-0">task</span>}
             </div>
             {shownDays.map((d, i) => { const dISO = toISO(d); const cell = cellFor(row, dISO, scheds[i]); return (
               <GridCell key={dISO} cell={cell} isToday={dISO === todayISO} wknd={!isWeekday(d)}
@@ -216,12 +216,12 @@ export default function Timesheet({ org, me, data: cadData, reload }) {
                 onCommit={(m) => setTotal(dISO, row, cell, m)}
                 onStart={() => (row.taskId ? startTask(row.taskId, taskProject(data, row.taskId)) : start(row.projectId, row.phaseId))}
                 onSaveNote={cell.ids.length ? (note) => editTimeLog(cell.ids[0], { note }) : null} />); })}
-            <div className="px-1 text-xs font-medium tabular-nums text-right">{tot ? fmtH(tot / 60) + "h" : ""}</div>
+            <div className="px-1.5 text-sm font-medium tabular-nums text-right">{tot ? fmtH(tot / 60) + "h" : ""}</div>
           </React.Fragment>); })}
 
         {adding
           ? <ProjectCombobox selP="" selPh="" onPick={addPending} groups={groups} recents={recents} placeholder="Add project…" className="w-full" />
-          : <button onClick={() => setAdding(true)} className="flex items-center gap-1 rounded-md border border-dashed border-border/60 px-1.5 py-1 text-[11px] text-muted-foreground/70 hover:text-foreground hover:border-border transition"><Plus size={11} /> Add project</button>}
+          : <button onClick={() => setAdding(true)} className="flex items-center gap-1.5 rounded-md border border-dashed border-border/60 px-2 py-1.5 text-sm text-muted-foreground/70 hover:text-foreground hover:border-border transition"><Plus size={14} /> Add project</button>}
         {shownDays.map((d) => <div key={toISO(d)} />)}
         <div />
       </div>
@@ -231,9 +231,12 @@ export default function Timesheet({ org, me, data: cadData, reload }) {
   const focusDay = days.find((d) => toISO(d) === focusISO) || (days.find((d) => toISO(d) === todayISO) || days[0]);
 
   return (
-    <ScrollArea className="h-full bg-muted/30">
-      <div className="max-w-5xl mx-auto flex flex-col gap-3 p-4">
-        <div className="flex flex-wrap items-center gap-2">
+    <ScrollArea className="h-full">
+      {/* dashboard-01 layout rule (docs/foundations-plan.md): one rhythm
+          stack, each section full-width with its own px-4 lg:px-6 */}
+      <div className="@container/main flex flex-col">
+        <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+        <div className="flex flex-wrap items-center gap-2 px-4 lg:px-6">
           <Clock size={16} className="text-muted-foreground" />
           <ButtonGroup>
             <Button variant="outline" size="icon" onClick={() => shift(-1)} aria-label="Previous week"><ChevronLeft /></Button>
@@ -245,6 +248,7 @@ export default function Timesheet({ org, me, data: cadData, reload }) {
         </div>
 
         {run && (
+          <div className="px-4 lg:px-6">
           <div className="rounded-xl p-3 text-white shadow-xs" style={{ background: labels.runColor(run) }}>
             <div className="flex items-center gap-3 flex-wrap">
               <span className="size-2.5 rounded-full bg-card shrink-0" style={{ animation: "pulse 1.5s infinite" }} />
@@ -257,14 +261,15 @@ export default function Timesheet({ org, me, data: cadData, reload }) {
               </div>
             </div>
           </div>
+          </div>
         )}
 
-        <div className="rounded-xl border bg-card p-3">
+        <div className="px-4 lg:px-6">
           <div className="hidden md:block">{Board(days)}</div>
           <div className="md:hidden">
             <div className="grid grid-cols-7 gap-1 mb-2">
               {days.map((d) => { const iso = toISO(d); const sel = toISO(focusDay) === iso; return (
-                <button key={iso} onClick={() => setFocusISO(iso)} className={`rounded-lg border px-0.5 py-1 text-center text-[11px] ${sel ? "border-primary/40 bg-primary/10 font-medium" : iso === todayISO ? "border-primary/30" : "border-border"}`}>
+                <button key={iso} onClick={() => setFocusISO(iso)} className={`rounded-lg border px-0.5 py-1.5 text-center text-xs ${sel ? "border-primary/40 bg-primary/10 font-medium" : iso === todayISO ? "border-primary/30" : "border-border"}`}>
                   {DOW[d.getDay()]}<br />{pad(d.getDate())}
                 </button>); })}
             </div>
@@ -272,17 +277,18 @@ export default function Timesheet({ org, me, data: cadData, reload }) {
           </div>
         </div>
 
-        <div className="hidden md:block">
+        <div className="hidden md:block px-4 lg:px-6">
           <WeekCalendar days={days} todayISO={todayISO} logs={weekLogs} labelFor={rowLabel} groups={groups} recents={recents}
             run={run} runColor={labels.runColor(run)}
             onCreate={({ projectId, phaseId, date, startMin, minutes, note }) => addTimeLog({ memberId: meId, projectId, phaseId, taskId: null, date, minutes, startMin, source: "manual", note })}
             onPatch={(id, patch) => editTimeLog(id, patch)} />
         </div>
-        <div className="md:hidden">
+        <div className="md:hidden px-4 lg:px-6">
           <WeekCalendar days={[focusDay]} todayISO={todayISO} logs={weekLogs} labelFor={rowLabel} groups={groups} recents={recents}
             run={run} runColor={labels.runColor(run)}
             onCreate={({ projectId, phaseId, date, startMin, minutes, note }) => addTimeLog({ memberId: meId, projectId, phaseId, taskId: null, date, minutes, startMin, source: "manual", note })}
             onPatch={(id, patch) => editTimeLog(id, patch)} />
+        </div>
         </div>
       </div>
     </ScrollArea>

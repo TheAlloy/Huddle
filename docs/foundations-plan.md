@@ -519,6 +519,18 @@ follows:
   `text-muted-foreground`. Never put `text-muted-foreground` on a container
   that labels inherit from. (Table column headers stay muted — stock Table
   convention.)
+- **Content-view layout (the dashboard-01 rule).** Screens lay out their main
+  content exactly the way the shadcn `dashboard-01` block does inside
+  `SidebarInset`: the screen root is `@container/main flex flex-col` wrapping
+  one rhythm container `flex flex-col gap-4 py-4 md:gap-6 md:py-6`; every
+  section inside it is **full-width** and applies its **own** horizontal
+  padding `px-4 lg:px-6`. Consequences: no max-width caps on content, no
+  per-section vertical margins (the stack's gap IS the rhythm), no grey page
+  wash behind content (the inset is the surface), and no wrapper cards around
+  sections that aren't actually cards — plain sections separate by the gap or
+  at most a hairline border; `Card` is reserved for things that are cards.
+  Responsive column counts inside a section key off the container
+  (`@xl/main:` etc.), not the viewport.
 
 *Verified live:* invite modal renders `field-group` with popup Select; manage
 modal renders 9 fieldsets/legends, 15 stock Checkboxes, 2 popup Selects; no

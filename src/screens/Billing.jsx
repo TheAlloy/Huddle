@@ -267,7 +267,7 @@ function BillingPlan(ctx){
         </Tabs>
         {sub==="invoices" && !isLeadership && <span className="ml-auto text-xs text-muted-foreground">Invoices are managed by team leadership</span>}
       </div>
-      <div className="flex-1 min-h-0 overflow-auto p-4 space-y-6">
+      <div className="@container/main flex-1 min-h-0 overflow-auto px-4 lg:px-6 py-4 md:py-6 flex flex-col gap-4 md:gap-6">
         {sub==="timeline" && (()=>{ const cell="px-1.5 py-1 text-right border-l border-border/60 align-top"; const lab="px-2 py-1 text-left sticky left-0 bg-card z-10 align-top"; const mrow=(arr)=>arr.map((v,i)=><TableCell key={i} className={cell}>{money0(v)}</TableCell>); const confirmedNet=monthConfirmed.map((v,i)=>v-ohRow[i]); const predictedNet=bestCase.map((v,i)=>v-ohRow[i]);
           return (<div className="text-xs">
             <div className="flex items-center gap-2 mb-2 flex-wrap"><h3 className="text-sm font-medium text-foreground">Billing timeline</h3><span className="text-xs text-muted-foreground">{periodLabel}</span><div className="ml-auto">{periodPicker()}</div></div>

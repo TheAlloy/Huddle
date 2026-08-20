@@ -530,7 +530,10 @@ follows:
   sections that aren't actually cards — plain sections separate by the gap or
   at most a hairline border; `Card` is reserved for things that are cards.
   Responsive column counts inside a section key off the container
-  (`@xl/main:` etc.), not the viewport.
+  (`@xl/main:` etc.), not the viewport. *Exemption:* full-bleed board
+  workspaces (Schedule, the Tasks board) keep their edge-to-edge chrome —
+  header toolbar bar with border-b, board region filling the rest — but
+  their content padding still uses the `px-4 lg:px-6` edges.
 
 *Verified live:* invite modal renders `field-group` with popup Select; manage
 modal renders 9 fieldsets/legends, 15 stock Checkboxes, 2 popup Selects; no

@@ -123,8 +123,8 @@ function SummaryView(ctx) {
   });
 
   return (
-    <div className="border border-border rounded-xl bg-card p-4 m-3">
-      <div className="flex flex-wrap items-center gap-2 mb-3">
+    <div className="@container/main px-4 lg:px-6 py-4 md:py-6 flex flex-col gap-4 md:gap-6">
+      <div className="flex flex-wrap items-center gap-2">
         <Table2 size={16} className="text-muted-foreground"/>
         {mode==="logged" ? <>
           <ButtonGroup>
@@ -157,7 +157,7 @@ function SummaryView(ctx) {
         <Button variant={mode==="holiday"?"default":"outline"} className="ml-auto" onClick={()=>setMode(mode==="holiday"?"logged":"holiday")}><Plane data-icon="inline-start"/> {mode==="holiday"?"Back to hours":"Holiday"}</Button>
       </div>
       {mode==="logged" ? <>
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm font-medium text-foreground">{rangeLabel}</p>
           <span className="text-xs text-muted-foreground">Logged: <span className="font-medium text-foreground">{fmtH(grandLogged/60)}h</span> <span className="text-muted-foreground">/ {fmtH(grandCap)}h</span></span>
         </div>
@@ -288,7 +288,7 @@ function SummaryView(ctx) {
           ))}
           {visible.length===0 && <div className="py-10 text-center text-muted-foreground text-sm">No people yet.</div>}
         </div>}
-        {budgetPhases.length>0 && <div className="mt-6 border-t border-border/60 pt-4">
+        {budgetPhases.length>0 && <div className="border-t border-border/60 pt-4">
           <div className="flex items-center gap-2 mb-2 text-sm font-medium"><Clock size={15} className="text-muted-foreground"/> Phase hours — budget vs logged <span className="text-xs font-normal text-muted-foreground">(phases active in this period · totals are for the whole phase, all people)</span>{ctx.canSeeCost && <Button variant="ghost" size="sm" className="ml-auto" onClick={()=>setShowContrib(v=>!v)}>{showContrib?"Hide breakdown":"Show who's contributing"}</Button>}</div>
           <div className="grid gap-2" style={{gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))"}}>
             {budgetPhases.map(({pr,cl,ph,loggedH,over})=>{ const frac=Math.min(1,loggedH/ph.hours); const isOver=over>0.05; const key=pr.id+ph.id; const isOpen=showContrib&&ctx.canSeeCost;
@@ -336,7 +336,7 @@ function SummaryView(ctx) {
               </div>
             </div>);})}
         </div>
-        <div className="mt-5 border-t border-border/60 pt-3">
+        <div className="border-t border-border/60 pt-3">
           <div className="flex items-center gap-2 mb-2 text-sm font-medium"><Calendar size={14} className="text-muted-foreground"/> Public holidays <span className="text-xs font-normal text-muted-foreground">(these days don't count against anyone's allowance)</span></div>
           <div className="flex flex-wrap gap-1.5 mb-2">
             {(publicHolidays||[]).length===0 && <span className="text-xs text-muted-foreground">None set yet.</span>}
@@ -375,5 +375,5 @@ export default function Summary({ org, me, data: cadData, reload, peopleFilter: 
     canSeeCost: can(me,"billing.view"), canEdit: canEditAny,
     delTimeLogs:canEditAny?H.delTimeLogs:(()=>{}), moveTimeLogs:canEditAny?H.moveTimeLogs:(()=>{}), setTimeLogTotal:canEditAny?H.setTimeLogTotal:(()=>{}), addTimeLog:canEditAny?H.addTimeLog:(()=>{}),
     patchMember: can(me,"team.manage")?H.patchMember:(()=>{}), addPublicHoliday:can(me,"team.manage")?H.addPublicHoliday:(()=>{}), delPublicHoliday:can(me,"team.manage")?H.delPublicHoliday:(()=>{}) };
-  return <ScrollArea className="h-full bg-muted/30"><SummaryView {...ctx} /></ScrollArea>;
+  return <ScrollArea className="h-full"><SummaryView {...ctx} /></ScrollArea>;
 }

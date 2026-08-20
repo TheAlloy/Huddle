@@ -86,7 +86,7 @@ function InternalBoard(ctx){
           {ctx.canEdit && <Button onClick={()=>setModal({type:"task",payload:{__new:true}})}><Plus data-icon="inline-start" /> Add task</Button>}
         </div>
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto p-3">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 lg:px-6 py-4">
         <div ref={boardRef} className="flex flex-wrap gap-3 items-start">
           <Column id="__none__" title="Unassigned" avatarIndex={null} cards={active.filter(t=>!t.assigneeId)}/>
           {people.map(m=><Column key={m.id} id={m.id} title={m.name} avatarIndex={data.members.findIndex(x=>x.id===m.id)} cards={forMember(m.id)}/>)}

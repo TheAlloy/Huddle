@@ -120,7 +120,7 @@ export default function Settings({ org, me, members, reload }) {
   };
 
   return (
-    <div className="p-4 flex flex-col gap-4 overflow-y-auto h-full w-full">
+    <div className="@container/main px-4 lg:px-6 py-4 md:py-6 flex flex-col gap-4 md:gap-6 overflow-y-auto h-full w-full">
       <h2 className="text-base font-medium">Settings</h2>
       <div className="flex flex-col gap-4">
 

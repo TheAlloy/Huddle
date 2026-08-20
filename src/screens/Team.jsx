@@ -56,7 +56,7 @@ export default function Team({ org, me, members, reload, onNavigate }) {
   const overSeats = !unlimitedSeats && seatsUsed >= (org.seats || 0);
 
   return (
-    <ScrollArea className="h-full"><div className="p-4 flex flex-col gap-4">
+    <ScrollArea className="h-full"><div className="@container/main px-4 lg:px-6 py-4 md:py-6 flex flex-col gap-4 md:gap-6">
       <div className="flex items-center gap-3 flex-wrap">
         <div>
           <h2 className="text-base font-medium">People</h2>

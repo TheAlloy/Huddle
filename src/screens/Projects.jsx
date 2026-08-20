@@ -29,7 +29,7 @@ export default function Projects({ org, me, data, reload, terms }) {
   const clientById = (id) => data.clients.find(c => c.id === id);
 
   return (
-    <ScrollArea className="h-full"><div className="p-4 flex flex-col gap-4">
+    <ScrollArea className="h-full"><div className="@container/main px-4 lg:px-6 py-4 md:py-6 flex flex-col gap-4 md:gap-6">
       <h2 className="text-base font-medium text-foreground">{T.clients} &amp; {T.projectsLower||"projects"}</h2>
 
       <Card><CardHeader><CardTitle>{T.clients}</CardTitle><CardAction>{mayClients && <Button onClick={() => setModal({ type: "client" })}><Plus data-icon="inline-start" /> Add {T.clientLower}</Button>}</CardAction></CardHeader><CardContent>

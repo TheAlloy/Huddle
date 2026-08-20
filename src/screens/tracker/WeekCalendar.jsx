@@ -24,7 +24,11 @@ const snap = (m) => Math.round(m / SNAP) * SNAP;
 // let a parent align the calendar's columns with a table above it (the
 // unified V2.1 experiment): pass the parent's gridTemplateColumns, emit a
 // trailing spacer column, and skip the calendar's own day-label row.
-export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, recents, run, runColor, onCreate, onPatch, frameless = false, template = null, trailing = false, showDayHeaders = true }) {
+export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, recents, run, runColor, onCreate, onPatch, frameless = false, template = null, trailing = false, showDayHeaders = true, laneDividerClass = "border-l border-border/60" }) {
+  // When a parent supplies its grid template (the unified table variants),
+  // the calendar speaks the stock Table language: full-token row borders and
+  // a labelled "No time" strip row instead of the compact axis caption.
+  const tableMode = !!template;
   const [open, setOpen] = useState(true);
   const [preview, setPreview] = useState(null); // {id|"new", dISO, startMin, minutes, color}
   const [draft, setDraft] = useState(null);     // committed create-drag awaiting project pick
@@ -131,9 +135,11 @@ export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, r
               <div key={dISO} className={`px-1.5 py-1 text-sm text-center ${dISO === todayISO ? "font-medium text-foreground" : "text-muted-foreground"}`}>{DOW[d.getDay()]} {pad(d.getDate())}</div>); })}
             {trailing && <div />}
           </>}
-          <div className="pr-1.5 pt-1 text-[10px] text-muted-foreground text-right leading-tight">no<br />time</div>
+          {tableMode
+            ? <div className="self-stretch border-b px-2 py-1.5 text-sm text-muted-foreground">No time</div>
+            : <div className="pr-1.5 pt-1 text-[10px] text-muted-foreground text-right leading-tight">no<br />time</div>}
           {days.map((d) => { const dISO = toISO(d); const un = logs.filter((l) => l.date === dISO && l.startMin == null); return (
-            <div key={dISO} className="min-h-7 border-b border-border/60 px-0.5 pb-1 flex flex-col gap-1">
+            <div key={dISO} className={`min-h-7 self-stretch ${tableMode ? "border-b" : "border-b border-border/60"} ${tableMode ? laneDividerClass : ""} px-1 py-1 flex flex-col gap-1 justify-center`}>
               {un.map((l) => { const lab = labelFor(l); return (
                 <div key={l.id} className="rounded-sm text-white text-xs px-1.5 py-1 truncate select-none cursor-grab active:cursor-grabbing" style={{ background: lab.color, touchAction: "none" }}
                   title={`${lab.full} · ${fmtH(l.minutes / 60)}h — drag into the day to place it`}
@@ -141,7 +147,7 @@ export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, r
                   {lab.text} · {fmtH(l.minutes / 60)}h
                 </div>); })}
             </div>); })}
-          {trailing && <div className="border-b border-border/60" />}
+          {trailing && <div className={`self-stretch ${tableMode ? "border-b" : "border-b border-border/60"} ${tableMode ? laneDividerClass : ""}`} />}
 
           {/* hour axis */}
           <div className="relative" style={{ height: rangeH * PPH }}>
@@ -151,7 +157,7 @@ export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, r
           {/* day columns */}
           {days.map((d) => { const dISO = toISO(d); const dayPlaced = placed.filter((l) => l.date === dISO); const wknd = !isWeekday(d); return (
             <div key={dISO} ref={(el) => { colRefs.current[dISO] = el; }}
-              className={`relative border-l border-border/60 ${dISO === todayISO ? "bg-primary/5" : wknd ? "bg-muted/30" : ""}`}
+              className={`relative ${tableMode ? laneDividerClass : "border-l border-border/60"} ${dISO === todayISO ? "bg-primary/5" : wknd ? "bg-muted/30" : ""}`}
               style={{ height: rangeH * PPH, touchAction: "none" }}
               onPointerDown={(e) => { if (e.target !== e.currentTarget) return; beginDrag(e, { mode: "create", id: "new", dISO, anchor: yToMin(dISO, e.clientY), startMin: snap(yToMin(dISO, e.clientY)), minutes: SNAP, color: "var(--primary)" }); }}>
               {hourMarks.map((h) => <div key={h} className="absolute inset-x-0 border-t border-border/40 pointer-events-none" style={{ top: (h - rangeStart) * PPH }} />)}
@@ -179,12 +185,12 @@ export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, r
                     <Button variant="ghost" size="icon-xs" title="Cancel" onClick={() => setDraft(null)}><X /></Button>
                   </div>
                   <ProjectCombobox selP={pick.projectId} selPh={pick.phaseId || ""} onPick={(p) => setPick({ projectId: p.projectId, phaseId: p.phaseId })} groups={groups} recents={recents} placeholder="Project…" className="w-full" />
-                  <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" onKeyDown={(e) => { if (e.key === "Enter") commitDraft(); }} />
+                  {!tableMode && <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" onKeyDown={(e) => { if (e.key === "Enter") commitDraft(); }} />}
                   <Button onClick={commitDraft} disabled={!pick.projectId}><Plus data-icon="inline-start" /> Log block</Button>
                 </div>
               )}
             </div>); })}
-          {trailing && <div className="border-l border-border/60" style={{ height: rangeH * PPH }} />}
+          {trailing && <div className={tableMode ? laneDividerClass : "border-l border-border/60"} style={{ height: rangeH * PPH }} />}
         </div>
       )}
     </div>

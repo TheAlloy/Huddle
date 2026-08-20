@@ -11,7 +11,7 @@ import { MONTHS, DOW, pad, toISO, startOfDay, addDays, startOfWeekMon, isWeekday
 import { useRunningTimer, makeLabels, ProjectCombobox, recentCombos, usePipTimer, taskProject } from "../tracker/shared.jsx";
 import WeekCalendar from "../tracker/WeekCalendar.jsx";
 import { weekRows, schedForDay, cellForDay, rowLabelFor, logKey } from "./weekData.js";
-import { HoursField, NoteButton } from "./LabBits.jsx";
+import { HoursField } from "./LabBits.jsx";
 import { useConfirm } from "../../components/confirm.tsx";
 import { Play, Square, PictureInPicture2, X, Clock, ChevronLeft, ChevronRight, Plus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,9 +24,11 @@ import { Badge } from "@/components/ui/badge";
 
 // `dividers` toggles the vertical column separators; `unified` puts the
 // calendar inside the same frame as the table with its day lanes aligned to
-// the table's day columns (table-fixed + matching grid template). V2.1 in
-// the sidebar is this screen with dividers off + unified on.
-export default function TimesheetV2({ org, me, data: cadData, reload, dividers = true, unified = false, variantLabel = "V2 · data-table" }) {
+// the table's day columns (table-fixed + matching grid template);
+// `addSlot` picks the add-project idiom: "button" (dashed slot that becomes
+// an open combobox on click) or "input" (the combobox input is always
+// there). V2.1 in the sidebar = dividers off + unified + input slot.
+export default function TimesheetV2({ org, me, data: cadData, reload, dividers = true, unified = false, addSlot = "button", variantLabel = "V2 · data-table" }) {
   const meId = me.id;
   const data = useMemo(() => mapData(cadData), [cadData]);
   const H = useMemo(() => makeHandlers(org, reload, cadData), [org, cadData]); // eslint-disable-line
@@ -38,14 +40,13 @@ export default function TimesheetV2({ org, me, data: cadData, reload, dividers =
   const { run, start, startTask, stop: stopTimer, cancel, capMinutes } = useRunningTimer(meId, { addTimeLog, orgId: org.id, dailyHours: member?.daily || 8 });
   const [now, setNow] = useState(Date.now());
   useEffect(() => { if (!run) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [run]);
-  const [stopNote, setStopNote] = useState("");
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
   const [adding, setAdding] = useState(false);
   const [pending, setPending] = useState([]);
 
   const labels = makeLabels(data);
   const todayISO = toISO(startOfDay(new Date()));
-  const stop = () => { stopTimer(todayISO, { note: stopNote.trim() || null }); setStopNote(""); };
+  const stop = () => stopTimer(todayISO, {});
   const openPip = usePipTimer({ run, stop, top: () => labels.runTop(run), capMinutes });
 
   if (!canTrack || !member) return <NoAccess what="the timesheet" />;
@@ -78,7 +79,7 @@ export default function TimesheetV2({ org, me, data: cadData, reload, dividers =
   const discard = async () => {
     const mins = run ? Math.round((Date.now() - run.startedAt) / 60000) : 0;
     if (mins > 5 && !(await confirm({ title: "Discard this timer?", description: hm(mins) + " of tracked time will be thrown away.", confirmLabel: "Discard", destructive: true }))) return;
-    setStopNote(""); cancel();
+    cancel();
   };
   const elapsed = run ? fmtClock(Math.min((now - run.startedAt) / 1000, capMinutes * 60)) : null;
   const shift = (dir) => setAnchor((a) => addDays(a, dir * 7));
@@ -108,7 +109,6 @@ export default function TimesheetV2({ org, me, data: cadData, reload, dividers =
                   <span className="size-2.5 rounded-full bg-card shrink-0" style={{ animation: "pulse 1.5s infinite" }} />
                   <div className="min-w-0"><div className="text-xs opacity-90 truncate">{labels.runTop(run)}</div><div className="text-2xl font-medium tabular-nums leading-tight">{elapsed}</div></div>
                   <div className="ml-auto flex items-center gap-2 flex-wrap">
-                    <Input value={stopNote} onChange={(e) => setStopNote(e.target.value)} placeholder="Add a note… (optional)" className="w-52 bg-card text-foreground" />
                     <Button variant="secondary" onClick={stop}><Square data-icon="inline-start" /> Stop &amp; log</Button>
                     <Button variant="secondary" size="icon" title="Pop out floating timer" onClick={openPip}><PictureInPicture2 /></Button>
                     <Button variant="secondary" size="icon" title="Discard" onClick={discard}><X /></Button>
@@ -138,6 +138,10 @@ export default function TimesheetV2({ org, me, data: cadData, reload, dividers =
                           <span className="size-3 rounded-xs shrink-0" style={{ background: lab.color }} />
                           <span className="truncate" title={lab.full}>{lab.text}</span>
                           {row.taskId && <Badge variant="secondary">task</Badge>}
+                          {/* The start verb lives here, in one fixed place per
+                              row — it always tracks against today. */}
+                          {!run && <Button variant="ghost" size="icon" className="ml-auto" title="Start timer — logs to today"
+                            onClick={() => (row.taskId ? startTask(row.taskId, taskProject(data, row.taskId)) : start(row.projectId, row.phaseId))}><Play /></Button>}
                         </span>
                       </TableCell>
                       {days.map((d, i) => { const dISO = toISO(d); const cell = cellForDay({ weekLogs, row, dISO, sched: scheds[i], daily: member.daily }); const isToday = dISO === todayISO; return (
@@ -145,39 +149,51 @@ export default function TimesheetV2({ org, me, data: cadData, reload, dividers =
                           <span className="flex items-center gap-1">
                             <HoursField mins={cell.mins} ghostMins={cell.ghostMins} onCommit={(m) => setTotal(dISO, row, cell, m)} />
                             {cell.ghostMins != null && <Button variant="ghost" size="icon" title={"Log " + fmtH(cell.ghostMins / 60) + "h (planned)"} onClick={() => setTotal(dISO, row, cell, cell.ghostMins)}><Check /></Button>}
-                            {cell.mins != null && cell.ids.length > 0 && <NoteButton note={cell.note} onSave={(note) => editTimeLog(cell.ids[0], { note })} />}
-                            {isToday && !run && <Button variant="ghost" size="icon" title="Start timer" onClick={() => (row.taskId ? startTask(row.taskId, taskProject(data, row.taskId)) : start(row.projectId, row.phaseId))}><Play /></Button>}
                           </span>
                         </TableCell>); })}
                       <TableCell className={`${div} text-right tabular-nums`}>{tot ? fmtH(tot / 60) + "h" : ""}</TableCell>
                     </TableRow>); })}
+                  {/* Add-project occupies the next row — a new project takes
+                      its place and pushes it down. */}
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell>
+                      {addSlot === "input"
+                        ? <ProjectCombobox selP="" selPh="" onPick={addPending} groups={groups} recents={recents} placeholder="＋ Add project…" className="w-full" />
+                        : adding
+                          ? <ProjectCombobox selP="" selPh="" onPick={addPending} groups={groups} recents={recents} placeholder="Add project…" className="w-full" defaultOpen autoFocus />
+                          : <button onClick={() => setAdding(true)} className="flex w-full items-center gap-1.5 rounded-md border border-dashed border-border/60 px-2 py-1.5 text-sm text-muted-foreground/70 hover:text-foreground hover:border-border transition"><Plus size={14} /> Add project</button>}
+                    </TableCell>
+                    <TableCell colSpan={8} />
+                  </TableRow>
                 </TableBody>
                 <TableFooter>
                   <TableRow className="hover:bg-transparent">
-                    <TableCell>Total</TableCell>
-                    {days.map((d) => { const t = dayTot(toISO(d)); return (
-                      <TableCell key={toISO(d)} className={`${div} tabular-nums`}>{t ? fmtH(t / 60) + "h" : ""}</TableCell>); })}
-                    <TableCell className={`${div} text-right tabular-nums`}>{fmtH(weekTotal / 60)}h</TableCell>
+                    <TableCell className="text-muted-foreground font-normal">Daily total</TableCell>
+                    {days.map((d) => { const dISO = toISO(d); const t = dayTot(dISO); const wknd = !isWeekday(d); return (
+                      <TableCell key={dISO} className={`${div} tabular-nums`}>
+                        {wknd
+                          ? (t ? fmtH(t / 60) + "h" : <span className="text-muted-foreground font-normal">—</span>)
+                          : <>{fmtH(t / 60)}<span className="text-muted-foreground font-normal">/{member.daily || 8}h</span></>}
+                      </TableCell>); })}
+                    <TableCell className={`${div} text-right tabular-nums`}>{fmtH(weekTotal / 60)}<span className="text-muted-foreground font-normal">/{(member.daily || 8) * 5}h</span></TableCell>
                   </TableRow>
                 </TableFooter>
               </Table>
               {unified && (
                 <div className="border-t">
-                  <div className="flex items-center gap-2 px-2 py-2 text-sm font-medium">Calendar
+                  <div className="flex h-10 items-center gap-2 border-b px-2 text-sm font-medium">Calendar
                     <span className="text-xs font-normal text-muted-foreground">drag on a day to log a block · drag blocks to say when work happened</span>
                   </div>
+                  {/* Lanes keep their dividers even in the dividerless table
+                      variant — the timeline needs the column edges. */}
                   <WeekCalendar frameless trailing showDayHeaders={false} template="12rem repeat(7, minmax(0,1fr)) 5rem"
+                    laneDividerClass="border-l border-border/40"
                     days={days} todayISO={todayISO} logs={weekLogs} labelFor={(l) => rowLabelFor(labels, NAVY, l)} groups={groups} recents={recents}
                     run={run} runColor={labels.runColor(run)}
                     onCreate={({ projectId, phaseId, date, startMin, minutes, note }) => addTimeLog({ memberId: meId, projectId, phaseId, taskId: null, date, minutes, startMin, source: "manual", note })}
                     onPatch={(id, patch) => editTimeLog(id, patch)} />
                 </div>
               )}
-            </div>
-            <div className="flex items-center py-2">
-              {adding
-                ? <ProjectCombobox selP="" selPh="" onPick={addPending} groups={groups} recents={recents} placeholder="Add project…" className="w-72" />
-                : <Button variant="outline" onClick={() => setAdding(true)}><Plus data-icon="inline-start" /> Add project</Button>}
             </div>
           </div>
 

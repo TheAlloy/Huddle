@@ -1,11 +1,12 @@
-// Small shared pieces for the timesheet-lab variations.
+// Small shared pieces for the timesheet-lab variations. Notes are deliberately
+// absent from the lab variants — deferred as a future feature.
 import React, { useState, useEffect } from "react";
 import { fmtH } from "../../studio/core.jsx";
-import { parseHours } from "../tracker/shared.jsx";
-import { NotebookPen } from "lucide-react";
+import { parseHours, projectPickItems } from "../tracker/shared.jsx";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Combobox, ComboboxCollection, ComboboxContent, ComboboxEmpty, ComboboxGroup, ComboboxInput, ComboboxItem, ComboboxLabel, ComboboxList, ComboboxTrigger } from "@/components/ui/combobox";
 
 /* Stock-Input duration field: commits on Enter (empty input on a suggested
    cell accepts the suggestion), Escape reverts. */
@@ -31,19 +32,30 @@ export function HoursField({ mins, ghostMins, onCommit, className = "flex-1 tabu
   );
 }
 
-export function NoteButton({ note, onSave, revealOnHover = true }) {
-  const [open, setOpen] = useState(false);
-  const [val, setVal] = useState(note || "");
+/* The shadcn combobox docs' Popup pattern: a Button trigger whose dropdown
+   contains the search input (ComboboxInput moved inside ComboboxContent). */
+export function AddProjectPopup({ groups, recents, onPick, className = "w-full" }) {
+  const items = projectPickItems(groups, recents);
   return (
-    <Popover open={open} onOpenChange={(v) => { setOpen(v); if (v) setVal(note || ""); }}>
-      <PopoverTrigger render={<Button variant="ghost" size="icon" title={note || "Add note"} className={note || !revealOnHover ? "" : "opacity-0 group-hover:opacity-100"} />}><NotebookPen /></PopoverTrigger>
-      <PopoverContent className="w-64 p-2" align="end">
-        <div className="flex items-center gap-2">
-          <Input value={val} onChange={(e) => setVal(e.target.value)} placeholder="What was this time?"
-            onKeyDown={(e) => { if (e.key === "Enter") { onSave(val.trim() || null); setOpen(false); } }} />
-          <Button onClick={() => { onSave(val.trim() || null); setOpen(false); }}>Save</Button>
-        </div>
-      </PopoverContent>
-    </Popover>
+    <Combobox items={items} value={null} itemToStringValue={(i) => i.label}
+      onValueChange={(it) => { if (it) onPick({ projectId: it.projectId, phaseId: it.phaseId }); }}>
+      <ComboboxTrigger render={<Button variant="outline" className={`${className} justify-between font-normal text-muted-foreground`} />}>
+        <span className="flex items-center gap-1.5"><Plus data-icon="inline-start" /> Add project</span>
+      </ComboboxTrigger>
+      <ComboboxContent className="min-w-72">
+        <ComboboxInput placeholder="Search projects…" showTrigger={false} autoFocus />
+        <ComboboxEmpty>No matching projects.</ComboboxEmpty>
+        <ComboboxList>
+          {(group) => (
+            <ComboboxGroup key={group.value} items={group.items}>
+              <ComboboxLabel>{group.value}</ComboboxLabel>
+              <ComboboxCollection>
+                {(item) => <ComboboxItem key={item.key} value={item}>{item.label}</ComboboxItem>}
+              </ComboboxCollection>
+            </ComboboxGroup>
+          )}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
   );
 }

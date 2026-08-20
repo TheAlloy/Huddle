@@ -205,21 +205,29 @@ const addDaysLocal = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + 
 // searchable grouped project picker. Content-pour only — stock parts. Items
 // are {key, projectId, phaseId, label}; the Recent group's items carry the
 // phase they were last logged with, so picking one fills both.
-export function ProjectCombobox({ selP, selPh, onPick, groups, recents, placeholder = "Project…", className = "w-56" }) {
-  const items = [
+// Grouped item model shared by every project picker composition.
+export function projectPickItems(groups, recents) {
+  return [
     ...(recents.length ? [{ value: "Recent", items: recents }] : []),
     ...groups.map((g) => ({
       value: g.client ? g.client.name : "No client",
       items: g.projects.map((p) => ({ key: p.id, projectId: p.id, phaseId: null, label: `${p.index} — ${p.name}` })),
     })),
   ];
+}
+
+export function ProjectCombobox({ selP, selPh, onPick, groups, recents, placeholder = "Project…", className = "w-56", defaultOpen = false, autoFocus = false }) {
+  const items = projectPickItems(groups, recents);
   const flat = items.flatMap((g) => g.items);
   const value = flat.find((i) => i.projectId === selP && (i.phaseId || "") === (selPh || "")) || flat.find((i) => i.projectId === selP) || null;
   return (
-    <Combobox items={items} value={value} itemToStringValue={(i) => i.label}
+    <Combobox items={items} value={value} itemToStringValue={(i) => i.label} defaultOpen={defaultOpen}
       onValueChange={(it) => onPick(it ? { projectId: it.projectId, phaseId: it.phaseId } : { projectId: "", phaseId: null })}>
-      <ComboboxInput placeholder={placeholder} className={className} showClear />
-      <ComboboxContent>
+      <ComboboxInput placeholder={placeholder} className={className} showClear autoFocus={autoFocus} />
+      {/* The anchor is often a narrow grid column — keep the popup wide
+          enough that project names don't wrap (still capped by the
+          viewport via the stock max-w-(--available-width)). */}
+      <ComboboxContent className="min-w-72">
         <ComboboxEmpty>No matching projects.</ComboboxEmpty>
         <ComboboxList>
           {(group) => (

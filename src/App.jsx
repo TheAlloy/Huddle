@@ -237,7 +237,7 @@ export default function App() {
             : current === "projects" ? <Projects org={org} me={me} data={data} reload={reload} terms={terms} />
             : current === "time" ? <Timesheet org={org} me={me} data={data} reload={reload} />
             : current === "time-v2" ? <TimesheetV2 org={org} me={me} data={data} reload={reload} unified />
-            : current === "time-v2-1" ? <TimesheetV2 org={org} me={me} data={data} reload={reload} dividers={false} unified variantLabel="V2.1 · unified calendar" />
+            : current === "time-v2-1" ? <TimesheetV2 org={org} me={me} data={data} reload={reload} dividers={false} unified addSlot="input" variantLabel="V2.1 · unified calendar" />
             : current === "time-v3" ? <TimesheetV3 org={org} me={me} data={data} reload={reload} />
             : current === "schedule" ? (can(me, "schedule.view") ? <Schedule org={org} me={me} data={data} reload={reload} onNavigate={setTab} peopleFilter={peopleFilter} onPeopleFilter={setPeopleFilter} /> : <NoAccess what="the schedule" />)
             : current === "summary" ? (can(me, "summary.view") ? <Summary org={org} me={me} data={data} reload={reload} peopleFilter={peopleFilter} onPeopleFilter={setPeopleFilter} /> : <NoAccess what="summaries" />)

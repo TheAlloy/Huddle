@@ -11,7 +11,7 @@ import { MONTHS, DOW, pad, toISO, startOfDay, addDays, startOfWeekMon, isWeekday
 import { useRunningTimer, makeLabels, ProjectCombobox, recentCombos, usePipTimer, taskProject } from "../tracker/shared.jsx";
 import WeekCalendar from "../tracker/WeekCalendar.jsx";
 import { weekRows, schedForDay, cellForDay, rowLabelFor, logKey } from "./weekData.js";
-import { HoursField, NoteButton } from "./LabBits.jsx";
+import { HoursField, AddProjectPopup } from "./LabBits.jsx";
 import { useConfirm } from "../../components/confirm.tsx";
 import { Play, Square, PictureInPicture2, X, ChevronLeft, ChevronRight, Plus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -33,14 +33,13 @@ export default function TimesheetV3({ org, me, data: cadData, reload }) {
   const { run, start, startTask, stop: stopTimer, cancel, capMinutes } = useRunningTimer(meId, { addTimeLog, orgId: org.id, dailyHours: member?.daily || 8 });
   const [now, setNow] = useState(Date.now());
   useEffect(() => { if (!run) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [run]);
-  const [stopNote, setStopNote] = useState("");
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
   const [adding, setAdding] = useState(false);
   const [pending, setPending] = useState([]);
 
   const labels = makeLabels(data);
   const todayISO = toISO(startOfDay(new Date()));
-  const stop = () => { stopTimer(todayISO, { note: stopNote.trim() || null }); setStopNote(""); };
+  const stop = () => stopTimer(todayISO, {});
   const openPip = usePipTimer({ run, stop, top: () => labels.runTop(run), capMinutes });
 
   if (!canTrack || !member) return <NoAccess what="the timesheet" />;
@@ -73,7 +72,7 @@ export default function TimesheetV3({ org, me, data: cadData, reload }) {
   const discard = async () => {
     const mins = run ? Math.round((Date.now() - run.startedAt) / 60000) : 0;
     if (mins > 5 && !(await confirm({ title: "Discard this timer?", description: hm(mins) + " of tracked time will be thrown away.", confirmLabel: "Discard", destructive: true }))) return;
-    setStopNote(""); cancel();
+    cancel();
   };
   const elapsed = run ? fmtClock(Math.min((now - run.startedAt) / 1000, capMinutes * 60)) : null;
   const shift = (dir) => setAnchor((a) => addDays(a, dir * 7));
@@ -92,7 +91,6 @@ export default function TimesheetV3({ org, me, data: cadData, reload }) {
                   <span className="size-2.5 rounded-full bg-card shrink-0" style={{ animation: "pulse 1.5s infinite" }} />
                   <div className="min-w-0"><div className="text-xs opacity-90 truncate">{labels.runTop(run)}</div><div className="text-2xl font-medium tabular-nums leading-tight">{elapsed}</div></div>
                   <div className="ml-auto flex items-center gap-2 flex-wrap">
-                    <Input value={stopNote} onChange={(e) => setStopNote(e.target.value)} placeholder="Add a note… (optional)" className="w-52 bg-card text-foreground" />
                     <Button variant="secondary" onClick={stop}><Square data-icon="inline-start" /> Stop &amp; log</Button>
                     <Button variant="secondary" size="icon" title="Pop out floating timer" onClick={openPip}><PictureInPicture2 /></Button>
                     <Button variant="secondary" size="icon" title="Discard" onClick={discard}><X /></Button>
@@ -119,10 +117,9 @@ export default function TimesheetV3({ org, me, data: cadData, reload }) {
               <CardContent>
                 <div className="grid gap-1.5 items-center" style={gridCols}>
                   <div className="rounded-md bg-muted/50 px-2 py-1.5 text-sm font-medium">Project</div>
-                  {days.map((d) => { const dISO = toISO(d); const isToday = dISO === todayISO; const t = dayTot(dISO); return (
-                    <div key={dISO} className={`rounded-md px-1.5 py-1.5 text-sm flex items-baseline justify-between ${isToday ? "bg-primary/10 font-medium text-foreground" : "bg-muted/50 text-muted-foreground"}`}>
-                      <span>{DOW[d.getDay()]} {pad(d.getDate())}</span>
-                      <span className="text-xs tabular-nums">{t ? fmtH(t / 60) + "h" : ""}</span>
+                  {days.map((d) => { const dISO = toISO(d); const isToday = dISO === todayISO; return (
+                    <div key={dISO} className={`rounded-md px-1.5 py-1.5 text-sm ${isToday ? "bg-primary/10 font-medium text-foreground" : "bg-muted/50 text-muted-foreground"}`}>
+                      {DOW[d.getDay()]} {pad(d.getDate())}
                     </div>); })}
                   <div className="rounded-md bg-muted/50 px-1.5 py-1.5 text-sm text-muted-foreground text-right">Week</div>
 
@@ -137,18 +134,31 @@ export default function TimesheetV3({ org, me, data: cadData, reload }) {
                         <div key={dISO} className={`group flex items-center gap-1 rounded-md px-1 py-1 ${isToday ? "bg-primary/5" : !isWeekday(d) ? "bg-muted/30" : ""}`}>
                           <HoursField mins={cell.mins} ghostMins={cell.ghostMins} onCommit={(m) => setTotal(dISO, row, cell, m)} />
                           {cell.ghostMins != null && <Button variant="ghost" size="icon" title={"Log " + fmtH(cell.ghostMins / 60) + "h (planned)"} onClick={() => setTotal(dISO, row, cell, cell.ghostMins)}><Check /></Button>}
-                          {cell.mins != null && cell.ids.length > 0 && <NoteButton note={cell.note} onSave={(note) => editTimeLog(cell.ids[0], { note })} />}
                           {isToday && !run && <Button variant="ghost" size="icon" title="Start timer" onClick={() => (row.taskId ? startTask(row.taskId, taskProject(data, row.taskId)) : start(row.projectId, row.phaseId))}><Play /></Button>}
                         </div>); })}
                       <div className="px-1.5 text-sm font-medium tabular-nums text-right">{tot ? fmtH(tot / 60) + "h" : ""}</div>
                     </React.Fragment>); })}
+
+                  {/* Add-project occupies the next row — a new project takes
+                      its place and pushes it down. */}
+                  {/* Docs "Popup" pattern: button trigger, search inside the
+                      dropdown. */}
+                  <AddProjectPopup groups={groups} recents={recents} onPick={addPending} />
+                  {days.map((d) => <div key={toISO(d)} />)}
+                  <div />
                 </div>
               </CardContent>
-              <CardFooter className="justify-between">
-                {adding
-                  ? <ProjectCombobox selP="" selPh="" onPick={addPending} groups={groups} recents={recents} placeholder="Add project…" className="w-72" />
-                  : <Button variant="outline" onClick={() => setAdding(true)}><Plus data-icon="inline-start" /> Add project</Button>}
-                <span className="text-sm text-muted-foreground">This week <span className="font-medium text-foreground">{fmtH(weekTotal / 60)}h</span></span>
+              <CardFooter>
+                <div className="grid gap-1.5 w-full items-center" style={gridCols}>
+                  <div className="text-sm text-muted-foreground">Daily total</div>
+                  {days.map((d) => { const dISO = toISO(d); const t = dayTot(dISO); const wknd = !isWeekday(d); return (
+                    <div key={dISO} className="px-1 text-sm tabular-nums">
+                      {wknd
+                        ? (t ? <span className="font-medium">{fmtH(t / 60)}h</span> : <span className="text-muted-foreground">—</span>)
+                        : <><span className="font-medium">{fmtH(t / 60)}</span><span className="text-muted-foreground">/{member.daily || 8}h</span></>}
+                    </div>); })}
+                  <div className="px-1.5 text-sm tabular-nums text-right"><span className="font-medium">{fmtH(weekTotal / 60)}</span><span className="text-muted-foreground">/{(member.daily || 8) * 5}h</span></div>
+                </div>
               </CardFooter>
             </Card>
           </div>

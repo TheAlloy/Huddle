@@ -188,6 +188,7 @@ export default function App() {
     { key: "time-v2", label: "Timesheet V2", icon: Clock, perm: "time.track" }, // design exploration — see src/screens/timesheet-lab
     { key: "time-v2-1", label: "Timesheet V2.1", icon: Clock, perm: "time.track" }, // V2 without column dividers
     { key: "time-v3", label: "Timesheet V3", icon: Clock, perm: "time.track" }, // design exploration — see src/screens/timesheet-lab
+    { key: "time-v3-1", label: "Timesheet V3.1", icon: Clock, perm: "time.track" }, // V3 with the fancy hours input
     { key: "summary", label: "Summary", icon: Table2, perm: "summary.view" }, // the manager's team overview — own UX track
     { key: "tasks", label: "Tasks", icon: LayoutGrid, perm: "tasks.view" },
     { key: "projects", label: terms.navProjects, icon: FolderKanban, perm: "projects.manage" },
@@ -208,7 +209,7 @@ export default function App() {
         teams={memberships.map(m => ({ id: m.org_id, name: m.organizations?.name || "Studio", plan: planLabel(m.organizations?.plan) }))}
         activeTeamId={active.org_id}
         onPickTeam={(id) => { setOrgId(id); localStorage.setItem("cadence_org", id); }}
-        nav={visible.filter(n => ["schedule", "time", "time-v2", "time-v2-1", "time-v3", "summary", "tasks"].includes(n.key)).map(navItem)}
+        nav={visible.filter(n => ["schedule", "time", "time-v2", "time-v2-1", "time-v3", "time-v3-1", "summary", "tasks"].includes(n.key)).map(navItem)}
         groups={[{ label: "Manage", items: visible.filter(n => ["projects", "billing", "people"].includes(n.key)).map(navItem) }]}
         action={{ title: "Leave feedback", icon: <Gift />, onSelect: () => setFeedbackOpen(true) }}
         secondary={[
@@ -239,6 +240,7 @@ export default function App() {
             : current === "time-v2" ? <TimesheetV2 org={org} me={me} data={data} reload={reload} unified />
             : current === "time-v2-1" ? <TimesheetV2 org={org} me={me} data={data} reload={reload} dividers={false} unified addSlot="input" variantLabel="V2.1 · unified calendar" />
             : current === "time-v3" ? <TimesheetV3 org={org} me={me} data={data} reload={reload} />
+            : current === "time-v3-1" ? <TimesheetV3 org={org} me={me} data={data} reload={reload} fancyHours aligned variantLabel="V3.1 · fancy hours" />
             : current === "schedule" ? (can(me, "schedule.view") ? <Schedule org={org} me={me} data={data} reload={reload} onNavigate={setTab} peopleFilter={peopleFilter} onPeopleFilter={setPeopleFilter} /> : <NoAccess what="the schedule" />)
             : current === "summary" ? (can(me, "summary.view") ? <Summary org={org} me={me} data={data} reload={reload} peopleFilter={peopleFilter} onPeopleFilter={setPeopleFilter} /> : <NoAccess what="summaries" />)
             : current === "tasks" ? (can(me, "tasks.view") ? <Tasks org={org} me={me} data={data} reload={reload} /> : <NoAccess what="tasks" />)

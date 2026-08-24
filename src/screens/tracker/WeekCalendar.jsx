@@ -24,7 +24,10 @@ const snap = (m) => Math.round(m / SNAP) * SNAP;
 // let a parent align the calendar's columns with a table above it (the
 // unified V2.1 experiment): pass the parent's gridTemplateColumns, emit a
 // trailing spacer column, and skip the calendar's own day-label row.
-export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, recents, run, runColor, onCreate, onPatch, frameless = false, template = null, trailing = false, showDayHeaders = true, laneDividerClass = "border-l border-border/60" }) {
+export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, recents, run, runColor, onCreate, onPatch, frameless = false, template = null, trailing = false, showDayHeaders = true, laneDividerClass = "border-l border-border/60", durFmt = null }) {
+  // Duration formatter for chip labels and the create panel — overridable so
+  // the clock-notation variant can keep every number in one dialect.
+  const dur = durFmt || ((min) => `${fmtH(min / 60)}h`);
   // When a parent supplies its grid template (the unified table variants),
   // the calendar speaks the stock Table language: full-token row borders and
   // a labelled "No time" strip row instead of the compact axis caption.
@@ -142,9 +145,9 @@ export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, r
             <div key={dISO} className={`min-h-7 self-stretch ${tableMode ? "border-b" : "border-b border-border/60"} ${tableMode ? laneDividerClass : ""} px-1 py-1 flex flex-col gap-1 justify-center`}>
               {un.map((l) => { const lab = labelFor(l); return (
                 <div key={l.id} className="rounded-sm text-white text-xs px-1.5 py-1 truncate select-none cursor-grab active:cursor-grabbing" style={{ background: lab.color, touchAction: "none" }}
-                  title={`${lab.full} · ${fmtH(l.minutes / 60)}h — drag into the day to place it`}
+                  title={`${lab.full} · ${dur(l.minutes)} — drag into the day to place it`}
                   onPointerDown={(e) => beginDrag(e, { mode: "place", id: l.id, dISO, startMin: 9 * 60, minutes: l.minutes, grab: 0, color: lab.color })}>
-                  {lab.text} · {fmtH(l.minutes / 60)}h
+                  {lab.text} · {dur(l.minutes)}
                 </div>); })}
             </div>); })}
           {trailing && <div className={`self-stretch ${tableMode ? "border-b" : "border-b border-border/60"} ${tableMode ? laneDividerClass : ""}`} />}
@@ -181,7 +184,7 @@ export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, r
                 <div className={`absolute z-20 w-64 rounded-lg border border-border bg-popover p-2 shadow-md flex flex-col gap-2 ${days.indexOf(d) >= days.length - 2 && days.length > 2 ? "right-0" : "left-0"}`}
                   style={{ top: Math.min(blockStyle(draft.startMin, draft.minutes).top + 4, rangeH * PPH - 150) }}>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span className="tabular-nums">{fmtT(draft.startMin)} – {fmtT(draft.startMin + draft.minutes)} · {fmtH(draft.minutes / 60)}h</span>
+                    <span className="tabular-nums">{fmtT(draft.startMin)} – {fmtT(draft.startMin + draft.minutes)} · {dur(draft.minutes)}</span>
                     <Button variant="ghost" size="icon-xs" title="Cancel" onClick={() => setDraft(null)}><X /></Button>
                   </div>
                   <ProjectCombobox selP={pick.projectId} selPh={pick.phaseId || ""} onPick={(p) => setPick({ projectId: p.projectId, phaseId: p.phaseId })} groups={groups} recents={recents} placeholder="Project…" className="w-full" />

@@ -11,7 +11,7 @@ import { MONTHS, DOW, pad, toISO, startOfDay, addDays, startOfWeekMon, isWeekday
 import { useRunningTimer, makeLabels, ProjectCombobox, recentCombos, usePipTimer, taskProject } from "../tracker/shared.jsx";
 import WeekCalendar from "../tracker/WeekCalendar.jsx";
 import { weekRows, schedForDay, cellForDay, rowLabelFor, logKey } from "./weekData.js";
-import { HoursField, AddProjectPopup } from "./LabBits.jsx";
+import { HoursField, HoursFieldFancy, AddProjectPopup, fmtClockDur } from "./LabBits.jsx";
 import { useConfirm } from "../../components/confirm.tsx";
 import { Play, Square, PictureInPicture2, X, ChevronLeft, ChevronRight, Plus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-export default function TimesheetV3({ org, me, data: cadData, reload }) {
+// `fancyHours` swaps the plain hours input for the HoursFieldFancy
+// composition (centered value, hover-✓ confirm inside the input, focus
+// steppers) — V3.1 in the sidebar. `aligned` shares one fixed column
+// template between the logger grid and the calendar card so the day lanes
+// line up across the two cards (the V2.1 idea in the card language).
+export default function TimesheetV3({ org, me, data: cadData, reload, fancyHours = false, aligned = false, variantLabel = "V3 · card" }) {
   const meId = me.id;
   const data = useMemo(() => mapData(cadData), [cadData]);
   const H = useMemo(() => makeHandlers(org, reload, cadData), [org, cadData]); // eslint-disable-line
@@ -58,6 +63,10 @@ export default function TimesheetV3({ org, me, data: cadData, reload }) {
   const scheds = days.map((d) => schedForDay(data, meId, toISO(d)));
   const rowTot = (row) => weekLogs.filter((l) => logKey(l) === row.key).reduce((s, l) => s + l.minutes, 0);
   const rowLabel = (row) => rowLabelFor(labels, NAVY, row);
+  // Every duration on the screen speaks the active dialect: clock notation
+  // with fancy hours, decimal hours otherwise.
+  const dur = fancyHours ? fmtClockDur : (min) => fmtH(min / 60) + "h";
+  const durNum = fancyHours ? fmtClockDur : (min) => fmtH(min / 60); // bare number before a /capacity suffix
 
   const setTotal = (dISO, row, cell, minutes) => {
     const attr = row.taskId ? taskProject(data, row.taskId) : { projectId: row.projectId || null, phaseId: row.phaseId || null };
@@ -77,7 +86,14 @@ export default function TimesheetV3({ org, me, data: cadData, reload }) {
   const elapsed = run ? fmtClock(Math.min((now - run.startedAt) / 1000, capMinutes * 60)) : null;
   const shift = (dir) => setAnchor((a) => addDays(a, dir * 7));
 
-  const gridCols = { gridTemplateColumns: `minmax(180px,240px) repeat(7, minmax(0,1fr)) 72px` };
+  // Aligned mode fixes the flexible columns and drops the x-gap so the
+  // logger's column edges land exactly on the calendar's gapless lanes; the
+  // spacing between V3's chips is recreated inside each track with cell
+  // margins (half the 6px gap per side), so the spaced look survives.
+  const template = "12rem repeat(7, minmax(0,1fr)) 5rem";
+  const gridCols = { gridTemplateColumns: aligned ? template : `minmax(180px,240px) repeat(7, minmax(0,1fr)) 72px` };
+  const gridGap = aligned ? "gap-y-1.5" : "gap-1.5";
+  const inset = aligned ? "mx-[3px]" : "";
 
   return (
     <ScrollArea className="h-full">
@@ -104,7 +120,7 @@ export default function TimesheetV3({ org, me, data: cadData, reload }) {
           <div className="px-4 lg:px-6">
             <Card>
               <CardHeader>
-                <CardTitle>Week logger <Badge variant="secondary" className="ml-1 align-middle">V3 · card</Badge></CardTitle>
+                <CardTitle>Week logger <Badge variant="secondary" className="ml-1 align-middle">{variantLabel}</Badge></CardTitle>
                 <CardDescription>{rangeLabel} · type hours or tap a suggestion — Enter logs it</CardDescription>
                 <CardAction>
                   <ButtonGroup>
@@ -115,49 +131,53 @@ export default function TimesheetV3({ org, me, data: cadData, reload }) {
                 </CardAction>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-1.5 items-center" style={gridCols}>
-                  <div className="rounded-md bg-muted/50 px-2 py-1.5 text-sm font-medium">Project</div>
+                <div className={`grid ${gridGap} items-center`} style={gridCols}>
+                  <div className={`rounded-md ${inset} bg-muted/50 px-2 py-1.5 text-sm font-medium`}>Project</div>
                   {days.map((d) => { const dISO = toISO(d); const isToday = dISO === todayISO; return (
-                    <div key={dISO} className={`rounded-md px-1.5 py-1.5 text-sm ${isToday ? "bg-primary/10 font-medium text-foreground" : "bg-muted/50 text-muted-foreground"}`}>
+                    <div key={dISO} className={`rounded-md ${inset} px-1.5 py-1.5 text-sm ${isToday ? "bg-primary/10 font-medium text-foreground" : "bg-muted/50 text-muted-foreground"}`}>
                       {DOW[d.getDay()]} {pad(d.getDate())}
                     </div>); })}
-                  <div className="rounded-md bg-muted/50 px-1.5 py-1.5 text-sm text-muted-foreground text-right">Week</div>
+                  <div className={`rounded-md ${inset} bg-muted/50 px-1.5 py-1.5 text-sm text-muted-foreground text-right`}>Week</div>
 
                   {rows.map((row) => { const lab = rowLabel(row); const tot = rowTot(row); return (
                     <React.Fragment key={row.key}>
-                      <div className="flex items-center gap-2 min-w-0 pr-1 pl-1">
+                      <div className={`flex items-center gap-2 min-w-0 pr-1 pl-1 ${inset}`}>
                         <span className="size-3 rounded-xs shrink-0" style={{ background: lab.color }} />
                         <span className="text-sm truncate" title={lab.full}>{lab.text}</span>
                         {row.taskId && <span className="text-xs text-muted-foreground shrink-0">task</span>}
                       </div>
                       {days.map((d, i) => { const dISO = toISO(d); const cell = cellForDay({ weekLogs, row, dISO, sched: scheds[i], daily: member.daily }); const isToday = dISO === todayISO; return (
-                        <div key={dISO} className={`group flex items-center gap-1 rounded-md px-1 py-1 ${isToday ? "bg-primary/5" : !isWeekday(d) ? "bg-muted/30" : ""}`}>
-                          <HoursField mins={cell.mins} ghostMins={cell.ghostMins} onCommit={(m) => setTotal(dISO, row, cell, m)} />
-                          {cell.ghostMins != null && <Button variant="ghost" size="icon" title={"Log " + fmtH(cell.ghostMins / 60) + "h (planned)"} onClick={() => setTotal(dISO, row, cell, cell.ghostMins)}><Check /></Button>}
+                        <div key={dISO} className={`group flex items-center gap-1 rounded-md ${inset} px-1 py-1 ${isToday ? "bg-primary/5" : !isWeekday(d) ? "bg-muted/30" : ""}`}>
+                          {fancyHours
+                            ? <HoursFieldFancy mins={cell.mins} ghostMins={cell.ghostMins} onCommit={(m) => setTotal(dISO, row, cell, m)} />
+                            : <>
+                                <HoursField mins={cell.mins} ghostMins={cell.ghostMins} onCommit={(m) => setTotal(dISO, row, cell, m)} />
+                                {cell.ghostMins != null && <Button variant="ghost" size="icon" title={"Log " + fmtH(cell.ghostMins / 60) + "h (planned)"} onClick={() => setTotal(dISO, row, cell, cell.ghostMins)}><Check /></Button>}
+                              </>}
                           {isToday && !run && <Button variant="ghost" size="icon" title="Start timer" onClick={() => (row.taskId ? startTask(row.taskId, taskProject(data, row.taskId)) : start(row.projectId, row.phaseId))}><Play /></Button>}
                         </div>); })}
-                      <div className="px-1.5 text-sm font-medium tabular-nums text-right">{tot ? fmtH(tot / 60) + "h" : ""}</div>
+                      <div className={`px-1.5 ${inset} text-sm font-medium tabular-nums text-right`}>{tot ? dur(tot) : ""}</div>
                     </React.Fragment>); })}
 
                   {/* Add-project occupies the next row — a new project takes
                       its place and pushes it down. */}
                   {/* Docs "Popup" pattern: button trigger, search inside the
                       dropdown. */}
-                  <AddProjectPopup groups={groups} recents={recents} onPick={addPending} />
+                  <div className={inset}><AddProjectPopup groups={groups} recents={recents} onPick={addPending} /></div>
                   {days.map((d) => <div key={toISO(d)} />)}
                   <div />
                 </div>
               </CardContent>
               <CardFooter>
-                <div className="grid gap-1.5 w-full items-center" style={gridCols}>
-                  <div className="text-sm text-muted-foreground">Daily total</div>
+                <div className={`grid ${gridGap} w-full items-center`} style={gridCols}>
+                  <div className={`text-sm text-muted-foreground ${inset}`}>Daily total</div>
                   {days.map((d) => { const dISO = toISO(d); const t = dayTot(dISO); const wknd = !isWeekday(d); return (
-                    <div key={dISO} className="px-1 text-sm tabular-nums">
+                    <div key={dISO} className={`px-1 ${inset} text-sm tabular-nums`}>
                       {wknd
-                        ? (t ? <span className="font-medium">{fmtH(t / 60)}h</span> : <span className="text-muted-foreground">—</span>)
-                        : <><span className="font-medium">{fmtH(t / 60)}</span><span className="text-muted-foreground">/{member.daily || 8}h</span></>}
+                        ? (t ? <span className="font-medium">{dur(t)}</span> : <span className="text-muted-foreground">—</span>)
+                        : <><span className="font-medium">{durNum(t)}</span><span className="text-muted-foreground">/{member.daily || 8}h</span></>}
                     </div>); })}
-                  <div className="px-1.5 text-sm tabular-nums text-right"><span className="font-medium">{fmtH(weekTotal / 60)}</span><span className="text-muted-foreground">/{(member.daily || 8) * 5}h</span></div>
+                  <div className={`px-1.5 ${inset} text-sm tabular-nums text-right`}><span className="font-medium">{durNum(weekTotal)}</span><span className="text-muted-foreground">/{(member.daily || 8) * 5}h</span></div>
                 </div>
               </CardFooter>
             </Card>
@@ -171,7 +191,9 @@ export default function TimesheetV3({ org, me, data: cadData, reload }) {
                 <CardDescription>Drag on a day to log a block · drag blocks to say when work happened</CardDescription>
               </CardHeader>
               <CardContent>
-                <WeekCalendar frameless days={days} todayISO={todayISO} logs={weekLogs} labelFor={(l) => rowLabelFor(labels, NAVY, l)} groups={groups} recents={recents}
+                <WeekCalendar frameless durFmt={fancyHours ? fmtClockDur : null}
+                  template={aligned ? template : null} trailing={aligned} laneDividerClass="border-l border-border/40"
+                  days={days} todayISO={todayISO} logs={weekLogs} labelFor={(l) => rowLabelFor(labels, NAVY, l)} groups={groups} recents={recents}
                   run={run} runColor={labels.runColor(run)}
                   onCreate={({ projectId, phaseId, date, startMin, minutes, note }) => addTimeLog({ memberId: meId, projectId, phaseId, taskId: null, date, minutes, startMin, source: "manual", note })}
                   onPatch={(id, patch) => editTimeLog(id, patch)} />

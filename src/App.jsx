@@ -240,7 +240,7 @@ export default function App() {
             : current === "time-v2" ? <TimesheetV2 org={org} me={me} data={data} reload={reload} unified />
             : current === "time-v2-1" ? <TimesheetV2 org={org} me={me} data={data} reload={reload} dividers={false} unified addSlot="input" variantLabel="V2.1 · unified calendar" />
             : current === "time-v3" ? <TimesheetV3 org={org} me={me} data={data} reload={reload} />
-            : current === "time-v3-1" ? <TimesheetV3 org={org} me={me} data={data} reload={reload} fancyHours aligned variantLabel="V3.1 · fancy hours" />
+            : current === "time-v3-1" ? <TimesheetV3 org={org} me={me} data={data} reload={reload} fancyHours aligned playInProject variantLabel="V3.1 · fancy hours" />
             : current === "schedule" ? (can(me, "schedule.view") ? <Schedule org={org} me={me} data={data} reload={reload} onNavigate={setTab} peopleFilter={peopleFilter} onPeopleFilter={setPeopleFilter} /> : <NoAccess what="the schedule" />)
             : current === "summary" ? (can(me, "summary.view") ? <Summary org={org} me={me} data={data} reload={reload} peopleFilter={peopleFilter} onPeopleFilter={setPeopleFilter} /> : <NoAccess what="summaries" />)
             : current === "tasks" ? (can(me, "tasks.view") ? <Tasks org={org} me={me} data={data} reload={reload} /> : <NoAccess what="tasks" />)

@@ -58,7 +58,7 @@ const parseClock = (t) => {
   return Number.isFinite(total) ? total : null;
 };
 
-export function HoursFieldFancy({ mins, ghostMins, onCommit }) {
+export function HoursFieldFancy({ mins, ghostMins, onCommit, className = "" }) {
   const shown = mins != null ? fmtHM(mins) : "";
   const [val, setVal] = useState(shown);
   const [focus, setFocus] = useState(false);
@@ -91,7 +91,7 @@ export function HoursFieldFancy({ mins, ghostMins, onCommit }) {
   // Both addons render whenever either could — with invisible same-size
   // stand-ins — so the centered numeral never shifts between states.
   return (
-    <InputGroup className="group/hours w-full">
+    <InputGroup className={`group/hours w-full ${className}`}>
       {(focus || suggested) && (
         <InputGroupAddon>
           {focus
@@ -113,7 +113,7 @@ export function HoursFieldFancy({ mins, ghostMins, onCommit }) {
           if (e.key === "Escape") { setVal(shown); settledRef.current = true; e.currentTarget.blur(); }
         }}
         placeholder={ghostMins != null ? fmtHM(ghostMins) : ""}
-        className="text-center tabular-nums"
+        className="text-center tabular-nums placeholder:text-muted-foreground/50"
         aria-label="Hours" />
       {(focus || suggested) && (
         <InputGroupAddon align="inline-end">

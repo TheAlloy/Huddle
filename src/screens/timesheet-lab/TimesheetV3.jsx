@@ -26,7 +26,9 @@ import { Badge } from "@/components/ui/badge";
 // steppers) — V3.1 in the sidebar. `aligned` shares one fixed column
 // template between the logger grid and the calendar card so the day lanes
 // line up across the two cards (the V2.1 idea in the card language).
-export default function TimesheetV3({ org, me, data: cadData, reload, fancyHours = false, aligned = false, variantLabel = "V3 · card" }) {
+// `playInProject` moves the start verb into the project column — one fixed
+// place per row, always logging to today — instead of inside today's cell.
+export default function TimesheetV3({ org, me, data: cadData, reload, fancyHours = false, aligned = false, playInProject = false, variantLabel = "V3 · card" }) {
   const meId = me.id;
   const data = useMemo(() => mapData(cadData), [cadData]);
   const H = useMemo(() => makeHandlers(org, reload, cadData), [org, cadData]); // eslint-disable-line
@@ -94,6 +96,9 @@ export default function TimesheetV3({ org, me, data: cadData, reload, fancyHours
   const gridCols = { gridTemplateColumns: aligned ? template : `minmax(180px,240px) repeat(7, minmax(0,1fr)) 72px` };
   const gridGap = aligned ? "gap-y-1.5" : "gap-1.5";
   const inset = aligned ? "mx-[3px]" : "";
+  // The fancy field centers its numeral, so the day headers and daily totals
+  // center too — one axis of alignment down the whole column.
+  const dayAlign = fancyHours ? "text-center" : "";
 
   return (
     <ScrollArea className="h-full">
@@ -134,7 +139,7 @@ export default function TimesheetV3({ org, me, data: cadData, reload, fancyHours
                 <div className={`grid ${gridGap} items-center`} style={gridCols}>
                   <div className={`rounded-md ${inset} bg-muted/50 px-2 py-1.5 text-sm font-medium`}>Project</div>
                   {days.map((d) => { const dISO = toISO(d); const isToday = dISO === todayISO; return (
-                    <div key={dISO} className={`rounded-md ${inset} px-1.5 py-1.5 text-sm ${isToday ? "bg-primary/10 font-medium text-foreground" : "bg-muted/50 text-muted-foreground"}`}>
+                    <div key={dISO} className={`rounded-md ${inset} px-1.5 py-1.5 text-sm ${dayAlign} ${isToday ? "bg-primary/10 font-medium text-foreground" : "bg-muted/50 text-muted-foreground"}`}>
                       {DOW[d.getDay()]} {pad(d.getDate())}
                     </div>); })}
                   <div className={`rounded-md ${inset} bg-muted/50 px-1.5 py-1.5 text-sm text-muted-foreground text-right`}>Week</div>
@@ -145,16 +150,24 @@ export default function TimesheetV3({ org, me, data: cadData, reload, fancyHours
                         <span className="size-3 rounded-xs shrink-0" style={{ background: lab.color }} />
                         <span className="text-sm truncate" title={lab.full}>{lab.text}</span>
                         {row.taskId && <span className="text-xs text-muted-foreground shrink-0">task</span>}
+                        {playInProject && !run && <Button variant="ghost" size="icon" className="ml-auto" title="Start timer — logs to today"
+                          onClick={() => (row.taskId ? startTask(row.taskId, taskProject(data, row.taskId)) : start(row.projectId, row.phaseId))}><Play /></Button>}
                       </div>
-                      {days.map((d, i) => { const dISO = toISO(d); const cell = cellForDay({ weekLogs, row, dISO, sched: scheds[i], daily: member.daily }); const isToday = dISO === todayISO; return (
-                        <div key={dISO} className={`group flex items-center gap-1 rounded-md ${inset} px-1 py-1 ${isToday ? "bg-primary/5" : !isWeekday(d) ? "bg-muted/30" : ""}`}>
+                      {days.map((d, i) => { const dISO = toISO(d); const cell = cellForDay({ weekLogs, row, dISO, sched: scheds[i], daily: member.daily }); const isToday = dISO === todayISO; const tint = isToday ? "bg-primary/5" : !isWeekday(d) ? "bg-muted/30" : "";
+                        // With the start verb in the project column the field
+                        // IS the cell — no box-inside-a-box; the day tint rides
+                        // on the input group itself, and today's outline speaks
+                        // the accent palette instead of the default grey.
+                        if (fancyHours && playInProject) return <HoursFieldFancy key={dISO} className={`w-auto ${inset} ${tint} ${isToday ? "border-primary/50" : ""}`} mins={cell.mins} ghostMins={cell.ghostMins} onCommit={(m) => setTotal(dISO, row, cell, m)} />;
+                        return (
+                        <div key={dISO} className={`group flex items-center gap-1 rounded-md ${inset} px-1 py-1 ${tint}`}>
                           {fancyHours
                             ? <HoursFieldFancy mins={cell.mins} ghostMins={cell.ghostMins} onCommit={(m) => setTotal(dISO, row, cell, m)} />
                             : <>
                                 <HoursField mins={cell.mins} ghostMins={cell.ghostMins} onCommit={(m) => setTotal(dISO, row, cell, m)} />
                                 {cell.ghostMins != null && <Button variant="ghost" size="icon" title={"Log " + fmtH(cell.ghostMins / 60) + "h (planned)"} onClick={() => setTotal(dISO, row, cell, cell.ghostMins)}><Check /></Button>}
                               </>}
-                          {isToday && !run && <Button variant="ghost" size="icon" title="Start timer" onClick={() => (row.taskId ? startTask(row.taskId, taskProject(data, row.taskId)) : start(row.projectId, row.phaseId))}><Play /></Button>}
+                          {!playInProject && isToday && !run && <Button variant="ghost" size="icon" title="Start timer" onClick={() => (row.taskId ? startTask(row.taskId, taskProject(data, row.taskId)) : start(row.projectId, row.phaseId))}><Play /></Button>}
                         </div>); })}
                       <div className={`px-1.5 ${inset} text-sm font-medium tabular-nums text-right`}>{tot ? dur(tot) : ""}</div>
                     </React.Fragment>); })}
@@ -172,7 +185,7 @@ export default function TimesheetV3({ org, me, data: cadData, reload, fancyHours
                 <div className={`grid ${gridGap} w-full items-center`} style={gridCols}>
                   <div className={`text-sm text-muted-foreground ${inset}`}>Daily total</div>
                   {days.map((d) => { const dISO = toISO(d); const t = dayTot(dISO); const wknd = !isWeekday(d); return (
-                    <div key={dISO} className={`px-1 ${inset} text-sm tabular-nums`}>
+                    <div key={dISO} className={`px-1 ${inset} text-sm tabular-nums ${dayAlign}`}>
                       {wknd
                         ? (t ? <span className="font-medium">{dur(t)}</span> : <span className="text-muted-foreground">—</span>)
                         : <><span className="font-medium">{durNum(t)}</span><span className="text-muted-foreground">/{member.daily || 8}h</span></>}

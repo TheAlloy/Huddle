@@ -71,6 +71,16 @@ create table if not exists invites (
 create index if not exists invites_org_idx   on invites(org_id);
 create index if not exists invites_email_idx on invites(lower(email));
 
+-- ─── Org domains (company email domain → studio, auto-join on sign-in) ─────
+-- See join_domain_org(). Only CONFIRMED addresses auto-join, so Supabase's
+-- "Confirm email" must stay on.
+create table if not exists org_domains (
+  domain     text primary key,                -- lower-case, e.g. 'thealloy.com'
+  org_id     uuid not null references organizations(id) on delete cascade,
+  role       text not null default 'owner',   -- role given to people who auto-join
+  created_at timestamptz not null default now()
+);
+
 -- ─── Product tables (all org-scoped) ───────────────────────────────────────
 create table if not exists clients (
   id uuid primary key default gen_random_uuid(),
@@ -218,6 +228,12 @@ alter table tasks           enable row level security;
 alter table billing_entries enable row level security;
 alter table public_holidays enable row level security;
 alter table audit_log       enable row level security;
+alter table org_domains     enable row level security;
+
+-- org_domains: vendor-managed; join_domain_org() reads it as security definer
+drop policy if exists org_domains_admin on org_domains;
+create policy org_domains_admin on org_domains for all
+  using (app_is_platform_admin()) with check (app_is_platform_admin());
 
 -- profiles: you can see/edit only yourself (platform admins see all)
 drop policy if exists profiles_self on profiles;
@@ -429,6 +445,29 @@ begin
   update invites set accepted_at = now() where id = inv.id;
   insert into audit_log(org_id,user_id,action,entity) values (inv.org_id, auth.uid(), 'invite.accepted','membership');
   return inv.org_id;
+end $$;
+
+-- Company-domain auto-join, called by the app after sign-in: a confirmed
+-- address on a domain listed in org_domains joins that studio at the listed
+-- role. Returns the studio id (null when the domain isn't listed or the
+-- email isn't confirmed). Existing memberships are left alone.
+create or replace function join_domain_org()
+returns uuid language plpgsql security definer set search_path=public as $$
+declare u auth.users%rowtype; d org_domains%rowtype;
+begin
+  if auth.uid() is null then return null; end if;
+  select * into u from auth.users where id = auth.uid();
+  if u.email is null or u.email_confirmed_at is null then return null; end if;
+  select * into d from org_domains where domain = lower(split_part(u.email, '@', 2));
+  if not found then return null; end if;
+
+  insert into memberships (org_id, user_id, email, display_name, role, status)
+  values (d.org_id, u.id, u.email, nullif(trim(coalesce(u.raw_user_meta_data->>'full_name', '')), ''), d.role, 'active')
+  on conflict (org_id, user_id) do nothing;
+  if found then
+    insert into audit_log(org_id, user_id, action, entity) values (d.org_id, u.id, 'domain.joined', 'membership');
+  end if;
+  return d.org_id;
 end $$;
 
 -- Seat usage (used by the UI + billing limits)

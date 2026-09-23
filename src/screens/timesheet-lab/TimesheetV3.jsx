@@ -8,14 +8,15 @@ import React, { useState, useEffect, useMemo } from "react";
 import { can } from "../../lib/permissions.js";
 import { NoAccess } from "../Workspace.jsx";
 import { MONTHS, DOW, pad, toISO, startOfDay, addDays, startOfWeekMon, isWeekday, hm, fmtClock, fmtH, NAVY, projectsByClient, mapData, makeHandlers } from "../../studio/core.jsx";
-import { useRunningTimer, makeLabels, ProjectCombobox, recentCombos, usePipTimer, taskProject } from "../tracker/shared.jsx";
-import WeekCalendar from "../tracker/WeekCalendar.jsx";
+import { useRunningTimer, makeLabels, ProjectCombobox, recentCombos, taskProject, parseHours } from "../tracker/shared.jsx";
+import WeekCalendar, { rowDragProps } from "../tracker/WeekCalendar.jsx";
 import { weekRows, schedForDay, cellForDay, rowLabelFor, logKey } from "./weekData.js";
 import { HoursField, HoursFieldFancy, AddProjectPopup, fmtClockDur } from "./LabBits.jsx";
-import { useConfirm } from "../../components/confirm.tsx";
 import { Play, Square, PictureInPicture2, X, ChevronLeft, ChevronRight, Plus, Check } from "lucide-react";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { Input } from "@/components/ui/input";
@@ -32,27 +33,33 @@ import { Badge } from "@/components/ui/badge";
 // place per row, always logging to today — instead of inside today's cell.
 // `bare` drops the logger's Card chrome for V1's open layout (nav row + bare
 // grid on the page ground); only the calendar keeps its own Card — V3.2.
-export default function TimesheetV3({ org, me, data: cadData, reload, fancyHours = false, aligned = false, playInProject = false, bare = false, variantLabel = "V3 · card" }) {
+// `planning` makes the logger's project labels draggable onto calendar days
+// (each drop logs an hour block that feeds straight back into the grid) —
+// V3.3, which is V3.2 with V3.1's aligned columns.
+export default function TimesheetV3({ org, me, data: cadData, reload, fancyHours = false, aligned = false, playInProject = false, bare = false, planning = false, variantLabel = "V3 · card" }) {
   const meId = me.id;
   const data = useMemo(() => mapData(cadData), [cadData]);
   const H = useMemo(() => makeHandlers(org, reload, cadData), [org, cadData]); // eslint-disable-line
-  const { addTimeLog, setTimeLogTotal, editTimeLog } = H;
-  const confirm = useConfirm();
+  const { addTimeLog, setTimeLogTotal, editTimeLog, delTimeLogs } = H;
 
   const canTrack = can(me, "time.track");
   const member = data.members.find((m) => m.id === meId);
-  const { run, start, startTask, stop: stopTimer, cancel, capMinutes } = useRunningTimer(meId, { addTimeLog, orgId: org.id, dailyHours: member?.daily || 8 });
-  const [now, setNow] = useState(Date.now());
+  const { run, start, startTask } = useRunningTimer(meId, { addTimeLog, orgId: org.id, dailyHours: member?.daily || 8 });
+  // Tick while a timer runs so the calendar's live "recording" block grows.
+  const [, setNow] = useState(Date.now());
   useEffect(() => { if (!run) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [run]);
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
   const [dateOpen, setDateOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [pending, setPending] = useState([]);
+  const [addOpen, setAddOpen] = useState(false);
+  const [addPick, setAddPick] = useState({ projectId: "", phaseId: null });
+  const [addDay, setAddDay] = useState("");
+  const [addStart, setAddStart] = useState("9:00");
+  const [addHours, setAddHours] = useState("1:00");
 
   const labels = makeLabels(data);
   const todayISO = toISO(startOfDay(new Date()));
-  const stop = () => stopTimer(todayISO, {});
-  const openPip = usePipTimer({ run, stop, top: () => labels.runTop(run), capMinutes });
 
   if (!canTrack || !member) return <NoAccess what="the timesheet" />;
 
@@ -85,13 +92,22 @@ export default function TimesheetV3({ org, me, data: cadData, reload, fancyHours
     setPending((list) => (list.some((x) => x.key === key) ? list : [...list, { key, projectId: pick.projectId, phaseId: pick.phaseId || null, taskId: null }]));
     setAdding(false);
   };
-  const discard = async () => {
-    const mins = run ? Math.round((Date.now() - run.startedAt) / 60000) : 0;
-    if (mins > 5 && !(await confirm({ title: "Discard this timer?", description: hm(mins) + " of tracked time will be thrown away.", confirmLabel: "Discard", destructive: true }))) return;
-    cancel();
-  };
-  const elapsed = run ? fmtClock(Math.min((now - run.startedAt) / 1000, capMinutes * 60)) : null;
   const shift = (dir) => setAnchor((a) => addDays(a, dir * 7));
+
+  // Calendar "Add project" popover (planning): a block on a day of this week,
+  // at an optional start time (empty start = unplaced, "no time" strip).
+  const openAdd = () => {
+    setAddPick({ projectId: "", phaseId: null });
+    setAddDay(todayISO >= rsISO && todayISO <= reISO ? todayISO : rsISO);
+    setAddStart("9:00"); setAddHours("1:00"); setAddOpen(true);
+  };
+  const submitAdd = () => {
+    const minutes = parseHours(addHours);
+    if (!addPick.projectId || !minutes) return;
+    const st = String(addStart).trim() === "" ? null : parseHours(addStart);
+    addTimeLog({ memberId: meId, projectId: addPick.projectId, phaseId: addPick.phaseId || null, taskId: null, date: addDay, minutes, startMin: st, source: "manual", note: null });
+    setAddOpen(false);
+  };
 
   // Aligned mode fixes the flexible columns and drops the x-gap so the
   // logger's column edges land exactly on the calendar's gapless lanes; the
@@ -118,7 +134,8 @@ export default function TimesheetV3({ org, me, data: cadData, reload, fancyHours
 
                   {rows.map((row) => { const lab = rowLabel(row); const tot = rowTot(row); return (
                     <React.Fragment key={row.key}>
-                      <div className={`flex items-center gap-2 min-w-0 pr-1 pl-1 ${inset}`}>
+                      <div className={`flex items-center gap-2 min-w-0 pr-1 pl-1 ${inset} ${planning ? "cursor-grab active:cursor-grabbing" : ""}`}
+                        {...(planning ? { ...rowDragProps({ projectId: row.projectId, phaseId: row.phaseId, taskId: row.taskId, color: lab.color, label: lab.text }), title: "Drag onto a calendar day to plan it" } : {})}>
                         <span className="size-3 rounded-xs shrink-0" style={{ background: lab.color }} />
                         <span className="text-sm truncate" title={lab.full}>{lab.text}</span>
                         {row.taskId && <span className="text-xs text-muted-foreground shrink-0">task</span>}
@@ -200,29 +217,16 @@ export default function TimesheetV3({ org, me, data: cadData, reload, fancyHours
                 </Popover>
                 <Button variant="outline" size="icon" onClick={() => shift(1)} aria-label="Next week"><ChevronRight /></Button>
               </ButtonGroup>
-              <Badge variant="secondary">{variantLabel}</Badge>
+              {variantLabel && <Badge variant="secondary">{variantLabel}</Badge>}
             </div>
           )}
 
-          {run && (
-            <div className="px-4 lg:px-6">
-              <div className="rounded-xl p-3 text-white shadow-xs" style={{ background: labels.runColor(run) }}>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span className="size-2.5 rounded-full bg-card shrink-0" style={{ animation: "pulse 1.5s infinite" }} />
-                  <div className="min-w-0"><div className="text-xs opacity-90 truncate">{labels.runTop(run)}</div><div className="text-2xl font-medium tabular-nums leading-tight">{elapsed}</div></div>
-                  <div className="ml-auto flex items-center gap-2 flex-wrap">
-                    <Button variant="secondary" onClick={stop}><Square data-icon="inline-start" /> Stop &amp; log</Button>
-                    <Button variant="secondary" size="icon" title="Pop out floating timer" onClick={openPip}><PictureInPicture2 /></Button>
-                    <Button variant="secondary" size="icon" title="Discard" onClick={discard}><X /></Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
+          {/* The running timer (clock, stop, pop-out) lives only in the sidebar tracker. */}
           {/* Logger — a stock Card, or bare on the page ground (V3.2). */}
+          {/* Aligned + bare: pad the open logger by the calendar Card's own
+              content inset so the day columns line up across the two. */}
           {bare
-            ? <div className="px-4 lg:px-6">
+            ? <div className={`px-4 lg:px-6 ${aligned ? "*:mx-4" : ""}`}>
                 {loggerGrid}
                 <div className="mt-3 border-t pt-3">{footerGrid}</div>
               </div>
@@ -243,15 +247,56 @@ export default function TimesheetV3({ org, me, data: cadData, reload, fancyHours
             <Card>
               <CardHeader>
                 <CardTitle>Calendar</CardTitle>
-                <CardDescription>Drag on a day to log a block · drag blocks to say when work happened</CardDescription>
+                <CardDescription>{planning
+                  ? "Double-click or drag on a day to plan time · drag projects in from above · drag blocks between days (Alt to copy) · click a block to edit"
+                  : "Drag on a day to log a block · drag blocks to say when work happened"}</CardDescription>
+                {planning && (
+                  <CardAction>
+                    <Popover open={addOpen} onOpenChange={(o, det) => {
+                      // The project/day lists are their own portaled popups —
+                      // picking from them must not read as an outside press.
+                      if (!o && det?.reason === "outside-press" && det.event?.target?.closest?.('[data-slot="combobox-content"],[data-slot="select-content"]')) return;
+                      if (o) openAdd(); else setAddOpen(false);
+                    }}>
+                      <PopoverTrigger render={<Button variant="outline" />}><Plus data-icon="inline-start" /> Add project</PopoverTrigger>
+                      <PopoverContent className="w-80" align="end">
+                        <PopoverHeader>
+                          <PopoverTitle>Add to the calendar</PopoverTitle>
+                          <PopoverDescription>Logs a block — the week above fills in too.</PopoverDescription>
+                        </PopoverHeader>
+                        <ProjectCombobox selP={addPick.projectId} selPh={addPick.phaseId || ""} onPick={(p) => setAddPick({ projectId: p.projectId, phaseId: p.phaseId })} groups={groups} recents={recents} placeholder="Project…" className="w-full" autoFocus />
+                        <Select value={addDay} onValueChange={setAddDay} items={Object.fromEntries(days.map((d) => [toISO(d), `${DOW[d.getDay()]} ${pad(d.getDate())} ${MONTHS[d.getMonth()]}`]))}>
+                          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                          <SelectContent><SelectGroup>{days.map((d) => <SelectItem key={toISO(d)} value={toISO(d)}>{DOW[d.getDay()]} {pad(d.getDate())} {MONTHS[d.getMonth()]}</SelectItem>)}</SelectGroup></SelectContent>
+                        </Select>
+                        <div className="grid grid-cols-2 gap-2">
+                          <InputGroup>
+                            <InputGroupAddon><InputGroupText>Start</InputGroupText></InputGroupAddon>
+                            <InputGroupInput value={addStart} onChange={(e) => setAddStart(e.target.value)} placeholder="—" className="tabular-nums" aria-label="Start time" onKeyDown={(e) => { if (e.key === "Enter") submitAdd(); }} />
+                          </InputGroup>
+                          <InputGroup>
+                            <InputGroupAddon><InputGroupText>Hours</InputGroupText></InputGroupAddon>
+                            <InputGroupInput value={addHours} onChange={(e) => setAddHours(e.target.value)} className="tabular-nums" aria-label="Hours" onKeyDown={(e) => { if (e.key === "Enter") submitAdd(); }} />
+                          </InputGroup>
+                        </div>
+                        <Button onClick={submitAdd} disabled={!addPick.projectId || !parseHours(addHours)}><Plus data-icon="inline-start" /> Add block</Button>
+                      </PopoverContent>
+                    </Popover>
+                  </CardAction>
+                )}
               </CardHeader>
               <CardContent>
                 <WeekCalendar frameless durFmt={fancyHours ? fmtClockDur : null}
                   template={aligned ? template : null} trailing={aligned} laneDividerClass="border-l border-border/40"
                   days={days} todayISO={todayISO} logs={weekLogs} labelFor={(l) => rowLabelFor(labels, NAVY, l)} groups={groups} recents={recents}
                   run={run} runColor={labels.runColor(run)}
-                  onCreate={({ projectId, phaseId, date, startMin, minutes, note }) => addTimeLog({ memberId: meId, projectId, phaseId, taskId: null, date, minutes, startMin, source: "manual", note })}
-                  onPatch={(id, patch) => editTimeLog(id, patch)} />
+                  onCreate={({ projectId, phaseId, taskId, date, startMin, minutes, note }) => {
+                    // Task blocks (dragged-in task rows, copies) carry the task's own project/phase.
+                    const attr = taskId ? taskProject(data, taskId) : { projectId, phaseId };
+                    addTimeLog({ memberId: meId, projectId: attr.projectId || null, phaseId: attr.phaseId || null, taskId: taskId || null, date, minutes, startMin, source: "manual", note });
+                  }}
+                  onPatch={(id, patch) => editTimeLog(id, patch)}
+                  onDelete={(id) => delTimeLogs([id])} />
               </CardContent>
             </Card>
           </div>

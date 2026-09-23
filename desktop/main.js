@@ -55,7 +55,12 @@ function createWindow() {
   });
 
   // External links open in the normal browser; same-site links stay in the app.
-  win.webContents.setWindowOpenHandler(({ url }) => {
+  // The web app's floating timer (a blank window named "studioTimer" — Electron
+  // can't open document Picture-in-Picture) opens as a small always-on-top window.
+  win.webContents.setWindowOpenHandler(({ url, frameName }) => {
+    if (frameName === "studioTimer" && (!url || url === "about:blank")) {
+      return { action: "allow", overrideBrowserWindowOptions: { width: 340, height: 120, alwaysOnTop: true, minimizable: false, maximizable: false, autoHideMenuBar: true, title: "Time Tracker", backgroundColor: "#1f2d4e" } };
+    }
     try { const u = new URL(url); const base = new URL(APP_URL); if (u.host === base.host) { win.loadURL(url); return { action: "deny" }; } } catch (_) {}
     shell.openExternal(url); return { action: "deny" };
   });

@@ -91,12 +91,18 @@ export function openFloatingTimer({ getTop, getElapsed, onStop }){
     win.addEventListener("pagehide",done); win.addEventListener("beforeunload",done);
     return { win, close:()=>{ done(); try{win.close();}catch(_){} } };
   };
+  const popup=()=>{
+    const w=(typeof window!=="undefined") ? window.open("","studioTimer","width=340,height=120") : null;
+    if(!w){ toast.add({ title: "Pop-out was blocked — allow pop-ups for this site (or use Chrome/Edge for an always-on-top timer).", type: "error" }); return null; }
+    return wire(w);
+  };
+  // Document PiP exists in embedded Chromium (Electron, in-app browsers) but
+  // rejects there ("no window") — fall back to a plain popup rather than
+  // failing silently.
   if(typeof window!=="undefined" && window.documentPictureInPicture){
-    return window.documentPictureInPicture.requestWindow({width:340,height:64}).then(wire).catch(()=>null);
+    return window.documentPictureInPicture.requestWindow({width:340,height:64}).then(wire).catch(()=>popup());
   }
-  const w=(typeof window!=="undefined") ? window.open("","studioTimer","width=340,height=120") : null;
-  if(!w){ toast.add({ title: "Pop-out was blocked — allow pop-ups for this site (or use Chrome/Edge for an always-on-top timer).", type: "error" }); return Promise.resolve(null); }
-  return Promise.resolve(wire(w));
+  return Promise.resolve(popup());
 }
 
 // Multi-select people filter — content-poured into the stock DropdownMenu
@@ -164,7 +170,7 @@ export function makeHandlers(org, reload, cadData){
   return {
     addTimeLog: async ({memberId,projectId,phaseId,taskId,date,minutes,source,note,startMin}) => { await sb.from("time_logs").insert({org_id:org.id,membership_id:memberId,project_id:projectId||null,phase_id:phaseId||null,task_id:taskId||null,log_date:date,minutes,source:source||"manual",note:note||null,start_min:Number.isFinite(startMin)?startMin:null}); R(); },
     updateTimeLog: async (id,minutes) => { if(minutes<=0){ await sb.from("time_logs").delete().eq("id",id); } else { await sb.from("time_logs").update({minutes}).eq("id",id); } R(); },
-    editTimeLog: async (id,patch) => { const row={}; if(patch.minutes!=null) row.minutes=patch.minutes; if("projectId" in patch) row.project_id=patch.projectId||null; if("phaseId" in patch) row.phase_id=patch.phaseId||null; if("taskId" in patch) row.task_id=patch.taskId||null; if("note" in patch) row.note=patch.note||null; if("startMin" in patch) row.start_min=Number.isFinite(patch.startMin)?patch.startMin:null; if(patch.minutes!=null && patch.minutes<=0){ await sb.from("time_logs").delete().eq("id",id); } else { await sb.from("time_logs").update(row).eq("id",id); } R(); },
+    editTimeLog: async (id,patch) => { const row={}; if(patch.minutes!=null) row.minutes=patch.minutes; if("projectId" in patch) row.project_id=patch.projectId||null; if("phaseId" in patch) row.phase_id=patch.phaseId||null; if("taskId" in patch) row.task_id=patch.taskId||null; if("note" in patch) row.note=patch.note||null; if("startMin" in patch) row.start_min=Number.isFinite(patch.startMin)?patch.startMin:null; if(patch.date) row.log_date=patch.date; if(patch.minutes!=null && patch.minutes<=0){ await sb.from("time_logs").delete().eq("id",id); } else { await sb.from("time_logs").update(row).eq("id",id); } R(); },
     delTimeLogs: async (ids) => { if(!ids||!ids.length) return; await sb.from("time_logs").delete().in("id",ids); R(); },
     moveTimeLogs: async (ids,newDate) => { if(!ids||!ids.length||!newDate) return; await sb.from("time_logs").update({log_date:newDate}).in("id",ids); R(); },
     setTimeLogTotal: async ({ids,minutes,memberId,projectId,phaseId,taskId,date}) => {

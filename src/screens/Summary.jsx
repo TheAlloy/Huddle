@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useCallback } from "react";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
-import { MS, MONTHS, DOW, pad, toISO, parseISO, startOfDay, addDays, addMonths, startOfMonth, endOfMonth, startOfWeekMon, isWeekday, NAVY, AVATAR_BG, LEAVE_TYPES, initials, fmtH, money, pfList, projectsByClient, leaveDayFraction, holidayYearOf, fmtDayOrdinal, dRange, workdaysBetween, PeoplePicker, mapData, makeHandlers } from "../studio/core.jsx";
+import { MS, MONTHS, MONTHS_LONG, DOW, pad, toISO, parseISO, startOfDay, addDays, addMonths, startOfMonth, endOfMonth, startOfWeekMon, isWeekday, NAVY, AVATAR_BG, LEAVE_TYPES, initials, fmtH, money, pfList, projectsByClient, leaveDayFraction, holidayYearOf, fmtDayOrdinal, dRange, workdaysBetween, PeoplePicker, mapData, makeHandlers } from "../studio/core.jsx";
 import { Table2, ChevronLeft, ChevronRight, Calendar, Users, Building2, Plane, Clock, Plus, X, Pencil, Trash2 } from "lucide-react";
 import { useConfirm } from "../components/confirm.tsx";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
+import { ProjectCombobox, recentCombos, parseHours } from "./tracker/shared.jsx";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -41,6 +42,12 @@ function SummaryView(ctx) {
   const [rangeOpen,setRangeOpen]=useState(false);
   const [aDateOpen,setADateOpen]=useState(false);
   const [phOpen,setPhOpen]=useState(false);
+  // Calendar layout: log time straight into one person's day.
+  const [dayAdd,setDayAdd]=useState(null); // {mid, day}
+  const [dayPick,setDayPick]=useState({projectId:"",phaseId:null});
+  const [dayHours,setDayHours]=useState("");
+  const openDayAdd=(mid,day)=>{ setCEdit(null); setDayAdd({mid,day}); setDayPick({projectId:"",phaseId:null}); setDayHours(""); };
+  const submitDayAdd=()=>{ const mins=parseHours(dayHours); if(!dayAdd||!dayPick.projectId||!mins) return; addTimeLog({memberId:dayAdd.mid,projectId:dayPick.projectId,phaseId:dayPick.phaseId||null,date:dayAdd.day,minutes:mins}); setDayAdd(null); };
 
   let rs,re;
   if(period==="day"){ rs=startOfDay(anchor); re=startOfDay(anchor); }
@@ -73,7 +80,7 @@ function SummaryView(ctx) {
     else if(period==="month") setAnchor(a=>addMonths(a,dir));
     else { const a=parseISO(cFrom),b=parseISO(cTo); const len=Math.round((startOfDay(b)-startOfDay(a))/MS)+1; setCFrom(toISO(addDays(a,dir*len))); setCTo(toISO(addDays(b,dir*len))); }
   };
-  const goToday=()=>{ setEdit(null); if(period==="custom") setPeriod("day"); setAnchor(startOfDay(new Date())); };
+  const goToday=()=>{ setEdit(null); if(period==="custom") setPeriod("week"); setAnchor(startOfDay(new Date())); };
   const pickPreset=(val)=>{ if(period==="custom") setAnchor(rs); setPeriod(val); setEdit(null); };
   const enterCustom=(from,to)=>{ setCFrom(from); setCTo(to); setPeriod("custom"); setEdit(null); };
   const phDays=new Set((publicHolidays||[]).map(h=>h.day));
@@ -106,6 +113,10 @@ function SummaryView(ctx) {
   const submitAdd=(mid)=>{ const mins=Math.max(0,Number(aH||0)*60+Number(aM||0)); if(!aProj||mins<=0){ setAddFor(null); return; } addTimeLog({memberId:mid,projectId:aProj,phaseId:aPhase||null,date:aDate||todayInRange(),minutes:mins}); setAddFor(null); };
   const aProjObj=data.projects.find(p=>p.id===aProj);
   const rangeLabel = period==="day" ? fmtDayOrdinal(rs) : `${pad(rs.getDate())} ${MONTHS[rs.getMonth()]} – ${pad(re.getDate())} ${MONTHS[re.getMonth()]} ${re.getFullYear()} · ${workdays} working day${workdays===1?"":"s"}`;
+  const periodLabel = period==="month" ? `${MONTHS_LONG[rs.getMonth()]} ${rs.getFullYear()}`
+    : period==="day" ? `${DOW[rs.getDay()]} ${rs.getDate()} ${MONTHS[rs.getMonth()]} ${rs.getFullYear()}`
+    : rs.getMonth()===re.getMonth()&&rs.getFullYear()===re.getFullYear() ? `${rs.getDate()} – ${re.getDate()} ${MONTHS[re.getMonth()]} ${re.getFullYear()}`
+    : `${rs.getDate()} ${MONTHS[rs.getMonth()]} – ${re.getDate()} ${MONTHS[re.getMonth()]} ${re.getFullYear()}`;
   const todayD=startOfDay(new Date());
   const [hs,he]=holidayYearOf(todayD);
   const phSet=new Set((publicHolidays||[]).map(h=>h.day));
@@ -127,13 +138,14 @@ function SummaryView(ctx) {
       <div className="flex flex-wrap items-center gap-2">
         <Table2 size={16} className="text-muted-foreground"/>
         {mode==="logged" ? <>
+          <Button variant="outline" onClick={goToday}>Today</Button>
           <ButtonGroup>
             <Button variant="outline" size="icon" onClick={()=>shift(-1)} aria-label="Previous"><ChevronLeft/></Button>
-            <Button variant="outline" onClick={goToday}>Today</Button>
             <Button variant="outline" size="icon" onClick={()=>shift(1)} aria-label="Next"><ChevronRight/></Button>
           </ButtonGroup>
+          {/* The period in words ("September 2026"); opens the calendar for a custom range. */}
           <Popover open={rangeOpen} onOpenChange={setRangeOpen}>
-            <PopoverTrigger render={<Button variant="outline" className="tabular-nums" />}><Calendar/> {toISO(rs)} – {toISO(re)}</PopoverTrigger>
+            <PopoverTrigger render={<Button variant="outline" className="tabular-nums" />}><Calendar/> {periodLabel}</PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
               <CalendarPicker mode="range" selected={{from:rs,to:re}} defaultMonth={rs}
                 onSelect={(r)=>{ if(r?.from&&r?.to){ enterCustom(toISO(r.from), toISO(r.to)); if(r.from.getTime()!==r.to.getTime()) setRangeOpen(false); } }} />
@@ -176,7 +188,26 @@ function SummaryView(ctx) {
           };
           const dayCell=(m,d)=>{ const dayISO=toISO(d); const gs=bubblesFor(m.id,dayISO); const dayTot=gs.reduce((x,g)=>x+g.mins,0); const wknd=d.getDay()===0||d.getDay()===6;
             return (<div key={dayISO} data-day={dayISO} data-mid={m.id} className={`rounded-lg border ${wknd?"bg-muted/50 border-border/60":"border-border"}`}>
-              <div className="px-2 py-1 border-b border-border/60 flex items-center justify-between text-xs"><span className="font-medium text-muted-foreground">{DOW[d.getDay()]} {pad(d.getDate())}/{pad(d.getMonth()+1)}</span><span className="text-muted-foreground">{dayTot?fmtH(dayTot/60)+"h":""}</span></div>
+              <div className="px-2 py-1 border-b border-border/60 flex items-center gap-1 text-xs"><span className="font-medium text-muted-foreground">{DOW[d.getDay()]} {pad(d.getDate())}/{pad(d.getMonth()+1)}</span><span className="ml-auto text-muted-foreground">{dayTot?fmtH(dayTot/60)+"h":""}</span>
+                {ctx.canEdit && <Popover open={!!dayAdd&&dayAdd.mid===m.id&&dayAdd.day===dayISO} onOpenChange={(o,det)=>{
+                    // The project list is its own portaled popup — picking from it
+                    // reads as an outside press, which must not close this one.
+                    if(!o && det?.reason==="outside-press" && det.event?.target?.closest?.('[data-slot="combobox-content"]')) return;
+                    o?openDayAdd(m.id,dayISO):setDayAdd(null); }}>
+                  <PopoverTrigger render={<Button variant="ghost" size="icon-xs" title="Add time" className="-my-0.5 -mr-1" />}><Plus/></PopoverTrigger>
+                  <PopoverContent className="w-72" align="end">
+                    <PopoverHeader>
+                      <PopoverTitle>Add time</PopoverTitle>
+                      <PopoverDescription>{m.name} · {DOW[d.getDay()]} {pad(d.getDate())} {MONTHS[d.getMonth()]}</PopoverDescription>
+                    </PopoverHeader>
+                    <ProjectCombobox selP={dayPick.projectId} selPh={dayPick.phaseId||""} onPick={(p)=>setDayPick({projectId:p.projectId,phaseId:p.phaseId})} groups={projectsByClient(data.projects,data.clients)} recents={recentCombos(data,m.id)} placeholder="Project…" className="w-full" autoFocus />
+                    <div className="flex items-center gap-2">
+                      <InputGroup className="flex-1"><InputGroupInput value={dayHours} onChange={e=>setDayHours(e.target.value)} placeholder="1:30" className="tabular-nums" onKeyDown={e=>{ if(e.key==="Enter") submitDayAdd(); }} aria-label="Hours"/><InputGroupAddon align="inline-end"><InputGroupText>hours</InputGroupText></InputGroupAddon></InputGroup>
+                      <Button onClick={submitDayAdd} disabled={!dayPick.projectId||!parseHours(dayHours)}>Add</Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>}
+              </div>
               <div className="p-1.5 space-y-1" style={{minHeight:isMonth?32:54}}>
                 {gs.length===0 && <div className="text-[10px] text-muted-foreground text-center py-1">—</div>}
                 {gs.map(g=>{ const {label,color}=bub(g); const editing=cEdit&&cEdit.mid===m.id&&cEdit.day===dayISO&&cEdit.key===g.key;
@@ -359,7 +390,8 @@ function SummaryView(ctx) {
 }
 
 export default function Summary({ org, me, data: cadData, reload, peopleFilter: pfProp, onPeopleFilter }){
-  const [pfLocal,setPfLocal]=useState("all");
+  // Summary keeps its own people filter, opening on just the viewer.
+  const [pfLocal,setPfLocal]=useState(()=>[me.id]);
   const peopleFilter = pfProp!==undefined ? pfProp : pfLocal;
   const setPeopleFilter = onPeopleFilter || setPfLocal;
   const data=useMemo(()=>mapData(cadData),[cadData]);

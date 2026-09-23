@@ -6,9 +6,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
 import { MONTHS, DOW, pad, toISO, parseISO, startOfDay, addDays, startOfWeekMon, isWeekday, hm, fmtClock, fmtH, NAVY, projectsByClient, mapData, makeHandlers } from "../studio/core.jsx";
-import { useRunningTimer, makeLabels, ProjectCombobox, recentCombos, parseHours, usePipTimer, taskProject } from "./tracker/shared.jsx";
+import { useRunningTimer, makeLabels, ProjectCombobox, recentCombos, parseHours, taskProject } from "./tracker/shared.jsx";
 import WeekCalendar from "./tracker/WeekCalendar.jsx";
-import { useConfirm } from "../components/confirm.tsx";
 import { Play, Square, PictureInPicture2, X, Clock, ChevronLeft, ChevronRight, NotebookPen, Plus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -74,14 +73,13 @@ export default function Timesheet({ org, me, data: cadData, reload }) {
   const data = useMemo(() => mapData(cadData), [cadData]);
   const H = useMemo(() => makeHandlers(org, reload, cadData), [org, cadData]); // eslint-disable-line
   const { addTimeLog, setTimeLogTotal, editTimeLog } = H;
-  const confirm = useConfirm();
 
   const canTrack = can(me, "time.track");
   const member = data.members.find((m) => m.id === meId);
-  const { run, start, startTask, stop: stopTimer, cancel, capMinutes } = useRunningTimer(meId, { addTimeLog, orgId: org.id, dailyHours: member?.daily || 8 });
-  const [now, setNow] = useState(Date.now());
+  const { run, start, startTask } = useRunningTimer(meId, { addTimeLog, orgId: org.id, dailyHours: member?.daily || 8 });
+  // Tick while a timer runs so the calendar's live "recording" block grows.
+  const [, setNow] = useState(Date.now());
   useEffect(() => { if (!run) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [run]);
-  const [stopNote, setStopNote] = useState("");
 
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
   const [focusISO, setFocusISO] = useState(() => toISO(startOfDay(new Date())));
@@ -90,8 +88,6 @@ export default function Timesheet({ org, me, data: cadData, reload }) {
 
   const labels = makeLabels(data);
   const todayISO = toISO(startOfDay(new Date()));
-  const stop = () => { stopTimer(todayISO, { note: stopNote.trim() || null }); setStopNote(""); };
-  const openPip = usePipTimer({ run, stop, top: () => labels.runTop(run), capMinutes });
 
   if (!canTrack) return <NoAccess what="the timesheet" />;
   if (!member) return <NoAccess what="the timesheet" />;
@@ -173,12 +169,6 @@ export default function Timesheet({ org, me, data: cadData, reload }) {
     setAdding(false);
   };
 
-  const discard = async () => {
-    const mins = run ? Math.round((Date.now() - run.startedAt) / 60000) : 0;
-    if (mins > 5 && !(await confirm({ title: "Discard this timer?", description: hm(mins) + " of tracked time will be thrown away.", confirmLabel: "Discard", destructive: true }))) return;
-    setStopNote(""); cancel();
-  };
-  const elapsed = run ? fmtClock(Math.min((now - run.startedAt) / 1000, capMinutes * 60)) : null;
   const shift = (dir) => setAnchor((a) => addDays(a, dir * 7));
 
   const rowLabel = (row) => {
@@ -247,23 +237,7 @@ export default function Timesheet({ org, me, data: cadData, reload }) {
           <span className="ml-auto text-sm text-muted-foreground">This week <span className="font-medium text-foreground">{fmtH(weekTotal / 60)}h</span></span>
         </div>
 
-        {run && (
-          <div className="px-4 lg:px-6">
-          <div className="rounded-xl p-3 text-white shadow-xs" style={{ background: labels.runColor(run) }}>
-            <div className="flex items-center gap-3 flex-wrap">
-              <span className="size-2.5 rounded-full bg-card shrink-0" style={{ animation: "pulse 1.5s infinite" }} />
-              <div className="min-w-0"><div className="text-xs opacity-90 truncate">{labels.runTop(run)}{!run.taskId && labels.phName(run.projectId, run.phaseId) ? " · " + labels.phName(run.projectId, run.phaseId) : ""}</div><div className="text-2xl font-medium tabular-nums leading-tight">{elapsed}</div></div>
-              <div className="ml-auto flex items-center gap-2 flex-wrap">
-                <Input value={stopNote} onChange={(e) => setStopNote(e.target.value)} placeholder="Add a note… (optional)" className="w-52 bg-card text-foreground" />
-                <Button variant="secondary" onClick={stop}><Square data-icon="inline-start" /> Stop &amp; log</Button>
-                <Button variant="secondary" size="icon" title="Pop out floating timer" onClick={openPip}><PictureInPicture2 /></Button>
-                <Button variant="secondary" size="icon" title="Discard" onClick={discard}><X /></Button>
-              </div>
-            </div>
-          </div>
-          </div>
-        )}
-
+        {/* The running timer (clock, stop, pop-out) lives only in the sidebar tracker. */}
         <div className="px-4 lg:px-6">
           <div className="hidden md:block">{Board(days)}</div>
           <div className="md:hidden">

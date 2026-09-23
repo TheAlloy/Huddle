@@ -3,8 +3,13 @@ import { sb, DEMO } from "../lib/supabase.js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
+import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { Card, CardContent } from "@/components/ui/card";
+
+// Company domains that sign in with an emailed link instead of a password —
+// the database (org_domains / join_domain_org) then drops them straight into
+// their studio. This list only shapes the form; the server decides access.
+const LINK_DOMAINS = ["thealloy.com"];
 
 export default function Auth({ inviteToken, inviteError, productName }) {
   const [mode, setMode] = useState(inviteToken ? "signup" : "signin");
@@ -14,6 +19,23 @@ export default function Auth({ inviteToken, inviteError, productName }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
+  const [usePassword, setUsePassword] = useState(false);
+  const linkMode = !DEMO && !usePassword && LINK_DOMAINS.includes(email.trim().toLowerCase().split("@")[1] || "");
+
+  // Passwordless: one link that signs in (creating the account on first use).
+  const sendLink = async () => {
+    setErr(""); setMsg("");
+    setBusy(true);
+    try {
+      const { error } = await sb.auth.signInWithOtp({
+        email: email.trim(),
+        options: { shouldCreateUser: true, data: name.trim() ? { full_name: name.trim() } : undefined, emailRedirectTo: window.location.origin + window.location.search },
+      });
+      if (error) throw error;
+      setMsg("Check your inbox — the link signs you straight in to your team.");
+    } catch (e) { setErr(e?.message || "Couldn't send the sign-in link. Please try again."); }
+    setBusy(false);
+  };
 
   const submit = async () => {
     setErr(""); setMsg("");
@@ -84,25 +106,37 @@ export default function Auth({ inviteToken, inviteError, productName }) {
               <Alert variant="destructive"><AlertDescription>{inviteError}</AlertDescription></Alert>
             )}
 
-            {mode === "signup" && (
+            {mode === "signup" && !linkMode && (
               <Field><FieldLabel>Your name</FieldLabel><Input value={name} onChange={e => setName(e.target.value)} placeholder="Alex Dangerfield" /></Field>
             )}
-            <Field><FieldLabel>Work email</FieldLabel><Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@studio.com" autoComplete="email" /></Field>
-            <Field><FieldLabel>Password</FieldLabel>
-              <Input type="password" value={password} onChange={e => setPassword(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && submit()} autoComplete={mode === "signup" ? "new-password" : "current-password"} placeholder={mode === "signup" ? "At least 8 characters" : ""} />
-            </Field>
+            <Field><FieldLabel>Work email</FieldLabel><Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@studio.com" autoComplete="email"
+              onKeyDown={e => e.key === "Enter" && linkMode && sendLink()} /></Field>
+            {linkMode ? (
+              <Field><FieldLabel>Your name</FieldLabel>
+                <Input value={name} onChange={e => setName(e.target.value)} placeholder="Alex Dangerfield" onKeyDown={e => e.key === "Enter" && sendLink()} />
+                <FieldDescription>First time here? Add your name so your team knows who you are.</FieldDescription>
+              </Field>
+            ) : (
+              <Field><FieldLabel>Password</FieldLabel>
+                <Input type="password" value={password} onChange={e => setPassword(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && submit()} autoComplete={mode === "signup" ? "new-password" : "current-password"} placeholder={mode === "signup" ? "At least 8 characters" : ""} />
+              </Field>
+            )}
 
             {err && <Alert variant="destructive"><AlertDescription>{err}</AlertDescription></Alert>}
             {msg && <Alert><AlertDescription>{msg}</AlertDescription></Alert>}
 
-            <Button className="w-full" onClick={submit} disabled={busy}>
-              {busy ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}
-            </Button>
+            {linkMode
+              ? <Button className="w-full" onClick={sendLink} disabled={busy}>{busy ? "Please wait…" : "Email me a sign-in link"}</Button>
+              : <Button className="w-full" onClick={submit} disabled={busy}>
+                  {busy ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}
+                </Button>}
           </FieldGroup>
 
           <div className="mt-4 text-center text-xs text-muted-foreground">
-            {mode === "signin" ? (
+            {linkMode ? (
+              <button className="text-muted-foreground hover:text-foreground" onClick={() => { setUsePassword(true); setErr(""); setMsg(""); }}>Use a password instead</button>
+            ) : mode === "signin" ? (
               <>New here? <button className="font-medium text-foreground underline underline-offset-4" onClick={() => { setMode("signup"); setErr(""); }}>Create an account</button>
                 <div className="mt-1"><button className="text-muted-foreground hover:text-foreground" onClick={reset}>Forgot password?</button></div></>
             ) : (

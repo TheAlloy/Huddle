@@ -20,6 +20,7 @@ export function AppSidebar({
   action,
   groups,
   secondary,
+  tracker,
   user,
   onAccount,
   onSignOut,
@@ -32,6 +33,7 @@ export function AppSidebar({
   action?: NavAction
   groups?: { label: string; items: NavItem[] }[]
   secondary?: NavItem[]
+  tracker?: React.ReactNode
   user: NavUserInfo
   onAccount: () => void
   onSignOut: () => void
@@ -46,8 +48,11 @@ export function AppSidebar({
         {(groups || []).filter(g => g.items.length > 0).map(g => (
           <NavGroup key={g.label} label={g.label} items={g.items} />
         ))}
+        {/* The time tracker sits at the foot of the nav, just above
+            Settings, so it's on show from every screen. */}
+        {tracker && <div className="mt-auto">{tracker}</div>}
         {secondary && secondary.length > 0 && (
-          <NavSecondary items={secondary} className="mt-auto" />
+          <NavSecondary items={secondary} className={tracker ? undefined : "mt-auto"} />
         )}
       </SidebarContent>
       <SidebarFooter>

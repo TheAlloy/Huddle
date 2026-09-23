@@ -16,13 +16,11 @@ import Schedule from "./screens/Schedule.jsx";
 import Summary from "./screens/Summary.jsx";
 import Tasks from "./screens/Tasks.jsx";
 import Projects from "./screens/Projects.jsx";
-import Timesheet from "./screens/Timesheet.jsx";
-import TimesheetV2 from "./screens/timesheet-lab/TimesheetV2.jsx";
 import TimesheetV3 from "./screens/timesheet-lab/TimesheetV3.jsx";
 import Billing from "./screens/Billing.jsx";
 import { initials } from "./studio/core.jsx";
 import { TimerOverrunGuard } from "./screens/tracker/shared.jsx";
-import HeaderTracker from "./screens/tracker/HeaderTracker.jsx";
+import SidebarTracker from "./screens/tracker/SidebarTracker.jsx";
 import { makeTerms } from "./lib/terms.js";
 import { CalendarDays, Table2, LayoutGrid, Landmark, Users, Settings as Cog, Clock, FolderKanban, Shield, Gift } from "lucide-react";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -56,22 +54,40 @@ export default function App() {
     if (!CONFIGURED) { setSession(null); return; }
     let done = false;
     sb.auth.getSession().then(({ data }) => { done = true; setSession(data.session || null); }).catch(() => { done = true; setSession(null); });
-    // Safety net: if a corrupted token makes getSession hang, fall back to the sign-in screen.
-    const t = setTimeout(() => { if (!done) setSession(s => (s === undefined ? null : s)); }, 8000);
+    // Safety net: if a corrupted token makes getSession hang, fall back to the
+    // sign-in screen — generous, so a slow token refresh doesn't look like a sign-out.
+    const t = setTimeout(() => { if (!done) setSession(s => (s === undefined ? null : s)); }, 15000);
     const { data: sub } = sb.auth.onAuthStateChange((e, s) => { if (e === "PASSWORD_RECOVERY") setRecovery(true); setSession(s || null); });
     return () => { clearTimeout(t); sub.subscription.unsubscribe(); };
   }, []);
 
   /* profile + memberships */
+  const joinTried = useRef(null);   // user id the domain auto-join has run for
+  const loadMeRef = useRef(null);
   const loadMe = useCallback(async () => {
     if (!session) return;
-    const [{ data: p }, { data: ms }] = await Promise.all([
-      sb.from("profiles").select("*").eq("id", session.user.id).maybeSingle(),
-      sb.from("memberships").select("*, organizations(*)").eq("user_id", session.user.id).eq("status", "active"),
+    const uid = session.user.id;
+    // Company-domain auto-join (org_domains, e.g. @thealloy.com → The Alloy's
+    // studio as owner) — once per user; a no-op for everyone else.
+    if (joinTried.current !== uid) {
+      joinTried.current = uid;
+      try {
+        const { data: joined } = await sb.rpc("join_domain_org");
+        if (joined && !localStorage.getItem("cadence_org")) { setOrgId(joined); localStorage.setItem("cadence_org", joined); }
+      } catch (_) {}
+    }
+    const [{ data: p }, { data: ms, error: msErr }] = await Promise.all([
+      sb.from("profiles").select("*").eq("id", uid).maybeSingle(),
+      sb.from("memberships").select("*, organizations(*)").eq("user_id", uid).eq("status", "active"),
     ]);
-    setProfile(p || { id: session.user.id, email: session.user.email });
-    setMemberships(ms || []);
+    // A failed read (network blip, token mid-refresh) is not "you have no
+    // studios" — keep what we have and retry, rather than dropping the person
+    // into the new-studio onboarding.
+    if (msErr || !ms) { setTimeout(() => loadMeRef.current?.(), 3000); return; }
+    setProfile(p || { id: uid, email: session.user.email });
+    setMemberships(ms);
   }, [session]);
+  loadMeRef.current = loadMe;
   useEffect(() => { loadMe(); }, [loadMe]);
 
   /* accept an invitation once signed in — joins the existing team, skips onboarding */
@@ -184,12 +200,10 @@ export default function App() {
 
   const NAV = [
     { key: "schedule", label: "Schedule", icon: CalendarDays, perm: "schedule.view" },
-    { key: "time", label: "Timesheet V1", icon: Clock, perm: "time.track" },
-    { key: "time-v2", label: "Timesheet V2", icon: Clock, perm: "time.track" }, // design exploration — see src/screens/timesheet-lab
-    { key: "time-v2-1", label: "Timesheet V2.1", icon: Clock, perm: "time.track" }, // V2 without column dividers
-    { key: "time-v3", label: "Timesheet V3", icon: Clock, perm: "time.track" }, // design exploration — see src/screens/timesheet-lab
-    { key: "time-v3-1", label: "Timesheet V3.1", icon: Clock, perm: "time.track" }, // V3 with the fancy hours input
-    { key: "time-v3-2", label: "Timesheet V3.2", icon: Clock, perm: "time.track" }, // V3.1 with a bare logger (V1 layout), calendar in its own card
+    // The Timesheet is the timesheet-lab's V3.3 (V3.2's open logger + V3.1's
+    // aligned day columns + calendar planning). The other lab variants (V1–V3.2)
+    // are off the menu; their code stays in src/screens/timesheet-lab for now.
+    { key: "time", label: "Timesheet", icon: Clock, perm: "time.track" },
     { key: "summary", label: "Summary", icon: Table2, perm: "summary.view" }, // the manager's team overview — own UX track
     { key: "tasks", label: "Tasks", icon: LayoutGrid, perm: "tasks.view" },
     { key: "projects", label: terms.navProjects, icon: FolderKanban, perm: "projects.manage" },
@@ -210,20 +224,19 @@ export default function App() {
         teams={memberships.map(m => ({ id: m.org_id, name: m.organizations?.name || "Studio", plan: planLabel(m.organizations?.plan) }))}
         activeTeamId={active.org_id}
         onPickTeam={(id) => { setOrgId(id); localStorage.setItem("cadence_org", id); }}
-        nav={visible.filter(n => ["schedule", "time", "time-v2", "time-v2-1", "time-v3", "time-v3-1", "time-v3-2", "summary", "tasks"].includes(n.key)).map(navItem)}
-        groups={[{ label: "Manage", items: visible.filter(n => ["projects", "billing", "people"].includes(n.key)).map(navItem) }]}
+        nav={visible.filter(n => ["schedule", "time", "summary", "tasks"].includes(n.key)).map(navItem)}
+        groups={[{ label: "Manage", items: visible.filter(n => ["projects", "people"].includes(n.key)).map(navItem) }]} // Billing hidden from the nav for now — screen still exists
         action={{ title: "Leave feedback", icon: <Gift />, onSelect: () => setFeedbackOpen(true) }}
         secondary={[
           ...visible.filter(n => n.key === "settings").map(navItem),
           ...(profile?.platform_admin ? [{ key: "admin", title: "Admin console", icon: <Shield />, isActive: tab === "admin", onSelect: () => setTab("admin") }] : []),
         ]}
+        tracker={can(me, "time.track") ? <SidebarTracker org={org} me={me} data={data} reload={reload} /> : null}
         user={{ name: userName, email: me.email, initials: initials(userName) }}
         onAccount={() => setTab("settings")}
         onSignOut={async () => { await sb.auth.signOut(); window.location.reload(); }} />
       <SidebarInset className="overflow-hidden">
-      <SiteHeader title={tab === "admin" && profile?.platform_admin ? "Subscribers" : (visible.find(n => n.key === current)?.label || "")}>
-        {can(me, "time.track") && <HeaderTracker org={org} me={me} data={data} reload={reload} active={current === "time"} onOpen={() => setTab("time")} />}
-      </SiteHeader>
+      <SiteHeader title={tab === "admin" && profile?.platform_admin ? "Subscribers" : (visible.find(n => n.key === current)?.label || "")} />
       {can(me, "time.track") && <TimerOverrunGuard org={org} me={me} data={data} reload={reload} />}
 
       {suspended && <div className="text-xs bg-destructive/10 border-b border-destructive/30 text-destructive px-4 py-2">
@@ -237,14 +250,9 @@ export default function App() {
             : current === "people" ? (can(me, "team.manage") ? <Team org={org} me={me} members={data.members} reload={reload} onNavigate={setTab} /> : <TeamLite members={data.members} />)
             : current === "settings" ? <Settings org={org} me={me} members={data.members} reload={() => { loadMe(); reload(); }} />
             : current === "projects" ? <Projects org={org} me={me} data={data} reload={reload} terms={terms} />
-            : current === "time" ? <Timesheet org={org} me={me} data={data} reload={reload} />
-            : current === "time-v2" ? <TimesheetV2 org={org} me={me} data={data} reload={reload} unified />
-            : current === "time-v2-1" ? <TimesheetV2 org={org} me={me} data={data} reload={reload} dividers={false} unified addSlot="input" variantLabel="V2.1 · unified calendar" />
-            : current === "time-v3" ? <TimesheetV3 org={org} me={me} data={data} reload={reload} />
-            : current === "time-v3-1" ? <TimesheetV3 org={org} me={me} data={data} reload={reload} fancyHours aligned playInProject variantLabel="V3.1 · fancy hours" />
-            : current === "time-v3-2" ? <TimesheetV3 org={org} me={me} data={data} reload={reload} fancyHours playInProject bare variantLabel="V3.2 · open logger" />
+            : current === "time" ? <TimesheetV3 org={org} me={me} data={data} reload={reload} fancyHours aligned playInProject bare planning variantLabel={null} />
             : current === "schedule" ? (can(me, "schedule.view") ? <Schedule org={org} me={me} data={data} reload={reload} onNavigate={setTab} peopleFilter={peopleFilter} onPeopleFilter={setPeopleFilter} /> : <NoAccess what="the schedule" />)
-            : current === "summary" ? (can(me, "summary.view") ? <Summary org={org} me={me} data={data} reload={reload} peopleFilter={peopleFilter} onPeopleFilter={setPeopleFilter} /> : <NoAccess what="summaries" />)
+            : current === "summary" ? (can(me, "summary.view") ? <Summary org={org} me={me} data={data} reload={reload} /> : <NoAccess what="summaries" />)
             : current === "tasks" ? (can(me, "tasks.view") ? <Tasks org={org} me={me} data={data} reload={reload} /> : <NoAccess what="tasks" />)
             : current === "billing" ? (can(me, "billing.view")
                 ? <Billing org={org} me={me} data={data} reload={reload} />

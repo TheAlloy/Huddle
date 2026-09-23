@@ -143,6 +143,7 @@ function TimelineBoard(ctx) {
   const visibleMembers = pfList(data.members, peopleFilter);
   const single = visibleMembers.length===1;
   const SIDEBAR=232, LANE_H=single?64:42, LANE_GAP=single?9:5, ROW_PAD=single?16:8;
+  const LEAD=8; // px of breathing room left of the date the board jumps to
   const scroller=useRef(null);
   const todayStart=useMemo(()=>startOfDay(new Date()),[]);
   const adjustRef=useRef(0);
@@ -173,7 +174,8 @@ function TimelineBoard(ctx) {
   const xOf=(d)=>((startOfDay(d)-conf.start)/MS)*dayW;
   const todayX=(todayStart>=conf.start && todayStart<=addDays(conf.start,conf.totalDays))?xOf(todayStart):null;
   const dateAtCenter=()=>{ const el=scroller.current; if(!el) return centerRef.current; const idx=Math.round((el.scrollLeft+(el.clientWidth-SIDEBAR)/2)/dayW); return addDays(conf.start,idx); };
-  const latest=useRef({}); latest.current={anchor, start:conf.start, dayW};
+  const latest=useRef({}); latest.current={anchor, start:conf.start, dayW, setZoomT:ctx.setZoomT};
+  const zoomFocus=useRef(null); // Ctrl+scroll zoom keeps the day under the pointer fixed
   useEffect(()=>{
     const el=scroller.current; if(!el) return;
     const set=()=>{ const w=el.clientWidth; if(vwRef.current && Math.abs(w-vwRef.current)>1) centerRef.current=dateAtCenter(); vwRef.current=w; setVw(w); };
@@ -183,7 +185,7 @@ function TimelineBoard(ctx) {
   },[]); // eslint-disable-line
   useEffect(()=>{
     const el=scroller.current; if(!el) return;
-    const go=()=>{ const {anchor,start,dayW}=latest.current; el.scrollLeft=Math.max(0, ((startOfDay(anchor)-start)/MS)*dayW-48); centerRef.current=dateAtCenter(); didMount.current=true; };
+    const go=()=>{ const {anchor,start,dayW}=latest.current; el.scrollLeft=Math.max(0, ((startOfDay(anchor)-start)/MS)*dayW-LEAD); centerRef.current=dateAtCenter(); didMount.current=true; };
     const r=requestAnimationFrame(()=>requestAnimationFrame(go));
     return ()=>cancelAnimationFrame(r);
   },[]); // eslint-disable-line
@@ -191,19 +193,40 @@ function TimelineBoard(ctx) {
   useLayoutEffect(()=>{
     const el=scroller.current; if(!el) return;
     if(adjustRef.current){ el.scrollLeft+=adjustRef.current; adjustRef.current=0; }
-    if(wantAnchor.current){ el.scrollLeft=Math.max(0, xOf(startOfDay(anchor))-48); wantAnchor.current=false; centerRef.current=dateAtCenter(); }
+    if(wantAnchor.current){ el.scrollLeft=Math.max(0, xOf(startOfDay(anchor))-LEAD); wantAnchor.current=false; centerRef.current=dateAtCenter(); }
   },[win.start, win.totalDays]); // eslint-disable-line
   useLayoutEffect(()=>{
     const el=scroller.current; if(!el || !didMount.current) return;
+    const f=zoomFocus.current;
+    if(f){ zoomFocus.current=null; el.scrollLeft=Math.max(0, f.idx*dayW-f.off); centerRef.current=dateAtCenter(); return; }
     el.scrollLeft=Math.max(0, xOf(centerRef.current)-(el.clientWidth-SIDEBAR)/2);
   },[dayW]); // eslint-disable-line
   useEffect(()=>{
     const el=scroller.current; if(!el) return;
-    const onWheel=(e)=>{ if(Math.abs(e.deltaY)>=Math.abs(e.deltaX)){ el.scrollLeft+=e.deltaY; e.preventDefault(); } };
+    const onWheel=(e)=>{
+      // Ctrl/⌘ + scroll (and trackpad pinch, which arrives as ctrl+wheel) zooms
+      // the board instead of the browser page.
+      if(e.ctrlKey||e.metaKey){
+        e.preventDefault();
+        const {dayW,setZoomT}=latest.current; if(!setZoomT) return;
+        const off=Math.max(0, e.clientX-el.getBoundingClientRect().left-SIDEBAR);
+        zoomFocus.current={idx:(el.scrollLeft+off)/dayW, off};
+        setZoomT(z=>Math.max(0,Math.min(1,Math.round((z-e.deltaY*0.0015)*1000)/1000)));
+        return;
+      }
+      if(Math.abs(e.deltaY)>=Math.abs(e.deltaX)){ el.scrollLeft+=e.deltaY; e.preventDefault(); } };
     el.addEventListener("wheel",onWheel,{passive:false});
     return ()=>el.removeEventListener("wheel",onWheel);
   },[]);
-  useEffect(()=>{ if(!boardScroll) return; boardScroll.current={ nudge:(dir)=>{ const el=scroller.current; if(el) el.scrollLeft += dir*Math.max(240,(el.clientWidth-SIDEBAR)*0.8); } }; return ()=>{ if(boardScroll) boardScroll.current=null; }; },[]); // eslint-disable-line
+  // Toolbar hooks: nudge pages the board sideways; goTo puts a date already
+  // inside the loaded window at the timeline's left edge (dates outside it
+  // arrive via the anchor, which rebuilds the window around them). Both jump
+  // instantly — onScroll grows the window at the left edge by shifting
+  // scrollLeft, which would strand a smooth-scroll animation mid-flight.
+  useEffect(()=>{ if(!boardScroll) return; boardScroll.current={
+    nudge:(dir)=>{ const el=scroller.current; if(el) el.scrollLeft+=dir*Math.max(240,(el.clientWidth-SIDEBAR)*0.8); },
+    goTo:(d)=>{ const el=scroller.current; if(!el) return false; const {start,dayW}=latest.current; const x=((startOfDay(d)-start)/MS)*dayW; if(x<0||x>el.scrollWidth-SIDEBAR) return false; el.scrollLeft=Math.max(0,x-LEAD); centerRef.current=dateAtCenter(); return true; },
+  }; return ()=>{ if(boardScroll) boardScroll.current=null; }; },[]); // eslint-disable-line
   const pan=useRef(null);
   const onPointerDown=(e)=>{ if(e.button!==0) return; if(e.target.closest&&e.target.closest("button,a,input,select,textarea")) return; const el=scroller.current; if(!el) return; pan.current={x:e.clientX,y:e.clientY,sl:el.scrollLeft,st:el.scrollTop}; try{el.setPointerCapture(e.pointerId);}catch(_){} };
   const onPointerMove=(e)=>{ if(!pan.current) return; const el=scroller.current; if(!el) return; el.scrollLeft=pan.current.sl-(e.clientX-pan.current.x); el.scrollTop=pan.current.st-(e.clientY-pan.current.y); };
@@ -693,28 +716,26 @@ export default function Schedule({ org, me, data: cadData, reload, peopleFilter:
   const saveInternalAssign=async({taskId,newTask,memberId,start,end})=>{ let tid=taskId; if(newTask){ const {data:t}=await sb.from("tasks").insert({org_id:org.id,title:newTask.title,priority:newTask.priority||"med",team:newTask.team||null,status:"todo",assignee_id:memberId||null,ord:Date.now()}).select().single(); tid=t&&t.id; } await sb.from("assignments").insert({org_id:org.id,kind:"task",membership_id:memberId,task_id:tid,start_date:start,end_date:end}); reload(); };
   const createFromProposal=async({newClient,project,assignments})=>{ let clientId=project.clientId; if(newClient){ const {data:c}=await sb.from("clients").insert({org_id:org.id,name:newClient.name,color:newClient.color,payment_terms:30}).select().single(); clientId=c&&c.id; } const {data:p}=await sb.from("projects").insert({org_id:org.id,code:project.index,name:project.name,client_id:clientId,cost:project.cost,phases:project.phases}).select().single(); const projId=p&&p.id; if(projId&&assignments.length){ const rows=assignments.map(a=>({org_id:org.id,kind:"work",membership_id:a.memberId,project_id:projId,phase_id:a.phaseId||null,start_date:a.start,end_date:a.end})); await sb.from("assignments").insert(rows); } setModal(null); reload(); };
 
-  const ctx={ data:dataView, anchor, matches, setModal, moveAssign, peopleFilter, zoomT, holidayFilter, boardScroll, phaseLogged, projectById, clientById, colorOf, canEdit, myMemberId:me.id };
+  const ctx={ data:dataView, anchor, matches, setModal, moveAssign, peopleFilter, zoomT, setZoomT, holidayFilter, boardScroll, phaseLogged, projectById, clientById, colorOf, canEdit, myMemberId:me.id };
 
   if(!can(me,"schedule.view")) return <NoAccess what="the schedule" />;
-  const step=(dir)=>setAnchor(a=>addMonths(a,dir));
+  // Jump to a date already on the board; anything further away rebuilds the
+  // board around it via the anchor.
+  const jump=(d)=>{ const day=startOfDay(d); if(!boardScroll.current?.goTo(day)) setAnchor(day); };
 
   return (
     <div className="h-full flex flex-col">
       <div className="shrink-0 flex flex-wrap items-center gap-2 px-3 py-2 bg-card border-b border-border">
+        {/* Navigation: Today · earlier/later · zoom. */}
+        <Button variant="outline" onClick={()=>jump(new Date())}>Today</Button>
         <ButtonGroup>
-          <Button variant="outline" size="icon" onClick={()=>step(-1)} aria-label="Previous month"><ChevronLeft/></Button>
-          <Button variant="outline" onClick={()=>setAnchor(startOfDay(new Date()))}>Today</Button>
-          <Button variant="outline" size="icon" onClick={()=>step(1)} aria-label="Next month"><ChevronRight/></Button>
+          <Button variant="outline" size="icon" onClick={()=>boardScroll.current?.nudge(-1)} aria-label="Earlier" title="Earlier"><ChevronLeft/></Button>
+          <Button variant="outline" size="icon" onClick={()=>boardScroll.current?.nudge(1)} aria-label="Later" title="Later"><ChevronRight/></Button>
         </ButtonGroup>
-        <Popover open={dateOpen} onOpenChange={setDateOpen}>
-          <PopoverTrigger render={<Button variant="outline" className="tabular-nums" />}>
-            <Calendar/> {toISO(anchor)}
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <CalendarPicker mode="single" selected={anchor} onSelect={(d)=>{ if(d){ setAnchor(startOfDay(d)); setDateOpen(false); } }} defaultMonth={anchor} />
-          </PopoverContent>
-        </Popover>
-        <div className="text-sm font-semibold text-foreground/80 px-1 hidden md:block">{MONTHS_LONG[anchor.getMonth()]} {anchor.getFullYear()}</div>
+        <ButtonGroup>
+          <Button variant="outline" size="icon" onClick={()=>setZoomT(z=>Math.max(0,Math.round((z-0.2)*10)/10))} disabled={zoomT<=0} aria-label="Zoom out" title="Zoom out (Ctrl + scroll)"><ZoomOut/></Button>
+          <Button variant="outline" size="icon" onClick={()=>setZoomT(z=>Math.min(1,Math.round((z+0.2)*10)/10))} disabled={zoomT>=1} aria-label="Zoom in" title="Zoom in (Ctrl + scroll)"><ZoomIn/></Button>
+        </ButtonGroup>
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
           <InputGroup className="w-32 sm:w-44">
             <InputGroupAddon><Search/></InputGroupAddon>
@@ -741,18 +762,7 @@ export default function Schedule({ org, me, data: cadData, reload, peopleFilter:
         <span className="font-medium text-muted-foreground">Clients:</span>
         {data.clients.map(c=>(<button key={c.id} onClick={()=>canEdit&&setModal({type:"client",payload:c})} className="flex items-center gap-1.5 hover:text-foreground group"><span className="w-3 h-3 rounded-xs" style={{background:c.color}}/>{c.name}{canEdit&&<Pencil size={11} className="opacity-0 group-hover:opacity-60"/>}</button>))}
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-xs" style={{background:LEAVE_TYPES.vacation.color}}/>Time off</span>
-        <div className="mx-auto flex items-center gap-2">
-          <span className="text-muted-foreground/70 hidden md:inline">use mouse wheel or click empty area to move</span>
-          <ButtonGroup>
-            <Button variant="outline" size="icon-sm" onClick={()=>boardScroll.current?.nudge(-1)} aria-label="Move left"><ChevronLeft/></Button>
-            <Button variant="outline" size="icon-sm" onClick={()=>boardScroll.current?.nudge(1)} aria-label="Move right"><ChevronRight/></Button>
-          </ButtonGroup>
-        </div>
-        <ButtonGroup>
-          <Button variant="outline" size="icon-sm" onClick={()=>setZoomT(z=>Math.max(0,Math.round((z-0.2)*10)/10))} disabled={zoomT<=0} aria-label="Zoom out"><ZoomOut/></Button>
-          <ButtonGroupText>Zoom</ButtonGroupText>
-          <Button variant="outline" size="icon-sm" onClick={()=>setZoomT(z=>Math.min(1,Math.round((z+0.2)*10)/10))} disabled={zoomT>=1} aria-label="Zoom in"><ZoomIn/></Button>
-        </ButtonGroup>
+        <span className="ml-auto text-muted-foreground/70 hidden md:inline">scroll or drag empty space to move · Ctrl + scroll to zoom</span>
       </div>
 
 

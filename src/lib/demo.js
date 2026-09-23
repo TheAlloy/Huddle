@@ -24,6 +24,7 @@ export let demoApi = null;
 
 const uid = () => "demo-" + Math.random().toString(36).slice(2, 10);
 const nowISO = () => new Date().toISOString();
+const DEMO_ORG_DOMAINS = ["thealloy.com"]; // demo stand-in for the org_domains table
 const pad = (n) => String(n).padStart(2, "0");
 const dISO = (offsetDays) => { const d = new Date(); d.setDate(d.getDate() + offsetDays); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 // Snap an offset to the nearest following Monday, so seeded bars look tidy.
@@ -301,6 +302,17 @@ export function createDemoClient() {
       else db.memberships.push({ id: uid(), org_id: inv.org_id, user_id: session.user.id, email: inv.email, display_name: session.user.user_metadata.full_name || inv.email, role: inv.role, permissions: inv.permissions || [], status: "active", job_title: null, daily_hours: 8, holiday_allowance: 30, hourly_rate: null, teams: null, created_at: nowISO() });
       inv.accepted_at = nowISO();
       return { data: inv.org_id, error: null };
+    }
+    if (name === "join_domain_org") {
+      // Mirrors the server: a listed company domain joins its studio (here, the
+      // seeded one) as owner; everyone else gets null. Demo addresses count as confirmed.
+      const dom = session && String(session.user.email || "").split("@")[1]?.toLowerCase();
+      const orgId = dom && DEMO_ORG_DOMAINS.includes(dom) ? db.organizations[0]?.id : null;
+      if (!orgId) return { data: null, error: null };
+      if (!db.memberships.some(m => m.org_id === orgId && m.user_id === session.user.id)) {
+        db.memberships.push({ id: uid(), org_id: orgId, user_id: session.user.id, email: session.user.email, display_name: session.user.user_metadata.full_name || null, role: "owner", permissions: [], status: "active", job_title: null, daily_hours: 8, holiday_allowance: 30, hourly_rate: null, teams: null, created_at: nowISO() });
+      }
+      return { data: orgId, error: null };
     }
     return { data: null, error: { message: `"${name}" isn't available in demo mode.` } };
   };

@@ -99,9 +99,12 @@ export function useRunningTimer(meId, { addTimeLog, orgId, dailyHours } = {}) {
   // forgotten overnight must not write a phantom day onto today. Timer
   // entries carry their real start time-of-day (start_min) so the calendar
   // can show when the work actually happened.
-  const stop = useCallback((todayISO, { note, minutes } = {}) => {
+  // The timer is only cleared once the entry is saved — if the write fails
+  // (addTimeLog toasts and returns false) it keeps running, so no time is lost.
+  // Resolves true when the time was logged.
+  const stop = useCallback(async (todayISO, { note, minutes } = {}) => {
     const r = store.meId === meId ? store.run : null;
-    if (!r || !addTimeLog) return;
+    if (!r || !addTimeLog) return false;
     const cap = capMinutesFor(dailyHours);
     const elapsedMin = Math.round((Date.now() - r.startedAt) / 60000);
     const over = elapsedMin > cap;
@@ -109,9 +112,11 @@ export function useRunningTimer(meId, { addTimeLog, orgId, dailyHours } = {}) {
     const date = over ? toISO(startOfDay(new Date(r.startedAt))) : todayISO;
     const startD = new Date(r.startedAt);
     const startMin = startD.getHours() * 60 + startD.getMinutes();
-    addTimeLog({ memberId: meId, projectId: r.projectId, phaseId: r.phaseId, taskId: r.taskId, date, minutes: mins, source: "timer", note: note || null, startMin });
+    const saved = await addTimeLog({ memberId: meId, projectId: r.projectId, phaseId: r.phaseId, taskId: r.taskId, date, minutes: mins, source: "timer", note: note || null, startMin });
+    if (saved === false) return false;
     applyRun(meId, null);
     persistClear(meId).catch(() => {});
+    return true;
   }, [meId, addTimeLog, dailyHours]);
 
   const cancel = useCallback(() => {
@@ -278,7 +283,7 @@ function OverrunDialog({ run, data, capMinutes, stop, cancel }) {
   const started = new Date(run.startedAt);
   const startDay = toISO(startOfDay(started));
   const elapsedMin = Math.round((Date.now() - run.startedAt) / 60000);
-  const log = () => { stop(toISO(startOfDay(new Date())), { minutes: Math.max(1, Number(h || 0) * 60 + Number(m || 0)) }); setOpen(false); };
+  const log = async () => { if (await stop(toISO(startOfDay(new Date())), { minutes: Math.max(1, Number(h || 0) * 60 + Number(m || 0)) })) setOpen(false); };
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent>

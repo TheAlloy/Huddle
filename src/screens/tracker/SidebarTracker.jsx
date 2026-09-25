@@ -1,17 +1,17 @@
 // The always-on timer control, living at the foot of the sidebar (above
 // Settings) so play/stop is one click from every screen — successor to the
 // header's Track popover, and the only place the running timer is shown.
-// Idle: today's scheduled work, open tasks and recents as one-tap starts.
+// Idle: this week's assigned and planned work, open tasks (and a couple of
+// recents when that's short) as one-tap starts.
 // Running: the panel becomes the timer — live clock with stop-with-note,
 // PiP, and discard.
 import React, { useState, useEffect, useMemo } from "react";
-import { toISO, startOfDay, hm, fmtClock, mapData, makeHandlers, NAVY } from "../../studio/core.jsx";
-import { useRunningTimer, makeLabels, todayTracking, recentCombos, usePipTimer, taskProject } from "./shared.jsx";
+import { toISO, startOfDay, startOfWeekMon, addDays, hm, fmtClock, mapData, makeHandlers, NAVY } from "../../studio/core.jsx";
+import { useRunningTimer, makeLabels, recentCombos, usePipTimer, taskProject } from "./shared.jsx";
+import { weekRows, schedForDay, logKey } from "../timesheet-lab/weekData.js";
 import { Play, Square, PictureInPicture2, Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarGroup, SidebarInput, SidebarMenu, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
-
-const MAX_ITEMS = 5; // the sidebar is shared with the nav — keep the list short
 
 export default function SidebarTracker({ org, me, data: cadData, reload }) {
   const meId = me.id;
@@ -28,22 +28,38 @@ export default function SidebarTracker({ org, me, data: cadData, reload }) {
 
   const labels = makeLabels(data);
   const todayISO = toISO(startOfDay(new Date()));
-  const { bubbles, myTasks, minsFor, minsForTask, todayMins } = todayTracking(data, meId, todayISO);
-  const scheduledKeys = new Set(bubbles.filter((b) => !b.internal).map((b) => b.projectId + "|" + (b.phaseId || "")));
-  const recents = recentCombos(data, meId, { max: 4 }).filter((r) => !scheduledKeys.has(r.projectId + "|" + (r.phaseId || "")));
 
-  const stop = () => { stopTimer(todayISO, { note: stopNote.trim() || null }); setStopNote(""); };
+  const stop = async () => { if (await stopTimer(todayISO, { note: stopNote.trim() || null })) setStopNote(""); };
   const openPip = usePipTimer({ run, stop, top: () => labels.runTop(run), capMinutes });
   const elapsed = run ? fmtClock(Math.min((Date.now() - run.startedAt) / 1000, capMinutes * 60)) : null;
 
-  // One flat start list: today's schedule first, then open tasks, then recents.
-  const items = [
-    ...bubbles.map((b) => b.internal
-      ? { key: "ib:" + b.taskId, color: taskProject(data, b.taskId).projectId ? labels.colorOf(taskProject(data, b.taskId).projectId) : NAVY, label: (labels.taskById(b.taskId) || {}).title || "task", sub: "Task", mins: minsForTask(b.taskId), onStart: () => startTask(b.taskId, taskProject(data, b.taskId)) }
-      : { key: b.projectId + "|" + b.phaseId, color: labels.colorOf(b.projectId), label: labels.labProj(b.projectId), sub: labels.phName(b.projectId, b.phaseId) || "Scheduled today", mins: minsFor(b.projectId, b.phaseId), onStart: () => start(b.projectId, b.phaseId) }),
-    ...myTasks.slice(0, 3).map((t) => ({ key: "task:" + t.id, color: t.projectId ? labels.colorOf(t.projectId) : NAVY, label: t.title, sub: "Task", mins: minsForTask(t.id), onStart: () => startTask(t.id, taskProject(data, t.id)) })),
-    ...recents.map((r) => ({ key: r.key, color: labels.colorOf(r.projectId), label: r.label, sub: "Recent", mins: 0, onStart: () => start(r.projectId, r.phaseId) })),
-  ].slice(0, MAX_ITEMS);
+  // The start list is the Timesheet's own row list for this week — everything
+  // the Schedule assigns you this week, everything in your calendar planner
+  // this week, and your open tasks — so the two always agree. Today's
+  // scheduled work leads, then what's planned in today's calendar, then the
+  // rest of the week; a couple of recents top up a short list.
+  const rs = startOfWeekMon(new Date()), rsISO = toISO(rs), reISO = toISO(addDays(rs, 6));
+  const weekLogs = (data.timeLogs || []).filter((l) => l.memberId === meId && l.date >= rsISO && l.date <= reISO);
+  const todayLogs = weekLogs.filter((l) => l.date === todayISO);
+  const todayMins = todayLogs.reduce((s, l) => s + l.minutes, 0);
+  const todaySched = schedForDay(data, meId, todayISO).values;
+  const rows = weekRows({ data, meId, rsISO, reISO, todayISO, labels, pending: [], weekLogs })
+    .filter((r) => (r.taskId ? labels.taskById(r.taskId) : labels.projById(r.projectId)));
+  const rank = (r) => (todaySched.has(r.key) ? 0 : todayLogs.some((l) => logKey(l) === r.key) ? 1 : 2);
+  const WHEN = ["Scheduled today", "In today's calendar", "This week"];
+  const minsToday = (key) => todayLogs.filter((l) => logKey(l) === key).reduce((s, l) => s + l.minutes, 0);
+  const items = rows.map((r) => ({ r, k: rank(r) })).sort((a, b) => a.k - b.k).map(({ r, k }) => {
+    if (r.taskId) {
+      const tp = taskProject(data, r.taskId);
+      return { key: r.key, color: tp.projectId ? labels.colorOf(tp.projectId) : NAVY, label: labels.taskById(r.taskId).title || "task", sub: k < 2 ? "Task · " + WHEN[k] : "Task", mins: minsToday(r.key), onStart: () => startTask(r.taskId, tp) };
+    }
+    return { key: r.key, color: labels.colorOf(r.projectId), label: labels.labProj(r.projectId), sub: [labels.phName(r.projectId, r.phaseId), WHEN[k]].filter(Boolean).join(" · "), mins: minsToday(r.key), onStart: () => start(r.projectId, r.phaseId) };
+  });
+  if (items.length < 4) {
+    const have = new Set(rows.map((r) => r.key));
+    recentCombos(data, meId, { max: 4 }).filter((c) => !have.has(c.projectId + "|" + (c.phaseId || ""))).slice(0, 2)
+      .forEach((c) => items.push({ key: c.key, color: labels.colorOf(c.projectId), label: c.label, sub: "Recent", mins: 0, onStart: () => start(c.projectId, c.phaseId) }));
+  }
 
   const runColor = run ? labels.runColor(run) : null;
   const runPhase = run && !run.taskId ? labels.phName(run.projectId, run.phaseId) : "";
@@ -78,7 +94,8 @@ export default function SidebarTracker({ org, me, data: cadData, reload }) {
             </div>
           </>
         ) : (
-          <SidebarMenu className="gap-1">
+          // A long week scrolls inside the panel rather than pushing the nav away.
+          <SidebarMenu className="gap-1 max-h-72 overflow-y-auto">
             {items.map((it) => (
               <SidebarMenuItem key={it.key}>
                 <SidebarMenuButton size="lg" onClick={it.onStart} tooltip={"Start · " + it.label} className={it.mins ? "pr-14" : undefined}>

@@ -38,9 +38,11 @@ export default function SidebarTracker({ org, me, data: cadData, reload }) {
   //   1. the Schedule — your work/task bars covering today (weekdays);
   //   2. your calendar planner — projects/tasks with blocks on today;
   //   3. tasks assigned to you that aren't done.
-  // One row per project+phase (or task). A phase-less entry for a project
-  // that also appears with a phase folds into the phased row, so "VOL007"
-  // and "VOL007 · UX" never show twice.
+  // One row per project+phase (or task). The Schedule is authoritative: a
+  // project on today's schedule shows exactly as scheduled (a bar with no
+  // phase stays phase-less) and calendar entries can't add variants of it.
+  // Among calendar-only projects, a phase-less entry folds into the phased
+  // one, so "VOL007" and "VOL007 · UX" never show twice.
   const todayLogs = (data.timeLogs || []).filter((l) => l.memberId === meId && l.date === todayISO);
   const todayMins = todayLogs.reduce((s, l) => s + l.minutes, 0);
   const found = new Map(); // key -> {projectId, phaseId, taskId, why}
@@ -52,12 +54,13 @@ export default function SidebarTracker({ org, me, data: cadData, reload }) {
       else if (a.kind === "internal" && a.taskId) put("T|" + a.taskId, { taskId: a.taskId, why: "Scheduled today" });
     });
   }
+  const scheduledProjects = new Set([...found.values()].filter((r) => r.projectId).map((r) => r.projectId));
   todayLogs.forEach((l) => {
     if (l.taskId) put("T|" + l.taskId, { taskId: l.taskId, why: "In today's calendar" });
-    else if (l.projectId) put(l.projectId + "|" + (l.phaseId || ""), { projectId: l.projectId, phaseId: l.phaseId || null, why: "In today's calendar" });
+    else if (l.projectId && !scheduledProjects.has(l.projectId)) put(l.projectId + "|" + (l.phaseId || ""), { projectId: l.projectId, phaseId: l.phaseId || null, why: "In today's calendar" });
   });
   (data.internalTasks || []).forEach((t) => { if (t.assigneeId === meId && t.status !== "done") put("T|" + t.id, { taskId: t.id, why: "Assigned to you" }); });
-  const phased = new Set([...found.values()].filter((r) => r.projectId && r.phaseId).map((r) => r.projectId));
+  const phased = new Set([...found.values()].filter((r) => r.projectId && r.phaseId && !scheduledProjects.has(r.projectId)).map((r) => r.projectId));
   const minsFor = (r) => todayLogs.filter((l) => (r.taskId ? l.taskId === r.taskId
     : !l.taskId && l.projectId === r.projectId && (r.phaseId ? (l.phaseId === r.phaseId || !l.phaseId) : true))).reduce((s, l) => s + l.minutes, 0);
   const items = [...found.entries()]

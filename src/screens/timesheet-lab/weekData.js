@@ -30,14 +30,13 @@ export function weekRows({ data, meId, rsISO, reISO, todayISO, labels, pending, 
 // The phase a phase-less project pick should land on. The project pickers
 // offer projects, not phases, so without this, planning "VOL007" while the
 // schedule has you on "VOL007 · UX" makes a second, phase-less row for the
-// same work. Prefers the member's scheduled phase of that project covering
-// [fromISO, toISO], then the project's only phase, else none.
+// same work. The schedule is the only authority: the member's scheduled
+// phase of that project covering [fromISO, toISO]; a bar with no phase (or
+// no bar at all) means no phase — never guessed from the project's phases.
 export function defaultPhase(data, memberId, projectId, fromISO, toISO = fromISO) {
   if (!projectId) return null;
   const a = data.assignments.find((x) => x.memberId === memberId && x.kind === "work" && x.projectId === projectId && x.phaseId && x.start <= toISO && x.end >= fromISO);
-  if (a) return a.phaseId;
-  const phases = (data.projects.find((p) => p.id === projectId) || {}).phases || [];
-  return phases.length === 1 ? phases[0].id : null;
+  return a ? a.phaseId : null;
 }
 
 // What the schedule says the member should be on for one day (weekdays only):

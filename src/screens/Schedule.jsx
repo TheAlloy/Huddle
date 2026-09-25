@@ -22,7 +22,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
+import { Combobox, ComboboxChip, ComboboxChips, ComboboxChipsInput, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList, ComboboxValue, useComboboxAnchor } from "@/components/ui/combobox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   Plus, X, ChevronLeft, ChevronRight, Search, Trash2, AlertTriangle,
@@ -362,6 +362,12 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
   const [taskId,setTaskId]=useState(assignment?.taskId||"");
   const [taskTitle,setTaskTitle]=useState(""),[taskPri,setTaskPri]=useState("med"),[taskTeam,setTaskTeam]=useState("");
   const [memberId,setMemberId]=useState(assignment?.memberId||preset?.memberId||members[0]?.id||"");
+  // Project work and time off can go to several people at once — each gets
+  // their own bar. Editing keeps this bar with its person (if still picked)
+  // and adds a copy for everyone added; tasks stay single-assignee.
+  const [people,setPeople]=useState(()=>{ const first=assignment?.memberId||preset?.memberId||members[0]?.id; return first?[first]:[]; });
+  const nameOf=(id)=>(members.find(m=>m.id===id)||{}).name||"—";
+  const peopleAnchor=useComboboxAnchor();
   const [projectId,setProjectId]=useState(assignment?.projectId||projects[0]?.id||"");
   const proj=projects.find(p=>p.id===projectId); const client=proj&&clients.find(c=>c.id===proj.clientId);
   const [phaseId,setPhaseId]=useState(assignment?.phaseId||"");
@@ -398,12 +404,15 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
       if(taskId==="__new__"){ onInternalAssign&&onInternalAssign({newTask:{title:taskTitle.trim(),priority:taskPri,team:taskTeam||""},memberId,start,end}); return; }
       onInternalAssign&&onInternalAssign({taskId,memberId,start,end}); return;
     }
-    if(!memberId||!start||!end) return;
+    if(!people.length){ setErrs({memberId:"Choose who this is for."}); return; }
+    if(!start||!end) return;
     if(end<start){ setErrs({dates:"End date can't be before the start date."}); return; }
     setErrs({});
-    const base={...(assignment||{}),memberId,start,end,value:0,mode:"hours_per_day",note:null,startTime:null,endTime:null};
-    if(kind==="leave") onSave({...base,kind:"leave",leaveType,projectId:null,phaseId:null,startTime:partDay?sTime:null,endTime:partDay?eTime:null});
-    else onSave({...base,kind:"work",projectId,phaseId:phaseId||null,leaveType:null}, phaseId?{projectId,phaseId,hours:phaseHours===""?null:Number(phaseHours)}:null);
+    const primary=assignment&&people.includes(assignment.memberId)?assignment.memberId:people[0];
+    const others=people.filter(id=>id!==primary);
+    const base={...(assignment||{}),memberId:primary,start,end,value:0,mode:"hours_per_day",note:null,startTime:null,endTime:null};
+    if(kind==="leave") onSave({...base,kind:"leave",leaveType,projectId:null,phaseId:null,startTime:partDay?sTime:null,endTime:partDay?eTime:null}, null, others);
+    else onSave({...base,kind:"work",projectId,phaseId:phaseId||null,leaveType:null}, phaseId?{projectId,phaseId,hours:phaseHours===""?null:Number(phaseHours)}:null, others);
   };
   {/* min-height pinned to the tallest tab so switching kinds doesn't resize the dialog */}
   return (<Dialog open onOpenChange={(o) => { if (!o) (onClose)?.(); }}><DialogContent className="sm:max-w-lg max-h-[92svh] overflow-y-auto"><DialogHeader><DialogTitle>{assignment?"Edit assignment":"Assign work"}</DialogTitle></DialogHeader><FieldGroup className={assignment?undefined:"min-h-[30rem]"}>
@@ -414,7 +423,8 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
           </TabsList>
         </Tabs>
       : <div><Badge variant="secondary">{kind==="leave"?"Time off":kind==="internal"?"Task":"Project work"}</Badge></div>}
-    <Field data-invalid={(errs.memberId) ? true : undefined}><FieldLabel>{kind==="internal"?"Assign to":"Person"}</FieldLabel>
+    {kind==="internal" ? (
+    <Field data-invalid={(errs.memberId) ? true : undefined}><FieldLabel>Assign to</FieldLabel>
       <Select value={memberId} onValueChange={(v)=>{ if(v==="__invite__"){ onInvite&&onInvite(); return; } setMemberId(v); }}
         items={{...Object.fromEntries(members.map(m=>[m.id,m.name])),...(onInvite?{__invite__:"Invite someone…"}:{})}}>
         <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
@@ -424,6 +434,25 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
         </SelectGroup></SelectContent>
       </Select>
     {(errs.memberId) ? <FieldError>{errs.memberId}</FieldError> : null}</Field>
+    ) : (
+    <Field data-invalid={(errs.memberId) ? true : undefined}><FieldLabel>People</FieldLabel>
+      <Combobox multiple autoHighlight items={members.map(m=>m.id)} value={people} onValueChange={setPeople} itemToStringLabel={nameOf}>
+        <ComboboxChips ref={peopleAnchor} className="w-full">
+          <ComboboxValue>
+            {(values)=>(<>
+              {values.map(id=><ComboboxChip key={id}>{nameOf(id)}</ComboboxChip>)}
+              <ComboboxChipsInput placeholder={values.length?"":"Add people…"} />
+            </>)}
+          </ComboboxValue>
+        </ComboboxChips>
+        <ComboboxContent anchor={peopleAnchor}>
+          <ComboboxEmpty>No one by that name.</ComboboxEmpty>
+          <ComboboxList>{(id)=><ComboboxItem key={id} value={id}>{nameOf(id)}</ComboboxItem>}</ComboboxList>
+        </ComboboxContent>
+      </Combobox>
+      <FieldDescription>Add everyone working on this — each person gets their own bar.{onInvite && <> Not on the team yet? <Button variant="link" size="sm" className="h-auto p-0" onClick={onInvite}>Invite someone</Button>.</>}</FieldDescription>
+    {(errs.memberId) ? <FieldError>{errs.memberId}</FieldError> : null}</Field>
+    )}
     {kind==="work" ? (<>
       <Field><FieldLabel>Project</FieldLabel>
         <Select value={projectId} onValueChange={(v)=>{ if(v==="__new__"){ onNewProject&&onNewProject(); return; } setProjectId(v);setPhaseId(""); }}
@@ -711,7 +740,9 @@ export default function Schedule({ org, me, data: cadData, reload, peopleFilter:
 
   const moveAssign=async(a,start,end,lane)=>{ if(!canEdit) return; setOptim(o=>({...o,[a.id]:{start,end,...(lane===undefined?{}:{lane})}})); await sb.from("assignments").update({start_date:start,end_date:end,...(lane===undefined?{}:{lane})}).eq("id",a.id); reload(); };
   const asgRow=(a)=>({ org_id:org.id, kind:a.kind==="internal"?"task":a.kind, membership_id:a.memberId, project_id:a.projectId||null, phase_id:a.phaseId||null, leave_type:a.leaveType||null, start_date:a.start, end_date:a.end, mode:a.mode||null, value:(a.value??null), note:a.note||null, start_time:a.startTime||null, end_time:a.endTime||null, lane:Number.isFinite(a.lane)?a.lane:null, task_id:a.taskId||null });
-  const saveAssignment=async(a,ph)=>{ const row=asgRow(a); if(a.id) await sb.from("assignments").update(row).eq("id",a.id); else await sb.from("assignments").insert(row); if(ph&&ph.hours!=null){ const proj=(cadData.projects||[]).find(p=>p.id===ph.projectId); if(proj){ const phases=(proj.phases||[]).map(x=>x.id===ph.phaseId?{...x,hours:ph.hours}:x); await sb.from("projects").update({phases}).eq("id",proj.id); } } reload(); };
+  // `others`: more people to put on the same work — each gets their own copy
+  // of the bar (lane left to auto-placement).
+  const saveAssignment=async(a,ph,others=[])=>{ const row=asgRow(a); if(a.id) await sb.from("assignments").update(row).eq("id",a.id); else await sb.from("assignments").insert(row); if(others.length) await sb.from("assignments").insert(others.map(mid=>asgRow({...a,id:undefined,memberId:mid,lane:null}))); if(ph&&ph.hours!=null){ const proj=(cadData.projects||[]).find(p=>p.id===ph.projectId); if(proj){ const phases=(proj.phases||[]).map(x=>x.id===ph.phaseId?{...x,hours:ph.hours}:x); await sb.from("projects").update({phases}).eq("id",proj.id); } } reload(); };
   const delAssign=async(id)=>{ await sb.from("assignments").delete().eq("id",id); reload(); };
   const saveInternalAssign=async({taskId,newTask,memberId,start,end})=>{ let tid=taskId; if(newTask){ const {data:t}=await sb.from("tasks").insert({org_id:org.id,title:newTask.title,priority:newTask.priority||"med",team:newTask.team||null,status:"todo",assignee_id:memberId||null,ord:Date.now()}).select().single(); tid=t&&t.id; } await sb.from("assignments").insert({org_id:org.id,kind:"task",membership_id:memberId,task_id:tid,start_date:start,end_date:end}); reload(); };
   const createFromProposal=async({newClient,project,assignments})=>{ let clientId=project.clientId; if(newClient){ const {data:c}=await sb.from("clients").insert({org_id:org.id,name:newClient.name,color:newClient.color,payment_terms:30}).select().single(); clientId=c&&c.id; } const {data:p}=await sb.from("projects").insert({org_id:org.id,code:project.index,name:project.name,client_id:clientId,cost:project.cost,phases:project.phases}).select().single(); const projId=p&&p.id; if(projId&&assignments.length){ const rows=assignments.map(a=>({org_id:org.id,kind:"work",membership_id:a.memberId,project_id:projId,phase_id:a.phaseId||null,start_date:a.start,end_date:a.end})); await sb.from("assignments").insert(rows); } setModal(null); reload(); };
@@ -768,7 +799,7 @@ export default function Schedule({ org, me, data: cadData, reload, peopleFilter:
 
       {modal?.type==="assign" && <AssignForm assignment={modal.payload&&modal.payload.id?modal.payload:null} preset={modal.payload} members={data.members} projects={data.projects} clients={data.clients} anchor={anchor} tasks={data.internalTasks||[]} teams={teams}
         onInvite={canEdit?()=>setQuickModal("invite"):null} onNewProject={canEdit?()=>setQuickModal("newproject"):null}
-        onInternalAssign={(x)=>{ saveInternalAssign(x); setModal(null); }} onSave={(a,ph)=>{ saveAssignment(a,ph); setModal(null); }} onDelete={modal.payload&&modal.payload.id?id=>{ delAssign(id); setModal(null); }:null} onClose={()=>setModal(null)} />}
+        onInternalAssign={(x)=>{ saveInternalAssign(x); setModal(null); }} onSave={(a,ph,others)=>{ saveAssignment(a,ph,others); setModal(null); }} onDelete={modal.payload&&modal.payload.id?id=>{ delAssign(id); setModal(null); }:null} onClose={()=>setModal(null)} />}
       {modal?.type==="member" && <MemberForm org={org} member={modal.payload} teams={teams} canEdit={canEdit} onClose={()=>setModal(null)} onSaved={()=>{ setModal(null); reload(); }} />}
       {modal?.type==="client" && <ClientForm org={org} client={modal.payload} canEdit={canEdit} onClose={()=>setModal(null)} onSaved={()=>{ setModal(null); reload(); }} />}
       {modal?.type==="proposal" && <ProposalForm org={org} clients={data.clients} members={data.members} anchor={anchor} onCreate={createFromProposal} onClose={()=>setModal(null)} />}

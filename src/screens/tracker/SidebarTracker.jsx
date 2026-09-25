@@ -61,11 +61,13 @@ export default function SidebarTracker({ org, me, data: cadData, reload }) {
   const items = [...found.entries()]
     .filter(([, r]) => (r.taskId ? labels.taskById(r.taskId) : labels.projById(r.projectId)) && !(r.projectId && !r.phaseId && phased.has(r.projectId)))
     .map(([key, r]) => {
+      // Just what the work is: "Client - Project" over its phase (tasks: the
+      // task over its project, when it has one).
       if (r.taskId) {
         const tp = taskProject(data, r.taskId);
-        return { key, color: tp.projectId ? labels.colorOf(tp.projectId) : NAVY, label: labels.taskById(r.taskId).title || "task", sub: "Task · " + r.why, mins: minsFor(r), onStart: () => startTask(r.taskId, tp) };
+        return { key, color: tp.projectId ? labels.colorOf(tp.projectId) : NAVY, label: labels.taskById(r.taskId).title || "task", sub: tp.projectId ? [labels.labProj(tp.projectId), labels.phName(tp.projectId, tp.phaseId)].filter(Boolean).join(" · ") : "Task", mins: minsFor(r), onStart: () => startTask(r.taskId, tp) };
       }
-      return { key, color: labels.colorOf(r.projectId), label: labels.labProj(r.projectId), sub: [labels.phName(r.projectId, r.phaseId), r.why].filter(Boolean).join(" · "), mins: minsFor(r), onStart: () => start(r.projectId, r.phaseId) };
+      return { key, color: labels.colorOf(r.projectId), label: labels.labProj(r.projectId), sub: labels.phName(r.projectId, r.phaseId), mins: minsFor(r), onStart: () => start(r.projectId, r.phaseId) };
     });
 
   const runColor = run ? labels.runColor(run) : null;
@@ -109,7 +111,7 @@ export default function SidebarTracker({ org, me, data: cadData, reload }) {
                   <span className="grid place-items-center size-6 rounded-full text-white shrink-0" style={{ background: it.color }}><Play className="size-3!" /></span>
                   <span className="grid flex-1 min-w-0 text-left leading-tight">
                     <span className="truncate">{it.label}</span>
-                    <span className="truncate text-xs text-muted-foreground">{it.sub}</span>
+                    {it.sub && <span className="truncate text-xs text-muted-foreground">{it.sub}</span>}
                   </span>
                 </SidebarMenuButton>
                 {it.mins ? <SidebarMenuBadge>{hm(it.mins)}</SidebarMenuBadge> : null}

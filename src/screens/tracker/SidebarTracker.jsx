@@ -12,6 +12,8 @@ import { Play, Square, PictureInPicture2, Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarGroup, SidebarInput, SidebarMenu, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 
+const MAX_ITEMS = 10; // today's list tops out here; it scrolls inside the panel
+
 export default function SidebarTracker({ org, me, data: cadData, reload }) {
   const meId = me.id;
   const data = useMemo(() => mapData(cadData), [cadData]);
@@ -68,7 +70,8 @@ export default function SidebarTracker({ org, me, data: cadData, reload }) {
         return { key, color: tp.projectId ? labels.colorOf(tp.projectId) : NAVY, label: labels.taskById(r.taskId).title || "task", sub: tp.projectId ? [labels.labProj(tp.projectId), labels.phName(tp.projectId, tp.phaseId)].filter(Boolean).join(" · ") : "Task", mins: minsFor(r), onStart: () => startTask(r.taskId, tp) };
       }
       return { key, color: labels.colorOf(r.projectId), label: labels.labProj(r.projectId), sub: labels.phName(r.projectId, r.phaseId), mins: minsFor(r), onStart: () => start(r.projectId, r.phaseId) };
-    });
+    })
+    .slice(0, MAX_ITEMS);
 
   const runColor = run ? labels.runColor(run) : null;
   const runPhase = run && !run.taskId ? labels.phName(run.projectId, run.phaseId) : "";

@@ -13,6 +13,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
 import { ProjectCombobox, recentCombos, parseHours } from "./tracker/shared.jsx";
+import { defaultPhase } from "./timesheet-lab/weekData.js";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -47,7 +48,7 @@ function SummaryView(ctx) {
   const [dayPick,setDayPick]=useState({projectId:"",phaseId:null});
   const [dayHours,setDayHours]=useState("");
   const openDayAdd=(mid,day)=>{ setCEdit(null); setDayAdd({mid,day}); setDayPick({projectId:"",phaseId:null}); setDayHours(""); };
-  const submitDayAdd=()=>{ const mins=parseHours(dayHours); if(!dayAdd||!dayPick.projectId||!mins) return; addTimeLog({memberId:dayAdd.mid,projectId:dayPick.projectId,phaseId:dayPick.phaseId||null,date:dayAdd.day,minutes:mins}); setDayAdd(null); };
+  const submitDayAdd=()=>{ const mins=parseHours(dayHours); if(!dayAdd||!dayPick.projectId||!mins) return; addTimeLog({memberId:dayAdd.mid,projectId:dayPick.projectId,phaseId:dayPick.phaseId||defaultPhase(data,dayAdd.mid,dayPick.projectId,dayAdd.day),date:dayAdd.day,minutes:mins}); setDayAdd(null); };
 
   let rs,re;
   if(period==="day"){ rs=startOfDay(anchor); re=startOfDay(anchor); }

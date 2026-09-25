@@ -10,7 +10,7 @@ import { NoAccess } from "../Workspace.jsx";
 import { MONTHS, DOW, pad, toISO, startOfDay, addDays, startOfWeekMon, isWeekday, hm, fmtClock, fmtH, NAVY, projectsByClient, mapData, makeHandlers } from "../../studio/core.jsx";
 import { useRunningTimer, makeLabels, ProjectCombobox, recentCombos, taskProject, parseHours } from "../tracker/shared.jsx";
 import WeekCalendar, { rowDragProps } from "../tracker/WeekCalendar.jsx";
-import { weekRows, schedForDay, cellForDay, rowLabelFor, logKey } from "./weekData.js";
+import { weekRows, schedForDay, cellForDay, rowLabelFor, logKey, defaultPhase } from "./weekData.js";
 import { HoursField, HoursFieldFancy, AddProjectPopup, fmtClockDur } from "./LabBits.jsx";
 import { Play, Square, PictureInPicture2, X, ChevronLeft, ChevronRight, Plus, Check } from "lucide-react";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
@@ -88,8 +88,9 @@ export default function TimesheetV3({ org, me, data: cadData, reload, fancyHours
   };
   const addPending = (pick) => {
     if (!pick.projectId) return;
-    const key = pick.projectId + "|" + (pick.phaseId || "");
-    setPending((list) => (list.some((x) => x.key === key) ? list : [...list, { key, projectId: pick.projectId, phaseId: pick.phaseId || null, taskId: null }]));
+    const phaseId = pick.phaseId || defaultPhase(data, meId, pick.projectId, rsISO, reISO);
+    const key = pick.projectId + "|" + (phaseId || "");
+    setPending((list) => (list.some((x) => x.key === key) ? list : [...list, { key, projectId: pick.projectId, phaseId, taskId: null }]));
     setAdding(false);
   };
   const shift = (dir) => setAnchor((a) => addDays(a, dir * 7));
@@ -105,7 +106,7 @@ export default function TimesheetV3({ org, me, data: cadData, reload, fancyHours
     const minutes = parseHours(addHours);
     if (!addPick.projectId || !minutes) return;
     const st = String(addStart).trim() === "" ? null : parseHours(addStart);
-    addTimeLog({ memberId: meId, projectId: addPick.projectId, phaseId: addPick.phaseId || null, taskId: null, date: addDay, minutes, startMin: st, source: "manual", note: null });
+    addTimeLog({ memberId: meId, projectId: addPick.projectId, phaseId: addPick.phaseId || defaultPhase(data, meId, addPick.projectId, addDay), taskId: null, date: addDay, minutes, startMin: st, source: "manual", note: null });
     setAddOpen(false);
   };
 
@@ -292,10 +293,15 @@ export default function TimesheetV3({ org, me, data: cadData, reload, fancyHours
                   run={run} runColor={labels.runColor(run)}
                   onCreate={({ projectId, phaseId, taskId, date, startMin, minutes, note }) => {
                     // Task blocks (dragged-in task rows, copies) carry the task's own project/phase.
-                    const attr = taskId ? taskProject(data, taskId) : { projectId, phaseId };
+                    const attr = taskId ? taskProject(data, taskId) : { projectId, phaseId: phaseId || defaultPhase(data, meId, projectId, date) };
                     addTimeLog({ memberId: meId, projectId: attr.projectId || null, phaseId: attr.phaseId || null, taskId: taskId || null, date, minutes, startMin, source: "manual", note });
                   }}
-                  onPatch={(id, patch) => editTimeLog(id, patch)}
+                  // A phase-less project pick in the block editor also takes the
+                  // scheduled phase — re-saving an old phase-less block tidies it up.
+                  onPatch={(id, patch) => {
+                    if (patch.projectId && !patch.phaseId) { const l = weekLogs.find((x) => x.id === id); patch = { ...patch, phaseId: defaultPhase(data, meId, patch.projectId, l ? l.date : todayISO) }; }
+                    editTimeLog(id, patch);
+                  }}
                   onDelete={(id) => delTimeLogs([id])} />
               </CardContent>
             </Card>

@@ -1,14 +1,13 @@
 // The always-on timer control, living at the foot of the sidebar (above
 // Settings) so play/stop is one click from every screen — successor to the
 // header's Track popover, and the only place the running timer is shown.
-// Idle: this week's assigned and planned work, open tasks (and a couple of
-// recents when that's short) as one-tap starts.
+// Idle: today's scheduled work, today's calendar-planned work and your open
+// tasks as one-tap starts.
 // Running: the panel becomes the timer — live clock with stop-with-note,
 // PiP, and discard.
 import React, { useState, useEffect, useMemo } from "react";
-import { toISO, startOfDay, startOfWeekMon, addDays, hm, fmtClock, mapData, makeHandlers, NAVY } from "../../studio/core.jsx";
-import { useRunningTimer, makeLabels, recentCombos, usePipTimer, taskProject } from "./shared.jsx";
-import { weekRows, schedForDay, logKey } from "../timesheet-lab/weekData.js";
+import { toISO, startOfDay, isWeekday, hm, fmtClock, mapData, makeHandlers, NAVY } from "../../studio/core.jsx";
+import { useRunningTimer, makeLabels, usePipTimer, taskProject } from "./shared.jsx";
 import { Play, Square, PictureInPicture2, Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarGroup, SidebarInput, SidebarMenu, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
@@ -33,33 +32,41 @@ export default function SidebarTracker({ org, me, data: cadData, reload }) {
   const openPip = usePipTimer({ run, stop, top: () => labels.runTop(run), capMinutes });
   const elapsed = run ? fmtClock(Math.min((Date.now() - run.startedAt) / 1000, capMinutes * 60)) : null;
 
-  // The start list is the Timesheet's own row list for this week — everything
-  // the Schedule assigns you this week, everything in your calendar planner
-  // this week, and your open tasks — so the two always agree. Today's
-  // scheduled work leads, then what's planned in today's calendar, then the
-  // rest of the week; a couple of recents top up a short list.
-  const rs = startOfWeekMon(new Date()), rsISO = toISO(rs), reISO = toISO(addDays(rs, 6));
-  const weekLogs = (data.timeLogs || []).filter((l) => l.memberId === meId && l.date >= rsISO && l.date <= reISO);
-  const todayLogs = weekLogs.filter((l) => l.date === todayISO);
+  // Today's start list, from exactly three sources (in this order):
+  //   1. the Schedule — your work/task bars covering today (weekdays);
+  //   2. your calendar planner — projects/tasks with blocks on today;
+  //   3. tasks assigned to you that aren't done.
+  // One row per project+phase (or task). A phase-less entry for a project
+  // that also appears with a phase folds into the phased row, so "VOL007"
+  // and "VOL007 · UX" never show twice.
+  const todayLogs = (data.timeLogs || []).filter((l) => l.memberId === meId && l.date === todayISO);
   const todayMins = todayLogs.reduce((s, l) => s + l.minutes, 0);
-  const todaySched = schedForDay(data, meId, todayISO).values;
-  const rows = weekRows({ data, meId, rsISO, reISO, todayISO, labels, pending: [], weekLogs })
-    .filter((r) => (r.taskId ? labels.taskById(r.taskId) : labels.projById(r.projectId)));
-  const rank = (r) => (todaySched.has(r.key) ? 0 : todayLogs.some((l) => logKey(l) === r.key) ? 1 : 2);
-  const WHEN = ["Scheduled today", "In today's calendar", "This week"];
-  const minsToday = (key) => todayLogs.filter((l) => logKey(l) === key).reduce((s, l) => s + l.minutes, 0);
-  const items = rows.map((r) => ({ r, k: rank(r) })).sort((a, b) => a.k - b.k).map(({ r, k }) => {
-    if (r.taskId) {
-      const tp = taskProject(data, r.taskId);
-      return { key: r.key, color: tp.projectId ? labels.colorOf(tp.projectId) : NAVY, label: labels.taskById(r.taskId).title || "task", sub: k < 2 ? "Task · " + WHEN[k] : "Task", mins: minsToday(r.key), onStart: () => startTask(r.taskId, tp) };
-    }
-    return { key: r.key, color: labels.colorOf(r.projectId), label: labels.labProj(r.projectId), sub: [labels.phName(r.projectId, r.phaseId), WHEN[k]].filter(Boolean).join(" · "), mins: minsToday(r.key), onStart: () => start(r.projectId, r.phaseId) };
-  });
-  if (items.length < 4) {
-    const have = new Set(rows.map((r) => r.key));
-    recentCombos(data, meId, { max: 4 }).filter((c) => !have.has(c.projectId + "|" + (c.phaseId || ""))).slice(0, 2)
-      .forEach((c) => items.push({ key: c.key, color: labels.colorOf(c.projectId), label: c.label, sub: "Recent", mins: 0, onStart: () => start(c.projectId, c.phaseId) }));
+  const found = new Map(); // key -> {projectId, phaseId, taskId, why}
+  const put = (key, row) => { if (!found.has(key)) found.set(key, row); };
+  if (isWeekday(startOfDay(new Date()))) {
+    data.assignments.forEach((a) => {
+      if (a.memberId !== meId || a.start > todayISO || a.end < todayISO) return;
+      if (a.kind === "work" && a.projectId) put(a.projectId + "|" + (a.phaseId || ""), { projectId: a.projectId, phaseId: a.phaseId || null, why: "Scheduled today" });
+      else if (a.kind === "internal" && a.taskId) put("T|" + a.taskId, { taskId: a.taskId, why: "Scheduled today" });
+    });
   }
+  todayLogs.forEach((l) => {
+    if (l.taskId) put("T|" + l.taskId, { taskId: l.taskId, why: "In today's calendar" });
+    else if (l.projectId) put(l.projectId + "|" + (l.phaseId || ""), { projectId: l.projectId, phaseId: l.phaseId || null, why: "In today's calendar" });
+  });
+  (data.internalTasks || []).forEach((t) => { if (t.assigneeId === meId && t.status !== "done") put("T|" + t.id, { taskId: t.id, why: "Assigned to you" }); });
+  const phased = new Set([...found.values()].filter((r) => r.projectId && r.phaseId).map((r) => r.projectId));
+  const minsFor = (r) => todayLogs.filter((l) => (r.taskId ? l.taskId === r.taskId
+    : !l.taskId && l.projectId === r.projectId && (r.phaseId ? (l.phaseId === r.phaseId || !l.phaseId) : true))).reduce((s, l) => s + l.minutes, 0);
+  const items = [...found.entries()]
+    .filter(([, r]) => (r.taskId ? labels.taskById(r.taskId) : labels.projById(r.projectId)) && !(r.projectId && !r.phaseId && phased.has(r.projectId)))
+    .map(([key, r]) => {
+      if (r.taskId) {
+        const tp = taskProject(data, r.taskId);
+        return { key, color: tp.projectId ? labels.colorOf(tp.projectId) : NAVY, label: labels.taskById(r.taskId).title || "task", sub: "Task · " + r.why, mins: minsFor(r), onStart: () => startTask(r.taskId, tp) };
+      }
+      return { key, color: labels.colorOf(r.projectId), label: labels.labProj(r.projectId), sub: [labels.phName(r.projectId, r.phaseId), r.why].filter(Boolean).join(" · "), mins: minsFor(r), onStart: () => start(r.projectId, r.phaseId) };
+    });
 
   const runColor = run ? labels.runColor(run) : null;
   const runPhase = run && !run.taskId ? labels.phName(run.projectId, run.phaseId) : "";
@@ -108,7 +115,7 @@ export default function SidebarTracker({ org, me, data: cadData, reload }) {
                 {it.mins ? <SidebarMenuBadge>{hm(it.mins)}</SidebarMenuBadge> : null}
               </SidebarMenuItem>
             ))}
-            {items.length === 0 && <div className="px-2 py-1 text-xs text-muted-foreground">Nothing to suggest yet — open the timesheet to log or start work.</div>}
+            {items.length === 0 && <div className="px-2 py-1 text-xs text-muted-foreground">Nothing scheduled or planned for you today, and no open tasks.</div>}
           </SidebarMenu>
         )}
       </div>

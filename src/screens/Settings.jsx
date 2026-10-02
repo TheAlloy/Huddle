@@ -13,12 +13,33 @@ import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CalendarDays, Plus, X } from "lucide-react";
+import { MONTHS, pad, toISO, parseISO } from "../studio/core.jsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
-export default function Settings({ org, me, members, reload }) {
+export default function Settings({ org, me, members, holidays = [], reload }) {
   const [name, setName] = useState(org.name);
   const [busy, setBusy] = useState(false);
+  // Public holidays (moved here from the retired Summary page): days that
+  // don't count against anyone's holiday allowance. team.manage edits them.
+  const manageHolidays = can(me, "team.manage");
+  const [newHoliday, setNewHoliday] = useState(null); // Date
+  const [newHolidayName, setNewHolidayName] = useState("");
+  const [holidayPickOpen, setHolidayPickOpen] = useState(false);
+  const addHoliday = async () => {
+    if (!newHoliday) return;
+    const { error } = await sb.from("public_holidays").insert({ org_id: org.id, day: toISO(newHoliday), name: newHolidayName.trim() || null });
+    if (error) { toast.add({ title: "Couldn't add the holiday: " + error.message, type: "error" }); return; }
+    setNewHoliday(null); setNewHolidayName(""); reload();
+  };
+  const removeHoliday = async (id) => {
+    const { error } = await sb.from("public_holidays").delete().eq("id", id);
+    if (error) { toast.add({ title: "Couldn't remove the holiday: " + error.message, type: "error" }); return; }
+    reload();
+  };
 
   const [inv, setInv] = useState(org.settings?.invoice || {});
 
@@ -232,6 +253,35 @@ export default function Settings({ org, me, members, reload }) {
         </label>
         <div className="mt-3"><Button onClick={saveDesktop} disabled={busy}>Save</Button></div>
       </CardContent></Card>}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Public holidays</CardTitle>
+          <CardDescription>These days don't count against anyone's holiday allowance.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <div className="flex flex-wrap gap-1.5">
+            {holidays.length === 0 && <span className="text-sm text-muted-foreground">None set yet.</span>}
+            {[...holidays].sort((a, b) => a.day.localeCompare(b.day)).map((h) => { const d = parseISO(h.day); return (
+              <Badge key={h.id} variant="secondary">
+                {pad(d.getDate())} {MONTHS[d.getMonth()]} {d.getFullYear()}{h.name ? " · " + h.name : ""}
+                {manageHolidays && <Button variant="ghost" size="icon-xs" title="Remove" onClick={() => removeHoliday(h.id)}><X /></Button>}
+              </Badge>); })}
+          </div>
+          {manageHolidays && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Popover open={holidayPickOpen} onOpenChange={setHolidayPickOpen}>
+                <PopoverTrigger render={<Button variant="outline" className="tabular-nums" />}><CalendarDays data-icon="inline-start" /> {newHoliday ? `${pad(newHoliday.getDate())} ${MONTHS[newHoliday.getMonth()]} ${newHoliday.getFullYear()}` : "Pick a date"}</PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarPicker mode="single" selected={newHoliday || undefined} onSelect={(d) => { if (d) { setNewHoliday(d); setHolidayPickOpen(false); } }} />
+                </PopoverContent>
+              </Popover>
+              <Input className="w-56" value={newHolidayName} onChange={(e) => setNewHolidayName(e.target.value)} placeholder="Name (optional), e.g. Christmas Day" onKeyDown={(e) => { if (e.key === "Enter") addHoliday(); }} />
+              <Button onClick={addHoliday} disabled={!newHoliday}><Plus data-icon="inline-start" /> Add public holiday</Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card><CardHeader><CardTitle>Your account</CardTitle></CardHeader><CardContent>
         <div className="text-sm text-muted-foreground">{me.email}</div>

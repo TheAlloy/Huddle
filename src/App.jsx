@@ -248,7 +248,7 @@ export default function App() {
       <main className="flex-1 min-h-0">
           {tab === "admin" && profile?.platform_admin ? <Admin />
             : current === "people" ? (can(me, "team.manage") ? <Team org={org} me={me} members={data.members} reload={reload} onNavigate={setTab} /> : <TeamLite members={data.members} />)
-            : current === "settings" ? <Settings org={org} me={me} members={data.members} reload={() => { loadMe(); reload(); }} />
+            : current === "settings" ? <Settings org={org} me={me} members={data.members} holidays={data.holidays} reload={() => { loadMe(); reload(); }} />
             : current === "projects" ? <Projects org={org} me={me} data={data} reload={reload} terms={terms} />
             : current === "time" ? <TimesheetV3 org={org} me={me} data={data} reload={reload} fancyHours aligned playInProject bare planning variantLabel={null} />
             : current === "schedule" ? (can(me, "schedule.view") ? <Schedule org={org} me={me} data={data} reload={reload} onNavigate={setTab} peopleFilter={peopleFilter} onPeopleFilter={setPeopleFilter} /> : <NoAccess what="the schedule" />)

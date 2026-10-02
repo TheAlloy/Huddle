@@ -86,8 +86,8 @@ export default function SidebarTracker({ org, me, data: cadData, reload }) {
   // it sits on the off-white page fill; while recording it takes the
   // project's colour.
   return (
-    <SidebarGroup>
-      <div className={`flex flex-col gap-2 rounded-lg p-2 shadow-xs ${run ? "text-white" : "border bg-background"}`} style={run ? { background: runColor } : undefined}>
+    <SidebarGroup className="min-h-0">
+      <div className={`flex min-h-0 flex-col gap-2 rounded-lg p-2 shadow-xs ${run ? "text-white" : "border bg-background"}`} style={run ? { background: runColor } : undefined}>
         <div className="flex items-center gap-1.5 px-1 whitespace-nowrap">
           <Timer className={`size-4 shrink-0 ${run ? "opacity-90" : "text-muted-foreground"}`} />
           <span className="min-w-0 truncate text-xs font-medium">{run ? "Recording" : "Tracker"}</span>
@@ -109,8 +109,9 @@ export default function SidebarTracker({ org, me, data: cadData, reload }) {
             </div>
           </>
         ) : (
-          // A long week scrolls inside the panel rather than pushing the nav away.
-          <SidebarMenu className="gap-1 max-h-72 overflow-y-auto">
+          // The list takes all the height the sidebar can spare and only
+          // scrolls once that's used up.
+          <SidebarMenu className="gap-1 min-h-0 overflow-y-auto">
             {items.map((it) => (
               <SidebarMenuItem key={it.key}>
                 <SidebarMenuButton size="lg" onClick={it.onStart} tooltip={"Start · " + it.label} className={it.mins ? "pr-14" : undefined}>

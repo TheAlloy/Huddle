@@ -18,8 +18,13 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
+// `ctx.embed` ({rs, re, period, showGrid}) renders the view inside the
+// Timesheet: no toolbar (the Timesheet owns period + people), the period
+// comes from the host, and the sections stack — the people × days grid (when
+// showGrid), phase budgets, then holidays for the selected people.
 function SummaryView(ctx) {
   const confirm = useConfirm();
+  const embed = ctx.embed || null;
   const { data, clientById, projectById, delTimeLogs, moveTimeLogs, setTimeLogTotal, addTimeLog, myMemberId, publicHolidays, addPublicHoliday, delPublicHoliday, patchMember, phaseLogged, peopleFilter, setPeople, teamList } = ctx;
   const [addFor,setAddFor]=useState(null);
   const [aProj,setAProj]=useState(""),[aPhase,setAPhase]=useState("");
@@ -51,27 +56,13 @@ function SummaryView(ctx) {
   const submitDayAdd=()=>{ const mins=parseHours(dayHours); if(!dayAdd||!dayPick.projectId||!mins) return; addTimeLog({memberId:dayAdd.mid,projectId:dayPick.projectId,phaseId:dayPick.phaseId||defaultPhase(data,dayAdd.mid,dayPick.projectId,dayAdd.day),date:dayAdd.day,minutes:mins}); setDayAdd(null); };
 
   let rs,re;
-  if(period==="day"){ rs=startOfDay(anchor); re=startOfDay(anchor); }
+  const per = embed ? embed.period : period;
+  if(embed){ rs=embed.rs; re=embed.re; }
+  else if(period==="day"){ rs=startOfDay(anchor); re=startOfDay(anchor); }
   else if(period==="week"){ rs=startOfWeekMon(anchor); re=addDays(rs,6); }
   else if(period==="month"){ rs=startOfMonth(anchor); re=endOfMonth(anchor); }
   else { let a=parseISO(cFrom), b=parseISO(cTo); if(b<a){const t=a;a=b;b=t;} rs=a; re=b; }
   const workdays=workdaysBetween(rs,re);
-  const budgetPhases=[];
-  {
-    const active=new Set();
-    for(const a of data.assignments){ if(a.kind!=="work"||!a.projectId||!a.phaseId) continue; if(parseISO(a.end)<rs||parseISO(a.start)>re) continue; active.add(a.projectId+"|"+a.phaseId); }
-    for(const l of (data.timeLogs||[])){ if(!l.projectId||!l.phaseId) continue; const d=parseISO(l.date); if(d<rs||d>re) continue; active.add(l.projectId+"|"+l.phaseId); }
-    for(const pr of data.projects){
-      if(cf!=="all" && pr.clientId!==cf) continue;
-      const cl=clientById(pr.clientId);
-      for(const ph of (pr.phases||[])){
-        if(!(ph.hours>0) || !active.has(pr.id+"|"+ph.id)) continue;
-        const loggedH=((phaseLogged||{})[pr.id+"|"+ph.id]||0)/60;
-        budgetPhases.push({pr,cl,ph,loggedH,over:loggedH-ph.hours});
-      }
-    }
-    budgetPhases.sort((a,b)=>(b.over-a.over)||String(a.pr.index).localeCompare(String(b.pr.index)));
-  }
   const visible = pfList(data.members, peopleFilter);
   const individual = visible.length===1;
   const shift=(dir)=>{
@@ -121,7 +112,7 @@ function SummaryView(ctx) {
   const todayD=startOfDay(new Date());
   const [hs,he]=holidayYearOf(todayD);
   const phSet=new Set((publicHolidays||[]).map(h=>h.day));
-  const holidayRows = data.members.map(m=>{
+  const holidayRows = (embed ? visible : data.members).map(m=>{
     const allowance=m.holidayAllowance??30; let used=0, next=null;
     for(const a of data.assignments){
       if(a.memberId!==m.id || a.kind!=="leave" || a.leaveType!=="vacation") continue;
@@ -135,8 +126,8 @@ function SummaryView(ctx) {
   });
 
   return (
-    <div className="@container/main px-4 lg:px-6 py-4 md:py-6 flex flex-col gap-4 md:gap-6">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className={embed ? "flex flex-col gap-4 md:gap-6" : "@container/main px-4 lg:px-6 py-4 md:py-6 flex flex-col gap-4 md:gap-6"}>
+      {!embed && <div className="flex flex-wrap items-center gap-2">
         <Table2 size={16} className="text-muted-foreground"/>
         {mode==="logged" ? <>
           <Button variant="outline" onClick={goToday}>Today</Button>
@@ -168,15 +159,15 @@ function SummaryView(ctx) {
             </Select>
         </> : <span className="text-sm font-medium text-foreground">Holiday year · {pad(hs.getDate())} {MONTHS[hs.getMonth()]} {hs.getFullYear()} – {pad(he.getDate())} {MONTHS[he.getMonth()]} {he.getFullYear()}</span>}
         <Button variant={mode==="holiday"?"default":"outline"} className="ml-auto" onClick={()=>setMode(mode==="holiday"?"logged":"holiday")}><Plane data-icon="inline-start"/> {mode==="holiday"?"Back to hours":"Holiday"}</Button>
-      </div>
-      {mode==="logged" ? <>
-        <div className="flex flex-wrap items-center justify-between gap-2">
+      </div>}
+      {(embed || mode==="logged") && <>
+        {!embed && <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm font-medium text-foreground">{rangeLabel}</p>
           <span className="text-xs text-muted-foreground">Logged: <span className="font-medium text-foreground">{fmtH(grandLogged/60)}h</span> <span className="text-muted-foreground">/ {fmtH(grandCap)}h</span></span>
-        </div>
-        {layout==="calendar" ? (()=>{
+        </div>}
+        {(!embed || embed.showGrid) && (layout==="calendar" ? (()=>{
           const days=[]; for(let d=new Date(rs); d<=re && days.length<62; d=addDays(d,1)) days.push(new Date(d));
-          const isMonth=period==="month";
+          const isMonth=per==="month";
           const bubblesFor=(mid,dayISO)=>{ const groups={}; (data.timeLogs||[]).forEach(l=>{ if(l.memberId!==mid||l.date!==dayISO) return; if(cf!=="all"){ const pr=projectById(l.projectId); if(l.taskId || !pr || pr.clientId!==cf) return; } const key=l.taskId?("T|"+l.taskId):((l.projectId||"none")+"|"+(l.phaseId||"")); if(!groups[key]) groups[key]={key,ids:[],mins:0,projectId:l.projectId,phaseId:l.phaseId,taskId:l.taskId}; groups[key].ids.push(l.id); groups[key].mins+=l.minutes; }); return Object.values(groups); };
           const bub=(g)=>{ if(g.taskId){ const t=(data.internalTasks||[]).find(x=>x.id===g.taskId); return {label:"Task · "+(t?t.title:"task"),color:NAVY}; } const pr=projectById(g.projectId); const cl=pr&&clientById(pr.clientId); const ph=pr&&g.phaseId&&(pr.phases||[]).find(p=>p.id===g.phaseId); return {label:(pr?pr.index:"—")+(ph?" · "+ph.name:""),color:cl?cl.color:"#64748b"}; };
           const dayAt=(x,y)=>{ const root=calBoardRef.current; if(!root) return null; const cells=root.querySelectorAll("[data-day]"); for(const el of cells){ const r=el.getBoundingClientRect(); if(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom) return {day:el.getAttribute("data-day"),mid:el.getAttribute("data-mid")}; } return null; };
@@ -319,33 +310,54 @@ function SummaryView(ctx) {
             </div>
           ))}
           {visible.length===0 && <div className="py-10 text-center text-muted-foreground text-sm">No people yet.</div>}
-        </div>}
-        {budgetPhases.length>0 && <div className="border-t border-border/60 pt-4">
-          <div className="flex items-center gap-2 mb-2 text-sm font-medium"><Clock size={15} className="text-muted-foreground"/> Phase hours — budget vs logged <span className="text-xs font-normal text-muted-foreground">(phases active in this period · totals are for the whole phase, all people)</span>{ctx.canSeeCost && <Button variant="ghost" size="sm" className="ml-auto" onClick={()=>setShowContrib(v=>!v)}>{showContrib?"Hide breakdown":"Show who's contributing"}</Button>}</div>
-          <div className="grid gap-2" style={{gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))"}}>
-            {budgetPhases.map(({pr,cl,ph,loggedH,over})=>{ const frac=Math.min(1,loggedH/ph.hours); const isOver=over>0.05; const key=pr.id+ph.id; const isOpen=showContrib&&ctx.canSeeCost;
-              const contrib=isOpen?Object.entries((data.timeLogs||[]).filter(l=>l.projectId===pr.id&&(l.phaseId||"")===ph.id).reduce((m,l)=>{ m[l.memberId]=(m[l.memberId]||0)+l.minutes; return m; },{})).map(([mid,mins])=>{ const mm=data.members.find(x=>x.id===mid); return {m:mm,mins,cost:(mm&&Number.isFinite(mm.hourlyRate))?(mins/60)*mm.hourlyRate:null}; }).sort((a,b)=>b.mins-a.mins):[];
-              const totalCost=contrib.reduce((s,c)=>s+(c.cost||0),0);
-              const fee=Number(ph.fee)>0?ph.fee:null;
-              return (<div key={key} className="border border-border rounded-lg px-3 py-2" onClick={()=>ctx.canSeeCost&&setShowContrib(v=>!v)} style={{cursor:ctx.canSeeCost?"pointer":"default"}}>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0 text-sm text-foreground truncate">{ctx.canSeeCost && <ChevronRight size={12} className="inline mr-1 text-muted-foreground" style={{transform:isOpen?"rotate(90deg)":"none"}}/>}<span className="inline-block w-2.5 h-2.5 rounded-xs mr-1.5 align-middle" style={{background:cl?cl.color:"#94a3b8"}}/>{pr.index} · {ph.name}</div>
-                  <div className={`text-xs font-medium shrink-0 ${isOver?"text-destructive":"text-muted-foreground"}`}>{fmtH(loggedH)}h / {ph.hours}h</div>
-                </div>
-                <div className="mt-1.5 h-1.5 rounded-full bg-muted overflow-hidden"><div className={`h-full rounded-full ${isOver?"bg-destructive":"bg-primary"}`} style={{width:`${frac*100}%`}}/></div>
-                <div className={`mt-1 text-xs ${isOver?"text-destructive":"text-muted-foreground"}`}>{isOver?`${fmtH(over)}h over budget`:`${fmtH(ph.hours-loggedH)}h remaining`}</div>
-                {isOpen && (fee!=null || totalCost>0) && <div className="mt-1 text-xs text-muted-foreground flex flex-wrap gap-x-3">
-                  {fee!=null && <span>Billed <b className="text-foreground">{money(fee)}</b></span>}
-                  {totalCost>0 && <span>Cost of hours <b className="text-foreground">{money(totalCost)}</b>{fee!=null && <b style={{color:totalCost>fee?"#eb5757":"#27ae60"}}> · {totalCost>fee?"over":"under"} by {money(Math.abs(fee-totalCost))}</b>}</span>}
-                </div>}
-                {isOpen && <div className="mt-2 pt-2 border-t border-border/60 space-y-1">
-                  {contrib.length===0 && <div className="text-xs text-muted-foreground">No time logged to this phase yet.</div>}
-                  {contrib.map(({m,mins,cost})=>(<div key={m?m.id:"?"} className="flex items-center gap-2 text-xs"><span className="w-2 h-2 rounded-full shrink-0" style={{background:AVATAR_BG[data.members.findIndex(x=>x.id===(m&&m.id))%AVATAR_BG.length]||"#94a3b8"}}/><span className="text-muted-foreground truncate flex-1">{m?m.name:"Unknown"}</span><span className="font-medium text-foreground w-12 text-right">{fmtH(mins/60)}h</span>{cost!=null?<span className="text-muted-foreground w-16 text-right">{money(cost)}</span>:<span className="text-muted-foreground w-16 text-right">—</span>}</div>))}
-                </div>}
-              </div>);})}
-          </div>
-        </div>}
-      </> : <>
+        </div>)}
+        {/* Project hours: every project the selected people worked on in
+            the period — hours in the period, who did them, and where the
+            project stands against its hours budget (its phase budgets added
+            up, against everything logged on it so far, by anyone). */}
+        {(()=>{
+          const ids=new Set(visible.map(m=>m.id));
+          const byProj={};
+          for(const l of (data.timeLogs||[])){
+            if(!l.projectId||!ids.has(l.memberId)) continue;
+            const d=parseISO(l.date); if(d<rs||d>re) continue;
+            if(cf!=="all"){ const pr=projectById(l.projectId); if(!pr||pr.clientId!==cf) continue; }
+            const p=byProj[l.projectId]=byProj[l.projectId]||{mins:0,who:{}};
+            p.mins+=l.minutes; p.who[l.memberId]=(p.who[l.memberId]||0)+l.minutes;
+          }
+          const cards=Object.entries(byProj).map(([pid,p])=>{
+            const pr=projectById(pid); if(!pr) return null;
+            const budgetH=(pr.phases||[]).reduce((s,ph)=>s+(Number(ph.hours)>0?Number(ph.hours):0),0);
+            const usedH=(phaseLogged&&Object.entries(phaseLogged).filter(([k])=>k.startsWith(pid+"|")).reduce((s,[,m])=>s+m,0)||0)/60;
+            return {pid,pr,cl:clientById(pr.clientId),mins:p.mins,who:Object.entries(p.who).sort((a,b)=>b[1]-a[1]),budgetH,usedH};
+          }).filter(Boolean).sort((a,b)=>b.mins-a.mins);
+          if(!cards.length) return null;
+          return (<div className={embed ? undefined : "border-t border-border/60 pt-4"}>
+            <div className="flex items-center gap-2 mb-2 text-sm font-medium"><Clock size={15} className="text-muted-foreground"/> Project hours <span className="text-xs font-normal text-muted-foreground">(worked in this period · budget is the whole project, everyone's time)</span></div>
+            <div className="grid gap-2" style={{gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))"}}>
+              {cards.map(({pid,pr,cl,mins,who,budgetH,usedH})=>{ const has=budgetH>0; const over=usedH-budgetH; const isOver=has&&over>0.05; const frac=has?Math.min(1,usedH/budgetH):0;
+                return (<div key={pid} className="border border-border rounded-lg px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 text-sm text-foreground truncate"><span className="inline-block w-2.5 h-2.5 rounded-xs mr-1.5 align-middle" style={{background:cl?cl.color:"#94a3b8"}}/>{cl?cl.name+" · ":""}{pr.index} {pr.name}</div>
+                    <div className="text-sm font-medium tabular-nums shrink-0">{fmtH(mins/60)}h</div>
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    {who.map(([mid,m])=>{ const i=data.members.findIndex(x=>x.id===mid); const mm=data.members[i]; return (
+                      <span key={mid} className="inline-flex items-center gap-1"><span className="size-2 rounded-full shrink-0" style={{background:AVATAR_BG[(i<0?0:i)%AVATAR_BG.length]}}/>{mm?mm.name:"Unknown"} <span className="font-medium text-foreground tabular-nums">{fmtH(m/60)}h</span></span>); })}
+                  </div>
+                  {has && <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden"><div className={`h-full rounded-full ${isOver?"bg-destructive":"bg-primary"}`} style={{width:`${frac*100}%`}}/></div>}
+                  <div className={`mt-1 text-xs ${isOver?"text-destructive":"text-muted-foreground"}`}>
+                    {!has ? "Remaining: N/A — no hours budget set"
+                      : isOver ? `${fmtH(over)}h over budget · ${fmtH(usedH)}h of ${fmtH(budgetH)}h`
+                      : `${fmtH(budgetH-usedH)}h remaining · ${fmtH(usedH)}h of ${fmtH(budgetH)}h`}
+                  </div>
+                </div>);})}
+            </div>
+          </div>);
+        })()}
+      </>}
+      {(embed || mode==="holiday") && <>
+        {embed && <div className="flex items-center gap-2 text-sm font-medium"><Plane size={15} className="text-muted-foreground"/> Holidays <span className="text-xs font-normal text-muted-foreground">(holiday year {pad(hs.getDate())} {MONTHS[hs.getMonth()]} {hs.getFullYear()} – {pad(he.getDate())} {MONTHS[he.getMonth()]} {he.getFullYear()})</span></div>}
         <div className="grid gap-4" style={{gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))"}}>
           {holidayRows.map(({m,allowance,used,remaining,next})=>{ const ns=next&&parseISO(next.start), ne=next&&parseISO(next.end); const onNow=next&&ns<=todayD&&ne>=todayD;
             return (
@@ -368,7 +380,7 @@ function SummaryView(ctx) {
               </div>
             </div>);})}
         </div>
-        <div className="border-t border-border/60 pt-3">
+        {!embed && <div className="border-t border-border/60 pt-3">
           <div className="flex items-center gap-2 mb-2 text-sm font-medium"><Calendar size={14} className="text-muted-foreground"/> Public holidays <span className="text-xs font-normal text-muted-foreground">(these days don't count against anyone's allowance)</span></div>
           <div className="flex flex-wrap gap-1.5 mb-2">
             {(publicHolidays||[]).length===0 && <span className="text-xs text-muted-foreground">None set yet.</span>}
@@ -384,10 +396,27 @@ function SummaryView(ctx) {
             </Popover>
             <Button onClick={()=>{ if(newPH){ addPublicHoliday(newPH,""); setNewPH(""); } }}>Add public holiday</Button>
           </div>
-        </div>
+        </div>}
       </>}
     </div>
   );
+}
+
+// Everything SummaryView needs, wired to the database with the viewer's
+// permissions. `selfOnly` (the Timesheet looking at just you) lets anyone who
+// tracks time edit their own entries without summary.edit.
+function useSummaryCtx({ org, me, cadData, reload, peopleFilter, setPeople, selfOnly = false }){
+  const data=useMemo(()=>mapData(cadData),[cadData]);
+  const H=useMemo(()=>makeHandlers(org,reload,cadData),[org,cadData]); // eslint-disable-line
+  const clientById=useCallback((id)=>data.clients.find(c=>c.id===id),[data.clients]);
+  const projectById=useCallback((id)=>data.projects.find(p=>p.id===id),[data.projects]);
+  const teamList=useMemo(()=>[...new Set(data.members.flatMap(m=>m.teams||[]))].sort(),[data.members]);
+  const phaseLogged=useMemo(()=>{ const map={}; data.timeLogs.forEach(l=>{ if(l.projectId){ const k=l.projectId+"|"+(l.phaseId||""); map[k]=(map[k]||0)+l.minutes; } }); return map; },[data.timeLogs]);
+  const canEditAny = can(me,"summary.edit") || (selfOnly && can(me,"time.track"));
+  return { data, clientById, projectById, phaseLogged, myMemberId:me.id, teamList, peopleFilter, setPeople, publicHolidays:data.publicHolidays,
+    canSeeCost: can(me,"billing.view"), canEdit: canEditAny,
+    delTimeLogs:canEditAny?H.delTimeLogs:(()=>{}), moveTimeLogs:canEditAny?H.moveTimeLogs:(()=>{}), setTimeLogTotal:canEditAny?H.setTimeLogTotal:(()=>{}), addTimeLog:canEditAny?H.addTimeLog:(()=>{}),
+    patchMember: can(me,"team.manage")?H.patchMember:(()=>{}), addPublicHoliday:can(me,"team.manage")?H.addPublicHoliday:(()=>{}), delPublicHoliday:can(me,"team.manage")?H.delPublicHoliday:(()=>{}) };
 }
 
 export default function Summary({ org, me, data: cadData, reload, peopleFilter: pfProp, onPeopleFilter }){
@@ -395,18 +424,16 @@ export default function Summary({ org, me, data: cadData, reload, peopleFilter: 
   const [pfLocal,setPfLocal]=useState(()=>[me.id]);
   const peopleFilter = pfProp!==undefined ? pfProp : pfLocal;
   const setPeopleFilter = onPeopleFilter || setPfLocal;
-  const data=useMemo(()=>mapData(cadData),[cadData]);
-  const H=useMemo(()=>makeHandlers(org,reload,cadData),[org,cadData]); // eslint-disable-line
-  const clientById=useCallback((id)=>data.clients.find(c=>c.id===id),[data.clients]);
-  const projectById=useCallback((id)=>data.projects.find(p=>p.id===id),[data.projects]);
-  const teamList=useMemo(()=>[...new Set(data.members.flatMap(m=>m.teams||[]))].sort(),[data.members]);
-  const phaseLogged=useMemo(()=>{ const map={}; data.timeLogs.forEach(l=>{ if(l.projectId){ const k=l.projectId+"|"+(l.phaseId||""); map[k]=(map[k]||0)+l.minutes; } }); return map; },[data.timeLogs]);
+  const ctx=useSummaryCtx({ org, me, cadData, reload, peopleFilter, setPeople:(v)=>setPeopleFilter(v) });
   if(!can(me,"summary.view")) return <NoAccess what="summaries" />;
-  const canEditAny = can(me,"summary.edit");
-  const setPeople=(v)=>setPeopleFilter(v);
-  const ctx={ data, clientById, projectById, phaseLogged, myMemberId:me.id, teamList, peopleFilter, setPeople, publicHolidays:data.publicHolidays,
-    canSeeCost: can(me,"billing.view"), canEdit: canEditAny,
-    delTimeLogs:canEditAny?H.delTimeLogs:(()=>{}), moveTimeLogs:canEditAny?H.moveTimeLogs:(()=>{}), setTimeLogTotal:canEditAny?H.setTimeLogTotal:(()=>{}), addTimeLog:canEditAny?H.addTimeLog:(()=>{}),
-    patchMember: can(me,"team.manage")?H.patchMember:(()=>{}), addPublicHoliday:can(me,"team.manage")?H.addPublicHoliday:(()=>{}), delPublicHoliday:can(me,"team.manage")?H.delPublicHoliday:(()=>{}) };
   return <ScrollArea className="h-full"><SummaryView {...ctx} /></ScrollArea>;
+}
+
+// Summary's sections for the Timesheet's lower half: the people × days grid
+// (showGrid — used for month/custom ranges and several people), phase
+// budgets, and holidays, for the Timesheet's own period and people.
+export function SummaryPanels({ org, me, data: cadData, reload, rs, re, period, peopleFilter, showGrid = false }){
+  const selfOnly = Array.isArray(peopleFilter) && peopleFilter.length===1 && peopleFilter[0]===me.id;
+  const ctx=useSummaryCtx({ org, me, cadData, reload, peopleFilter, setPeople:()=>{}, selfOnly });
+  return <SummaryView {...ctx} embed={{ rs, re, period, showGrid }} />;
 }

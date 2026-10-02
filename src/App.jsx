@@ -204,7 +204,7 @@ export default function App() {
     // aligned day columns + calendar planning). The other lab variants (V1–V3.2)
     // are off the menu; their code stays in src/screens/timesheet-lab for now.
     { key: "time", label: "Timesheet", icon: Clock, perm: "time.track" },
-    { key: "summary", label: "Summary", icon: Table2, perm: "summary.view" }, // the manager's team overview — own UX track
+    { key: "summary", label: "Summary", icon: Table2, perm: "summary.view" }, // off the menu — its sections now live in the Timesheet (people picker, budgets, holidays)
     { key: "tasks", label: "Tasks", icon: LayoutGrid, perm: "tasks.view" },
     { key: "projects", label: terms.navProjects, icon: FolderKanban, perm: "projects.manage" },
     { key: "billing", label: "Billing", icon: Landmark, perm: "billing.view" },
@@ -224,7 +224,7 @@ export default function App() {
         teams={memberships.map(m => ({ id: m.org_id, name: m.organizations?.name || "Studio", plan: planLabel(m.organizations?.plan) }))}
         activeTeamId={active.org_id}
         onPickTeam={(id) => { setOrgId(id); localStorage.setItem("cadence_org", id); }}
-        nav={visible.filter(n => ["schedule", "time", "summary", "tasks"].includes(n.key)).map(navItem)}
+        nav={visible.filter(n => ["schedule", "time", "tasks"].includes(n.key)).map(navItem)}
         groups={[{ label: "Manage", items: visible.filter(n => ["projects", "people"].includes(n.key)).map(navItem) }]} // Billing hidden from the nav for now — screen still exists
         action={{ title: "Leave feedback", icon: <Gift />, onSelect: () => setFeedbackOpen(true) }}
         secondary={[

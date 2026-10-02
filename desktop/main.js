@@ -37,6 +37,12 @@ ipcMain.on("huddle-close-choice", (_e, choice) => {
 
 ipcMain.on("huddle-retry", () => { if (win) win.loadURL(APP_URL); });
 
+ipcMain.on("huddle-focus-main", () => {
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.show(); win.focus();
+});
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1280, height: 860, minWidth: 900, minHeight: 600,
@@ -62,7 +68,11 @@ function createWindow() {
       return { action: "allow", overrideBrowserWindowOptions: { width: 340, height: 120, alwaysOnTop: true, minimizable: false, maximizable: false, autoHideMenuBar: true, title: "Time Tracker", backgroundColor: "#1f2d4e" } };
     }
     try { const u = new URL(url); const base = new URL(APP_URL); if (u.host === base.host) { win.loadURL(url); return { action: "deny" }; } } catch (_) {}
-    shell.openExternal(url); return { action: "deny" };
+    // Only real web/mail links go to the system; anything else (e.g. the
+    // about:blank of a refused Picture-in-Picture request) is just dropped —
+    // handing it to Windows raised a "Get an app to open this link" dialog.
+    if (/^(https?|mailto):/i.test(url)) shell.openExternal(url);
+    return { action: "deny" };
   });
 
   // Close confirmation (admin can turn off in Settings → sets huddle_warn_close = "0").

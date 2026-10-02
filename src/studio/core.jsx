@@ -85,7 +85,16 @@ export function openFloatingTimer({ getTop, getElapsed, onStop }){
     const tEl=d.getElementById("pt"), lEl=d.getElementById("pl");
     const paint=()=>{ try{ lEl.textContent=getTop(); tEl.textContent=getElapsed(); }catch(_){} };
     paint();
-    d.getElementById("ps").addEventListener("click",()=>{ try{onStop();}catch(_){} try{win.close();}catch(_){} try{window.focus();}catch(_){} });
+    // Stop & log hands the person back to Huddle: the app switches to the
+    // Timesheet (App listens for "huddle:open-tab") and the main window comes
+    // forward — via the desktop app's bridge where present (Windows won't let
+    // a page raise its own window), else a best-effort window.focus().
+    d.getElementById("ps").addEventListener("click",()=>{
+      try{onStop();}catch(_){}
+      try{win.close();}catch(_){}
+      try{ window.dispatchEvent(new CustomEvent("huddle:open-tab",{detail:"time"})); }catch(_){}
+      try{ if(window.huddle&&window.huddle.focusMain) window.huddle.focusMain(); else window.focus(); }catch(_){}
+    });
     const int=setInterval(paint,1000);
     const done=()=>{ try{clearInterval(int);}catch(_){} };
     win.addEventListener("pagehide",done); win.addEventListener("beforeunload",done);
@@ -98,8 +107,11 @@ export function openFloatingTimer({ getTop, getElapsed, onStop }){
   };
   // Document PiP exists in embedded Chromium (Electron, in-app browsers) but
   // rejects there ("no window") — fall back to a plain popup rather than
-  // failing silently.
-  if(typeof window!=="undefined" && window.documentPictureInPicture){
+  // failing silently. The desktop app skips the attempt altogether: its
+  // refused PiP request reached Windows as an "about:" link and raised a
+  // "Get an app to open this link" dialog.
+  const inDesktopApp=typeof navigator!=="undefined" && /Electron\//.test(navigator.userAgent||"");
+  if(typeof window!=="undefined" && window.documentPictureInPicture && !inDesktopApp){
     return window.documentPictureInPicture.requestWindow({width:340,height:64}).then(wire).catch(()=>popup());
   }
   return Promise.resolve(popup());

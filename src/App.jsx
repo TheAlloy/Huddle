@@ -132,6 +132,13 @@ export default function App() {
   }, [active]);
   useEffect(() => { reload(); }, [reload]);
 
+  // The pop-out timer's Stop & log asks to show a tab (the Timesheet).
+  useEffect(() => {
+    const open = (e) => { if (e.detail) setTab(e.detail); };
+    window.addEventListener("huddle:open-tab", open);
+    return () => window.removeEventListener("huddle:open-tab", open);
+  }, []);
+
   // Mirror admin-controlled desktop warning prefs to localStorage so the desktop app can read them.
   useEffect(() => {
     const dw = org?.settings?.desktopWarnings || {};

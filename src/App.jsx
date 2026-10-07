@@ -71,6 +71,12 @@ export default function App() {
     // studio as owner) — once per user; a no-op for everyone else.
     if (joinTried.current !== uid) {
       joinTried.current = uid;
+      // Open invites to this email are accepted on sign-in (link or not),
+      // and the person lands in the team that invited them.
+      try {
+        const { data: invited } = await sb.rpc("accept_my_invites");
+        if (invited) { setOrgId(invited); localStorage.setItem("cadence_org", invited); }
+      } catch (_) {}
       try {
         const { data: joined } = await sb.rpc("join_domain_org");
         if (joined && !localStorage.getItem("cadence_org")) { setOrgId(joined); localStorage.setItem("cadence_org", joined); }

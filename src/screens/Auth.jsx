@@ -10,10 +10,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Eye, EyeOff, Monitor, Download } from "lucide-react";
 
-// Company domains that sign in with an emailed link instead of a password —
-// the database (org_domains / join_domain_org) then drops them straight into
-// their studio. This list only shapes the form; the server decides access.
-const LINK_DOMAINS = ["thealloy.com"];
+// Sign-in is just email + password. After signing in the app joins the
+// person to any team that invited their email (accept_my_invites) or that
+// owns their email domain (join_domain_org); otherwise they set up a studio.
 
 // Where people get the desktop app (the newest GitHub release's installers).
 const DESKTOP_DOWNLOAD_URL = "https://github.com/TheAlloy/Huddle/releases/latest";
@@ -41,13 +40,11 @@ export default function Auth({ inviteToken, inviteError, productName }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
-  const [usePassword, setUsePassword] = useState(false);
   const [legal, setLegal] = useState(null); // "terms" | "privacy"
   // Invite landing: who the invite is for and which studio (invite_info RPC).
   // null = not loaded / not an invite; {email, orgName}; "invalid".
   const [invite, setInvite] = useState(null);
   const [inviteExisting, setInviteExisting] = useState(false); // invited email already has an account
-  const linkMode = !invite && !DEMO && !usePassword && LINK_DOMAINS.includes(email.trim().toLowerCase().split("@")[1] || "");
 
   useEffect(() => {
     if (!inviteToken || DEMO) return;
@@ -62,21 +59,6 @@ export default function Auth({ inviteToken, inviteError, productName }) {
     return () => { live = false; };
   }, [inviteToken]);
   const inviteReady = invite && invite !== "invalid";
-
-  // Passwordless: one link that signs in (creating the account on first use).
-  const sendLink = async () => {
-    setErr(""); setMsg("");
-    setBusy(true);
-    try {
-      const { error } = await sb.auth.signInWithOtp({
-        email: email.trim(),
-        options: { shouldCreateUser: true, data: name.trim() ? { full_name: name.trim() } : undefined, emailRedirectTo: window.location.origin + window.location.search },
-      });
-      if (error) throw error;
-      setMsg("Check your inbox — the link signs you straight in to your team.");
-    } catch (e) { setErr(e?.message || "Couldn't send the sign-in link. Please try again."); }
-    setBusy(false);
-  };
 
   // Invited: the emailed link proves the address, so the server creates the
   // account already confirmed; then we sign straight in and App accepts the
@@ -111,7 +93,7 @@ export default function Auth({ inviteToken, inviteError, productName }) {
           options: { data: { full_name: name.trim() }, emailRedirectTo: window.location.origin + window.location.search },
         });
         if (error) throw error;
-        setMsg("Check your email to confirm your address, then sign in.");
+        setMsg("Check your email to confirm your address, then sign in. If a team invited this email, you'll go straight into it.");
         setMode("signin");
       } else if (mode === "signin") {
         const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password });
@@ -204,34 +186,22 @@ export default function Auth({ inviteToken, inviteError, productName }) {
               <Alert variant="destructive"><AlertDescription>{inviteError}</AlertDescription></Alert>
             )}
 
-            {mode === "signup" && !linkMode && (
+            {mode === "signup" && (
               <Field><FieldLabel>Your name</FieldLabel><Input value={name} onChange={e => setName(e.target.value)} placeholder="Alex Dangerfield" /></Field>
             )}
-            <Field><FieldLabel>Work email</FieldLabel><Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@studio.com" autoComplete="email"
-              onKeyDown={e => e.key === "Enter" && linkMode && sendLink()} /></Field>
-            {linkMode ? (
-              <Field><FieldLabel>Your name</FieldLabel>
-                <Input value={name} onChange={e => setName(e.target.value)} placeholder="Alex Dangerfield" onKeyDown={e => e.key === "Enter" && sendLink()} />
-                <FieldDescription>First time here? Add your name so your team knows who you are.</FieldDescription>
-              </Field>
-            ) : (
-              <Field><FieldLabel>Password</FieldLabel>{passwordField(submit, mode === "signup")}</Field>
-            )}
+            <Field><FieldLabel>Work email</FieldLabel><Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@studio.com" autoComplete="email" /></Field>
+            <Field><FieldLabel>Password</FieldLabel>{passwordField(submit, mode === "signup")}</Field>
 
             {err && <Alert variant="destructive"><AlertDescription>{err}</AlertDescription></Alert>}
             {msg && <Alert><AlertDescription>{msg}</AlertDescription></Alert>}
 
-            {linkMode
-              ? <Button className="w-full" onClick={sendLink} disabled={busy}>{busy ? "Please wait…" : "Email me a sign-in link"}</Button>
-              : <Button className="w-full" onClick={submit} disabled={busy}>
-                  {busy ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}
-                </Button>}
+            <Button className="w-full" onClick={submit} disabled={busy}>
+              {busy ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}
+            </Button>
           </FieldGroup>
 
           <div className="mt-4 text-center text-xs text-muted-foreground">
-            {linkMode ? (
-              <button className="text-muted-foreground hover:text-foreground" onClick={() => { setUsePassword(true); setErr(""); setMsg(""); }}>Use a password instead</button>
-            ) : mode === "signin" ? (
+            {mode === "signin" ? (
               <>New here? <button className="font-medium text-foreground underline underline-offset-4" onClick={() => { setMode("signup"); setErr(""); }}>Create an account</button>
                 <div className="mt-1"><button className="text-muted-foreground hover:text-foreground" onClick={reset}>Forgot password?</button></div></>
             ) : (

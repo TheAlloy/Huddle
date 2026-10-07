@@ -303,6 +303,20 @@ export function createDemoClient() {
       inv.accepted_at = nowISO();
       return { data: inv.org_id, error: null };
     }
+    if (name === "accept_my_invites") {
+      // Mirrors the server: open invites to the signed-in email join their
+      // teams. Demo addresses count as confirmed.
+      if (!session) return { data: null, error: null };
+      const em = String(session.user.email || "").toLowerCase();
+      let joined = null;
+      db.invites.filter(i => !i.accepted_at && String(i.email).toLowerCase() === em).forEach(inv => {
+        const existing = db.memberships.find(m => m.org_id === inv.org_id && m.user_id === session.user.id);
+        if (existing) Object.assign(existing, { status: "active", role: inv.role, permissions: inv.permissions || [] });
+        else db.memberships.push({ id: uid(), org_id: inv.org_id, user_id: session.user.id, email: session.user.email, display_name: session.user.user_metadata.full_name || null, role: inv.role, permissions: inv.permissions || [], status: "active", job_title: null, daily_hours: 8, holiday_allowance: 30, hourly_rate: null, teams: null, created_at: nowISO() });
+        inv.accepted_at = nowISO(); joined = inv.org_id;
+      });
+      return { data: joined, error: null };
+    }
     if (name === "join_domain_org") {
       // Mirrors the server: a listed company domain joins its studio (here, the
       // seeded one) as owner; everyone else gets null. Demo addresses count as confirmed.

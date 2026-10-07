@@ -15,7 +15,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardHeader, CardTitle, CardAction, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
-import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
 import { toast } from "@/components/ui/toast";
 
 const CLIENT_COLORS = ["#2f80ed", "#9b51e0", "#16a0a0", "#eb5757", "#27ae60", "#f2994a", "#2d9cdb", "#eb5757", "#6b7a99", "#b5179e"];
@@ -154,14 +153,14 @@ function ClientModal({ org, client, sectors = [], onClose, onSaved }) {
   return (<Dialog open onOpenChange={(o) => { if (!o) (onClose)?.(); }}><DialogContent className="sm:max-w-lg max-h-[90svh] overflow-y-auto"><DialogHeader><DialogTitle>{client ? "Edit client" : "Add client"}</DialogTitle></DialogHeader>
     <FieldGroup>
     <Field><FieldLabel>Client name</FieldLabel><Input value={name} onChange={e => setName(e.target.value)} autoFocus /></Field>
+    {/* A plain field (a type-ahead would throw away a brand-new sector name
+        on blur/Enter), with the sectors already in use one click away. */}
     <Field><FieldLabel>Sector (optional)</FieldLabel>
-      <Combobox items={sectors} inputValue={sector} onInputValueChange={setSector}>
-        <ComboboxInput placeholder="e.g. the kind of work they bring" />
-        <ComboboxContent>
-          <ComboboxEmpty>No sectors yet — type to create one.</ComboboxEmpty>
-          <ComboboxList>{(item) => <ComboboxItem key={item} value={item}>{item}</ComboboxItem>}</ComboboxList>
-        </ComboboxContent>
-      </Combobox>
+      <Input value={sector} onChange={e => setSector(e.target.value)} placeholder="Type a new sector, or pick one below"
+        onKeyDown={e => { if (e.key === "Enter" && name.trim()) save(); }} />
+      {sectors.length > 0 && <div className="flex flex-wrap gap-1.5">
+        {sectors.map(s => <Button key={s} type="button" size="xs" variant={sector.trim() === s ? "secondary" : "outline"} onClick={() => setSector(sector.trim() === s ? "" : s)}>{s}</Button>)}
+      </div>}
       <FieldDescription>Groups your clients — Projects below are shown by sector.</FieldDescription>
     </Field>
     <Field><FieldLabel>Colour</FieldLabel><div className="flex flex-wrap gap-2">{CLIENT_COLORS.map(c => <button key={c} onClick={() => setColor(c)} className="w-8 h-8 rounded-lg" style={{ background: c, outline: color === c ? "2px solid var(--ring)" : "none", outlineOffset: 2 }} />)}</div></Field>

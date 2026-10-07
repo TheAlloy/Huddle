@@ -40,7 +40,7 @@ export default function App() {
   const [orgId, setOrgId] = useState(() => localStorage.getItem("cadence_org") || null);
   const [org, setOrg] = useState(null);
   const [data, setData] = useState(null);
-  const [tab, setTab] = useState("schedule");
+  const [tab, setTab] = useState("time");
   const [peopleFilter, setPeopleFilter] = useState("all");
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [err, setErr] = useState("");
@@ -153,8 +153,9 @@ export default function App() {
   useEffect(() => {
     if (didInitTab.current || !active) return;
     didInitTab.current = true;
-    const senior = ["owner", "admin", "manager", "finance"].includes(active.role) || can(active, "billing.view") || can(active, "team.manage") || can(active, "schedule.edit");
-    setTab(senior ? "schedule" : (can(active, "time.track") ? "time" : "schedule"));
+    // Everyone opens on the Timesheet; only roles that can't track time land
+    // on the Schedule.
+    setTab(can(active, "time.track") ? "time" : "schedule");
   }, [active]);
 
   // Subscription gate: verify the active studio has a live subscription (checks Stripe if our record is stale).

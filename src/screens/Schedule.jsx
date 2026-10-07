@@ -840,11 +840,13 @@ export default function Schedule({ org, me, data: cadData, reload, peopleFilter:
         </div>
       </div>
 
-      {/* Over budget: projects whose logged hours have overrun their hours
+      <div className="flex-1 min-h-0"><TimelineBoard {...ctx} /></div>
+
+      {/* Over budget (below the board): projects whose logged hours have overrun their hours
           budget (phase budgets added up) or with any single phase over —
           worst first. Collapsible; the choice is remembered per person. */}
       {overruns.length > 0 && (
-        <div className="shrink-0 border-b border-border bg-card px-3 py-2">
+        <div className="shrink-0 border-t border-border bg-card px-3 py-2">
           <button className="flex items-center gap-2 text-sm font-medium" onClick={() => setOverOpen((o) => { try { localStorage.setItem("huddle_overbudget_open", o ? "0" : "1"); } catch (_) {} return !o; })}>
             <ChevronRight size={14} className="text-muted-foreground" style={{ transform: overOpen ? "rotate(90deg)" : "none", transition: "transform .15s" }} />
             <AlertTriangle size={15} className="text-destructive" /> Over budget <Badge variant="destructive">{overruns.length}</Badge>
@@ -867,8 +869,6 @@ export default function Schedule({ org, me, data: cadData, reload, peopleFilter:
           )}
         </div>
       )}
-
-      <div className="flex-1 min-h-0"><TimelineBoard {...ctx} /></div>
 
       <div className="shrink-0 flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 bg-card border-x border-b border-border text-xs text-muted-foreground">
         <span className="font-medium text-muted-foreground">Clients:</span>

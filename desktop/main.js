@@ -106,13 +106,15 @@ try {
 } catch (_) {}
 
 // Turn a huddle:// link into the https page to load.
-//   huddle://open?url=<encoded https url>   -> that url (used for auth/reset links)
+//   huddle://open?url=<encoded https url>   -> that url, if it's on APP_URL's host (invite pages)
 //   huddle://<path>                          -> APP_URL/<path>
 function deepLinkToUrl(link) {
   try {
     const u = new URL(link);
     const target = u.searchParams.get("url");
-    if (target) return target;
+    // Only Huddle's own pages (invites, sign-in links) may be loaded into the
+    // app window from a link — anything else is ignored.
+    if (target) { const t = new URL(target); return t.host === new URL(APP_URL).host && t.protocol === "https:" ? target : null; }
     const rest = link.replace(/^huddle:\/\//i, "");
     return APP_URL.replace(/\/$/, "") + "/" + rest;
   } catch (_) { return null; }

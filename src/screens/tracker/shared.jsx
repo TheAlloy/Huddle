@@ -10,7 +10,7 @@
 // stub makes that a silent no-op in demo mode.
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { sb } from "../../lib/supabase.js";
-import { NAVY, toISO, startOfDay, hm, fmtClock, lsGet, lsSet, mapData, makeHandlers, openFloatingTimer } from "../../studio/core.jsx";
+import { NAVY, toISO, startOfDay, hm, fmtClock, lsGet, lsSet, mapData, makeHandlers, openFloatingTimer, taskAssignees, taskOpenOn } from "../../studio/core.jsx";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
@@ -178,7 +178,7 @@ export function todayTracking(data, meId, todayISO) {
   const internalAsgToday = data.assignments.filter((a) => a.memberId === meId && a.kind === "internal" && a.taskId && a.start <= todayISO && a.end >= todayISO);
   const asgTaskIds = new Set(internalAsgToday.map((a) => a.taskId));
   internalAsgToday.forEach((a) => { const k = "task:" + a.taskId; if (seen.has(k)) return; seen.add(k); bubbles.push({ taskId: a.taskId, internal: true }); });
-  const myTasks = (data.internalTasks || []).filter((t) => t.assigneeId === meId && t.status !== "done" && !asgTaskIds.has(t.id));
+  const myTasks = (data.internalTasks || []).filter((t) => taskAssignees(t).includes(meId) && taskOpenOn(t, todayISO) && !asgTaskIds.has(t.id));
   const todayEntries = (data.timeLogs || []).filter((l) => l.memberId === meId && l.date === todayISO);
   const minsFor = (pid, phid) => todayEntries.filter((l) => !l.taskId && l.projectId === pid && (l.phaseId || "") === (phid || "")).reduce((s, l) => s + l.minutes, 0);
   const minsForTask = (tid) => todayEntries.filter((l) => l.taskId === tid).reduce((s, l) => s + l.minutes, 0);

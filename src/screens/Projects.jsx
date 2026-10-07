@@ -15,6 +15,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardHeader, CardTitle, CardAction, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
+import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
+import { toast } from "@/components/ui/toast";
 
 const CLIENT_COLORS = ["#2f80ed", "#9b51e0", "#16a0a0", "#eb5757", "#27ae60", "#f2994a", "#2d9cdb", "#eb5757", "#6b7a99", "#b5179e"];
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -28,34 +30,78 @@ export default function Projects({ org, me, data, reload, terms }) {
 
   const clientById = (id) => data.clients.find(c => c.id === id);
 
+  // Sectors group clients (a client's free-text `sector`); projects follow
+  // their client's sector. Only shown once at least one client has one.
+  const sectorOf = (c) => (c && typeof c.sector === "string" && c.sector.trim()) || "";
+  const sectors = [...new Set(data.clients.map(sectorOf).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const hasSectors = sectors.length > 0;
+  const sectorList = hasSectors ? [...sectors, ""] : [""];
+  const sectorName = (s) => s || "No sector";
+  const sectorColor = (s) => s ? `var(--chart-${(sectors.indexOf(s) % 4) + 2})` : "var(--chart-1)";
+  const projectsIn = (s) => data.projects.filter(p => sectorOf(clientById(p.client_id)) === s);
+
+  // Client → projects groups for one slice of projects.
+  const clientGroups = (projects) => {
+    const byClient = {};
+    const groups = [];
+    data.clients.slice().sort((a, b) => a.name.localeCompare(b.name)).forEach(c => { byClient[c.id] = { client: c, projects: [] }; groups.push(byClient[c.id]); });
+    const noClient = { client: null, projects: [] };
+    projects.forEach(p => { (byClient[p.client_id] || noClient).projects.push(p); });
+    if (noClient.projects.length) groups.push(noClient);
+    return groups.filter(g => g.projects.length);
+  };
+
   return (
     <ScrollArea className="h-full"><div className="@container/main px-4 lg:px-6 py-4 md:py-6 flex flex-col gap-4 md:gap-6">
       <h2 className="text-base font-medium text-foreground">{T.clients} &amp; {T.projectsLower||"projects"}</h2>
 
       <Card><CardHeader><CardTitle>{T.clients}</CardTitle><CardAction>{mayClients && <Button onClick={() => setModal({ type: "client" })}><Plus data-icon="inline-start" /> Add {T.clientLower}</Button>}</CardAction></CardHeader><CardContent>
         {data.clients.length === 0 && <Empty><EmptyHeader><EmptyTitle>{"No "+T.clientsLower+" yet"}</EmptyTitle><EmptyDescription>Add your first {T.clientLower} to start booking work.</EmptyDescription></EmptyHeader></Empty>}
-        <div className="divide-y divide-border/60">
-          {data.clients.map(c => (
-            <div key={c.id} className="flex items-center gap-3 py-2 text-sm group">
-              <span className="w-3.5 h-3.5 rounded-xs" style={{ background: c.color || "#94a3b8" }} />
-              <span className="text-foreground">{c.name}</span>
-              <span className="ml-auto text-xs text-muted-foreground">{c.payment_terms || 30} day terms</span>
-              {mayClients && <Button variant="ghost" size="icon-sm" title="Edit client" onClick={() => setModal({ type: "client", c })}><Pencil /></Button>}
+        {sectorList.map(s => {
+          const list = data.clients.filter(c => sectorOf(c) === s);
+          if (!list.length) return null;
+          return (<div key={s || "none"} className="mb-3 last:mb-0">
+            {hasSectors && <div className="flex items-center gap-2 py-1 text-xs font-medium text-muted-foreground"><span className="size-2.5 rounded-full" style={{ background: sectorColor(s) }} />{sectorName(s)} · {list.length} {list.length === 1 ? T.clientLower : (T.clientsLower || "clients")}</div>}
+            <div className="divide-y divide-border/60">
+              {list.map(c => (
+                <div key={c.id} className="flex items-center gap-3 py-2 text-sm group">
+                  <span className="w-3.5 h-3.5 rounded-xs" style={{ background: c.color || "#94a3b8" }} />
+                  <span className="text-foreground">{c.name}</span>
+                  <span className="ml-auto text-xs text-muted-foreground">{c.payment_terms || 30} day terms</span>
+                  {mayClients && <Button variant="ghost" size="icon-sm" title="Edit client" onClick={() => setModal({ type: "client", c })}><Pencil /></Button>}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>);
+        })}
+        {mayClients && data.clients.length > 0 && !hasSectors && <p className="mt-2 text-xs text-muted-foreground">Tip: give clients a sector (e.g. the kind of work they bring) to see your projects grouped by sector below.</p>}
       </CardContent></Card>
 
       <Card><CardHeader><CardTitle>{T.projects}</CardTitle><CardAction>{mayProjects && <Button onClick={() => setModal({ type: "project" })}><Plus data-icon="inline-start" /> Add {T.projectLower||"project"}</Button>}</CardAction></CardHeader><CardContent>
         {data.projects.length === 0 && <Empty><EmptyHeader><EmptyTitle>{"No "+(T.projectsLower||"projects")+" yet"}</EmptyTitle><EmptyDescription>{T.projects} hold the phases you schedule and bill against.</EmptyDescription></EmptyHeader></Empty>}
+        {/* The spread: how projects divide across sectors. */}
+        {hasSectors && data.projects.length > 0 && (
+          <div className="mb-5">
+            <div className="flex h-2.5 overflow-hidden rounded-full bg-muted">
+              {sectorList.map(s => { const n = projectsIn(s).length; return n ? <div key={s || "none"} title={`${sectorName(s)} · ${n}`} style={{ width: `${(n / data.projects.length) * 100}%`, background: sectorColor(s) }} /> : null; })}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              {sectorList.map(s => { const n = projectsIn(s).length; return n ? <span key={s || "none"} className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-full" style={{ background: sectorColor(s) }} />{sectorName(s)} <span className="font-medium text-foreground tabular-nums">{n}</span> · {Math.round((n / data.projects.length) * 100)}%</span> : null; })}
+            </div>
+          </div>
+        )}
+        {sectorList.map(s => {
+          const projects = projectsIn(s);
+          if (!projects.length) return null;
+          const value = projects.reduce((t, p) => t + (Number(p.cost) || 0), 0);
+          return (<div key={s || "none"} className={hasSectors ? "mb-6 last:mb-0" : undefined}>
+            {hasSectors && <div className="mb-3 flex items-center gap-2 border-b pb-2">
+              <span className="size-3 rounded-full" style={{ background: sectorColor(s) }} />
+              <span className="text-sm font-medium">{sectorName(s)}</span>
+              <span className="text-xs text-muted-foreground">{projects.length} {projects.length === 1 ? (T.projectLower || "project") : (T.projectsLower || "projects")}{value ? ` · ${money(value)}` : ""}</span>
+            </div>}
         {(() => {
-          const byClient = {};
-          const groups = [];
-          data.clients.slice().sort((a, b) => a.name.localeCompare(b.name)).forEach(c => { byClient[c.id] = { client: c, projects: [] }; groups.push(byClient[c.id]); });
-          const noClient = { client: null, projects: [] };
-          data.projects.forEach(p => { (byClient[p.client_id] || noClient).projects.push(p); });
-          if (noClient.projects.length) groups.push(noClient);
-          return groups.filter(g => g.projects.length).map(g => (
+          return clientGroups(projects).map(g => (
             <div key={g.client ? g.client.id : "none"} className="mb-4 last:mb-0">
               <div className="flex items-center gap-2 mb-1">
                 <span className="w-3.5 h-3.5 rounded-xs shrink-0" style={{ background: g.client ? g.client.color : "#94a3b8" }} />
@@ -78,32 +124,46 @@ export default function Projects({ org, me, data, reload, terms }) {
             </div>
           ));
         })()}
+          </div>);
+        })}
       </CardContent></Card>
 
-      {modal?.type === "client" && <ClientModal org={org} client={modal.c} onClose={() => setModal(null)} onSaved={() => { setModal(null); reload(); }} />}
+      {modal?.type === "client" && <ClientModal org={org} client={modal.c} sectors={sectors} onClose={() => setModal(null)} onSaved={() => { setModal(null); reload(); }} />}
       {modal?.type === "project" && <ProjectModal org={org} project={modal.p} clients={data.clients} onClose={() => setModal(null)} onSaved={() => { setModal(null); reload(); }} />}
     </div></ScrollArea>
   );
 }
 
-function ClientModal({ org, client, onClose, onSaved }) {
+function ClientModal({ org, client, sectors = [], onClose, onSaved }) {
   const confirm = useConfirm();
   const [name, setName] = useState(client?.name || "");
   const [color, setColor] = useState(client?.color || CLIENT_COLORS[0]);
   const [terms, setTerms] = useState(client?.payment_terms ?? 30);
   const [addr, setAddr] = useState(client?.billing_address || "");
+  const [sector, setSector] = useState(client?.sector || "");
   const [busy, setBusy] = useState(false);
   const save = async () => {
     setBusy(true);
-    const row = { org_id: org.id, name: name.trim(), color, payment_terms: Number(terms) || 30, billing_address: addr.trim() || null };
-    if (client) await sb.from("clients").update(row).eq("id", client.id);
-    else await sb.from("clients").insert(row);
-    setBusy(false); onSaved();
+    const row = { org_id: org.id, name: name.trim(), color, payment_terms: Number(terms) || 30, billing_address: addr.trim() || null, sector: sector.trim() || null };
+    const { error } = client ? await sb.from("clients").update(row).eq("id", client.id) : await sb.from("clients").insert(row);
+    setBusy(false);
+    if (error) { toast.add({ title: "Couldn't save the client: " + error.message, type: "error" }); return; }
+    onSaved();
   };
   const del = async () => { if (!(await confirm({ title: "Delete this client?", description: "Projects keep working but lose the link.", confirmLabel: "Delete", destructive: true }))) return; await sb.from("clients").delete().eq("id", client.id); onSaved(); };
   return (<Dialog open onOpenChange={(o) => { if (!o) (onClose)?.(); }}><DialogContent className="sm:max-w-lg max-h-[90svh] overflow-y-auto"><DialogHeader><DialogTitle>{client ? "Edit client" : "Add client"}</DialogTitle></DialogHeader>
     <FieldGroup>
     <Field><FieldLabel>Client name</FieldLabel><Input value={name} onChange={e => setName(e.target.value)} autoFocus /></Field>
+    <Field><FieldLabel>Sector (optional)</FieldLabel>
+      <Combobox items={sectors} inputValue={sector} onInputValueChange={setSector}>
+        <ComboboxInput placeholder="e.g. the kind of work they bring" />
+        <ComboboxContent>
+          <ComboboxEmpty>No sectors yet — type to create one.</ComboboxEmpty>
+          <ComboboxList>{(item) => <ComboboxItem key={item} value={item}>{item}</ComboboxItem>}</ComboboxList>
+        </ComboboxContent>
+      </Combobox>
+      <FieldDescription>Groups your clients — Projects below are shown by sector.</FieldDescription>
+    </Field>
     <Field><FieldLabel>Colour</FieldLabel><div className="flex flex-wrap gap-2">{CLIENT_COLORS.map(c => <button key={c} onClick={() => setColor(c)} className="w-8 h-8 rounded-lg" style={{ background: c, outline: color === c ? "2px solid var(--ring)" : "none", outlineOffset: 2 }} />)}</div></Field>
     <Field><FieldLabel>Payment terms (days)</FieldLabel><Input type="number" value={terms} onChange={e => setTerms(e.target.value)} /><FieldDescription>Used to estimate when invoices get paid.</FieldDescription></Field>
     <Field><FieldLabel>Billing address (for invoices)</FieldLabel><Textarea rows={3} value={addr} onChange={e => setAddr(e.target.value)} placeholder={"Accounts Payable\nClient Ltd\nLondon"} /></Field>

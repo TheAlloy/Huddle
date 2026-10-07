@@ -5,8 +5,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 // Demo-only floating role switcher (bottom-right). Lets you view the app as
 // any role without signing out — for testing what each permission level sees.
 const ROLES = [
-  ["owner", "Owner"], ["admin", "Administrator"], ["manager", "Manager"],
-  ["finance", "Finance"], ["member", "Team member"], ["tracker", "Time tracking only"], ["viewer", "Viewer"],
+  ["owner", "Owner"], ["admin", "Admin / Manager"], ["member", "Team member"], ["tracker", "Time tracking only"],
 ];
 
 export default function DemoSwitcher() {

@@ -2,7 +2,7 @@
 // Timesheet.jsx (V1), extracted so the V2/V3 design experiments can recompose
 // the rendering without touching V1. When one variation wins, fold that
 // variation's rendering back over V1 and delete this folder.
-import { toISO, parseISO, isWeekday } from "../../studio/core.jsx";
+import { toISO, parseISO, isWeekday, taskAssignees, taskOpenOn } from "../../studio/core.jsx";
 
 export const logKey = (l) => (l.taskId ? "T|" + l.taskId : (l.projectId || "none") + "|" + (l.phaseId || ""));
 
@@ -18,7 +18,7 @@ export function weekRows({ data, meId, rsISO, reISO, todayISO, labels, pending, 
     else if (a.kind === "internal" && a.taskId) { const k = "T|" + a.taskId; put(k, { key: k, projectId: null, phaseId: null, taskId: a.taskId }); }
   });
   if (todayISO >= rsISO && todayISO <= reISO) {
-    (data.internalTasks || []).forEach((t) => { if (t.assigneeId !== meId || t.status === "done") return; put("T|" + t.id, { key: "T|" + t.id, projectId: null, phaseId: null, taskId: t.id }); });
+    (data.internalTasks || []).forEach((t) => { if (!taskAssignees(t).includes(meId) || !taskOpenOn(t, reISO)) return; put("T|" + t.id, { key: "T|" + t.id, projectId: null, phaseId: null, taskId: t.id }); });
   }
   pending.forEach((p) => put(p.key, { ...p }));
   const arr = [...map.values()];

@@ -1,17 +1,19 @@
 import React, { useState, useRef, useMemo, useCallback } from "react";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
-import { TASK_PRI, projectsByClient, mapData, makeHandlers, AVATAR_BG, initials } from "../studio/core.jsx";
+import { TASK_PRI, projectsByClient, mapData, makeHandlers, AVATAR_BG, initials, taskAssignees, toISO, parseISO, MONTHS, DOW } from "../studio/core.jsx";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, CalendarDays, X } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { FieldGroup, Field, FieldLabel, FieldError } from "@/components/ui/field";
+import { FieldGroup, Field, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
+import { Combobox, ComboboxChip, ComboboxChips, ComboboxChipsInput, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList, ComboboxValue, useComboboxAnchor } from "@/components/ui/combobox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 function InternalBoard(ctx){
@@ -23,41 +25,55 @@ function InternalBoard(ctx){
   const [ghost,setGhost]=useState(null);
   const priRank={high:0,med:1,low:2};
   const memberById=(id)=>data.members.find(m=>m.id===id);
-  const inTeam=(t)=> teamF==="all" || t.team===teamF || (t.assigneeId&&(memberById(t.assigneeId)?.teams||[]).includes(teamF));
+  const inTeam=(t)=> teamF==="all" || t.team===teamF || taskAssignees(t).some(id=>(memberById(id)?.teams||[]).includes(teamF));
   const all=(data.internalTasks||[]).filter(inTeam);
   const active=all.filter(t=>t.status!=="done");
   const done=all.filter(t=>t.status==="done");
-  const forMember=(id)=>active.filter(t=>(t.assigneeId||null)===id).sort((a,b)=>(priRank[a.priority]-priRank[b.priority])||(a.ord-b.ord));
+  // A task with several people shows in each of their columns.
+  const forMember=(id)=>active.filter(t=>taskAssignees(t).includes(id)).sort((a,b)=>(priRank[a.priority]-priRank[b.priority])||(a.ord-b.ord));
   let people=data.members;
   if(teamF!=="all") people=people.filter(m=>(m.teams||[]).includes(teamF));
   if(mineOnly && myMemberId) people=people.filter(m=>m.id===myMemberId);
-  const drop=(colId,taskId)=>{ const t=(data.internalTasks||[]).find(x=>x.id===taskId); if(t){ if(colId==="__done__") editTask({...t,status:"done"}); else if(colId==="__none__") editTask({...t,assigneeId:null,status:t.status==="done"?"todo":t.status}); else editTask({...t,assigneeId:colId,status:t.status==="done"?"todo":t.status}); } setDragId(null); setOverCol(null); };
+  // Dragging moves the card from the column it was picked up in: person →
+  // person swaps just that person, → Unassigned takes them off, → Done
+  // completes it; dropping on someone already on the task just removes the
+  // one it came from.
+  const drop=(colId,taskId,fromCol)=>{ const t=(data.internalTasks||[]).find(x=>x.id===taskId); if(t){ const ids=taskAssignees(t); const rest=ids.filter(x=>x!==fromCol); const reopen=t.status==="done"?"todo":t.status;
+    if(colId==="__done__") editTask({...t,status:"done"});
+    else if(colId==="__none__") editTask({...t,assigneeIds:rest,status:reopen});
+    else editTask({...t,assigneeIds:rest.includes(colId)?rest:[...rest,colId],status:reopen}); } setDragId(null); setOverCol(null); };
   const dragRef=useRef(null);
   const boardRef=useRef(null);
   const colAt=(x,y)=>{ const root=boardRef.current; if(!root) return null; const cols=root.querySelectorAll("[data-col]"); for(const el of cols){ const r=el.getBoundingClientRect(); if(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom) return el.getAttribute("data-col"); } return null; };
-  const startDrag=(e,t)=>{
+  const startDrag=(e,t,colId)=>{
     if(!ctx.canEdit) { setModal({type:"task",payload:t}); return; }
     if(e.button&&e.button!==0) return;
-    const cur=t.status==="done"?"__done__":(t.assigneeId||"__none__");
+    const cur=colId;
     const d={id:t.id,cur,sx:e.clientX,sy:e.clientY,moved:false};
     dragRef.current=d;
     const clearBody=()=>{ document.body.style.userSelect=""; document.body.style.cursor=""; };
     const move=(ev)=>{ if(!dragRef.current) return; if(!d.moved){ if(Math.hypot(ev.clientX-d.sx,ev.clientY-d.sy)<6) return; d.moved=true; setDragId(t.id); document.body.style.userSelect="none"; document.body.style.cursor="grabbing"; } ev.preventDefault(); setGhost({t,x:ev.clientX,y:ev.clientY}); setOverCol(colAt(ev.clientX,ev.clientY)); };
-    const finish=(ev,cancelled)=>{ document.removeEventListener("pointermove",move); document.removeEventListener("pointerup",up); document.removeEventListener("pointercancel",cancel); clearBody(); dragRef.current=null; setDragId(null); setOverCol(null); setGhost(null); if(cancelled) return; if(d.moved){ const c=colAt(ev.clientX,ev.clientY); if(c&&c!==d.cur) drop(c,t.id); } else { setModal({type:"task",payload:t}); } };
+    const finish=(ev,cancelled)=>{ document.removeEventListener("pointermove",move); document.removeEventListener("pointerup",up); document.removeEventListener("pointercancel",cancel); clearBody(); dragRef.current=null; setDragId(null); setOverCol(null); setGhost(null); if(cancelled) return; if(d.moved){ const c=colAt(ev.clientX,ev.clientY); if(c&&c!==d.cur) drop(c,t.id,d.cur); } else { setModal({type:"task",payload:t}); } };
     const up=(ev)=>finish(ev,false); const cancel=(ev)=>finish(ev,true);
     document.addEventListener("pointermove",move,{passive:false}); document.addEventListener("pointerup",up); document.addEventListener("pointercancel",cancel);
   };
-  const Card=(t)=>{ const pr=TASK_PRI[t.priority]||TASK_PRI.med; return (
-    <div key={t.id} onPointerDown={e=>startDrag(e,t)}
+  const todayISO=toISO(new Date());
+  const Card=(t,colId)=>{ const pr=TASK_PRI[t.priority]||TASK_PRI.med; const ids=taskAssignees(t); return (
+    <div key={t.id} onPointerDown={e=>startDrag(e,t,colId)}
       className="bg-card rounded-lg border shadow-xs px-2.5 py-2 cursor-grab active:cursor-grabbing hover:shadow" style={{borderLeft:`3px solid ${pr.color}`,opacity:dragId===t.id?0.45:1,touchAction:"none"}}>
       <div className="text-sm font-medium">{t.title}</div>
       {t.notes && <div className="text-xs text-muted-foreground mt-0.5" style={{display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{t.notes}</div>}
       <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
         <Badge style={{ background: (pr.color) + "22", color: (pr.color) }}>{pr.label}</Badge>
+        {t.startDate && (()=>{ const d=parseISO(t.startDate); return <Badge variant={t.startDate>todayISO?"outline":"secondary"}><CalendarDays data-icon="inline-start"/>{t.startDate>todayISO?"Starts ":""}{d.getDate()} {MONTHS[d.getMonth()]}</Badge>; })()}
         {t.projectId && (()=>{ const p=data.projects.find(x=>x.id===t.projectId); if(!p) return null; const ph=t.phaseId&&(p.phases||[]).find(x=>x.id===t.phaseId); return <Badge variant="secondary">{p.index}{ph?" · "+ph.name:""}</Badge>; })()}
         {t.team && <Badge variant="secondary">{t.team}</Badge>}
-        {t.assigneeId && !memberById(t.assigneeId) && <span className="text-xs text-muted-foreground">(unknown)</span>}
+        {ids.some(id=>!memberById(id)) && <span className="text-xs text-muted-foreground">(unknown)</span>}
       </div>
+      {/* Shared tasks show everyone on them. */}
+      {ids.length>1 && <div className="mt-1.5 flex items-center -space-x-1.5" title={ids.map(id=>memberById(id)?.name||"Unknown").join(", ")}>
+        {ids.map(id=>{ const i=data.members.findIndex(x=>x.id===id); const m=data.members[i]; return <Avatar key={id} size="sm" className="ring-2 ring-card"><AvatarFallback className="text-white" style={{background:AVATAR_BG[(i<0?0:i)%AVATAR_BG.length]}}>{initials(m?m.name:"?")}</AvatarFallback></Avatar>; })}
+      </div>}
     </div>);};
   const Column=({id,title,avatarIndex,cards})=>(
     <div data-col={id}
@@ -68,7 +84,7 @@ function InternalBoard(ctx){
         <span className="ml-auto text-xs text-muted-foreground">{cards.length}</span>
       </div>
       <div className="p-2 flex flex-col gap-2 overflow-y-auto">
-        {cards.map(Card)}
+        {cards.map(t=>Card(t,id))}
       </div>
     </div>
   );
@@ -88,7 +104,7 @@ function InternalBoard(ctx){
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto px-4 lg:px-6 py-4">
         <div ref={boardRef} className="flex flex-wrap gap-3 items-start">
-          <Column id="__none__" title="Unassigned" avatarIndex={null} cards={active.filter(t=>!t.assigneeId)}/>
+          <Column id="__none__" title="Unassigned" avatarIndex={null} cards={active.filter(t=>!taskAssignees(t).length)}/>
           {people.map(m=><Column key={m.id} id={m.id} title={m.name} avatarIndex={data.members.findIndex(x=>x.id===m.id)} cards={forMember(m.id)}/>)}
           <Column id="__done__" title="Done" avatarIndex={null} cards={done}/>
         </div>
@@ -106,7 +122,11 @@ function TaskForm({ task, members, teams=[], projects=[], clients=[], onSave, on
   const [title,setTitle]=useState(task?.title||"");
   const [titleErr,setTitleErr]=useState("");
   const [notes,setNotes]=useState(task?.notes||"");
-  const [assigneeId,setAssigneeId]=useState(task?.assigneeId||"");
+  const [assigneeIds,setAssigneeIds]=useState(()=>task?taskAssignees(task):[]);
+  const [startDate,setStartDate]=useState(task?.startDate||"");
+  const [startOpen,setStartOpen]=useState(false);
+  const nameOf=(id)=>(members.find(m=>m.id===id)||{}).name||"—";
+  const peopleAnchor=useComboboxAnchor();
   const [team,setTeam]=useState(task?.team||"");
   const [priority,setPriority]=useState(task?.priority||"med");
   const [status,setStatus]=useState(task?.status||"todo");
@@ -115,7 +135,7 @@ function TaskForm({ task, members, teams=[], projects=[], clients=[], onSave, on
   const proj=projects.find(p=>p.id===projectId);
   const projectGroups=projectsByClient(projects,clients);
   const projectItems={"":"— none —",...Object.fromEntries(projects.map(p=>[p.id,`${p.index} — ${p.name}`]))};
-  const save=()=>{ if(!title.trim()){ setTitleErr("Give the task a name."); return; } setTitleErr(""); onSave({...(task||{}),title:title.trim(),notes:notes.trim(),assigneeId:assigneeId||null,team:team||"",priority,status,projectId:projectId||null,phaseId:projectId?(phaseId||null):null}); };
+  const save=()=>{ if(!title.trim()){ setTitleErr("Give the task a name."); return; } setTitleErr(""); onSave({...(task||{}),title:title.trim(),notes:notes.trim(),assigneeIds,startDate:startDate||null,team:team||"",priority,status,projectId:projectId||null,phaseId:projectId?(phaseId||null):null}); };
   return (<Dialog open onOpenChange={(o) => { if (!o) (onClose)?.(); }}><DialogContent className="sm:max-w-lg max-h-[92svh] overflow-y-auto"><DialogHeader><DialogTitle>{task?"Edit task":"New task"}</DialogTitle></DialogHeader>
     <FieldGroup>
       <Field data-invalid={(titleErr) ? true : undefined}><FieldLabel>Task</FieldLabel><Input value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. Improve onboarding flow" aria-invalid={titleErr?true:undefined} autoFocus/>{(titleErr) ? <FieldError>{titleErr}</FieldError> : null}</Field>
@@ -142,12 +162,34 @@ function TaskForm({ task, members, teams=[], projects=[], clients=[], onSave, on
           </Select>
         </Field> : <div/>}
       </div>
+      <Field><FieldLabel>Assign to</FieldLabel>
+        <Combobox multiple autoHighlight items={members.map(m=>m.id)} value={assigneeIds} onValueChange={setAssigneeIds} itemToStringLabel={nameOf}>
+          <ComboboxChips ref={peopleAnchor} className="w-full">
+            <ComboboxValue>
+              {(values)=>(<>
+                {values.map(id=><ComboboxChip key={id}>{nameOf(id)}</ComboboxChip>)}
+                <ComboboxChipsInput placeholder={values.length?"":"Unassigned — add people…"} />
+              </>)}
+            </ComboboxValue>
+          </ComboboxChips>
+          <ComboboxContent anchor={peopleAnchor}>
+            <ComboboxEmpty>No one by that name.</ComboboxEmpty>
+            <ComboboxList>{(id)=><ComboboxItem key={id} value={id}>{nameOf(id)}</ComboboxItem>}</ComboboxList>
+          </ComboboxContent>
+        </Combobox>
+        <FieldDescription>Everyone here sees the task in their column and tracker.</FieldDescription>
+      </Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field><FieldLabel>Assign to</FieldLabel>
-          <Select value={assigneeId} onValueChange={setAssigneeId} items={{"":"Unassigned",...Object.fromEntries(members.map(m=>[m.id,m.name]))}}>
-            <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
-            <SelectContent><SelectGroup><SelectItem value="">Unassigned</SelectItem>{members.map(m=><SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectGroup></SelectContent>
-          </Select>
+        <Field><FieldLabel>Start date (optional)</FieldLabel>
+          <div className="flex gap-1.5">
+            <Popover open={startOpen} onOpenChange={setStartOpen}>
+              <PopoverTrigger render={<Button variant="outline" className="flex-1 justify-start font-normal tabular-nums" />}><CalendarDays data-icon="inline-start"/> {startDate?(()=>{ const d=parseISO(startDate); return `${DOW[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`; })():"Pick a date"}</PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarPicker mode="single" weekStartsOn={1} selected={startDate?parseISO(startDate):undefined} defaultMonth={startDate?parseISO(startDate):new Date()} onSelect={(d)=>{ if(d){ setStartDate(toISO(d)); setStartOpen(false); } }} />
+              </PopoverContent>
+            </Popover>
+            {startDate && <Button variant="ghost" size="icon" title="Clear start date" onClick={()=>setStartDate("")}><X/></Button>}
+          </div>
         </Field>
         <Field><FieldLabel>Team</FieldLabel>
           <Combobox items={teams} inputValue={team} onInputValueChange={setTeam}>

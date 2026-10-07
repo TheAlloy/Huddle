@@ -2,8 +2,9 @@ import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AVATAR_BG, initials } from "../studio/core.jsx";
-import { PERMISSIONS, PERMISSION_GROUPS, ROLES, ROLE_KEYS, effectivePermissions, isFromRole, can } from "../lib/permissions.js";
-import { Plus, Mail, Trash2, Pencil, RefreshCw, Link as LinkIcon, TriangleAlert } from "lucide-react";
+import { PERMISSIONS, PERMISSION_GROUPS, ROLES, ROLE_KEYS, roleKey, effectivePermissions, isFromRole, can } from "../lib/permissions.js";
+import { Plus, Mail, Trash2, Pencil, RefreshCw, Link as LinkIcon, TriangleAlert, Search, X } from "lucide-react";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { useConfirm } from "../components/confirm.tsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,8 +16,6 @@ import { FieldGroup, FieldSet, FieldLegend, Field, FieldLabel, FieldDescription,
 import { toast } from "@/components/ui/toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-
-const NO_TEAM = "__none__";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
 
@@ -53,10 +52,13 @@ export default function Team({ org, me, members, reload, onNavigate }) {
     return () => { window.removeEventListener("focus", onFocus); clearInterval(iv); if (ch) { try { sb.removeChannel(ch); } catch (_) {} } };
   }, [org.id]); // eslint-disable-line
 
-  // Team boards: people grouped by memberships.teams, drag to move between
-  // teams (Ctrl/⌘-drop adds a second team instead). A new team lives only in
-  // local state until someone is dropped into it.
-  const [dragging, setDragging] = useState(null);   // {id, from}
+  // People list + team boards: everyone in one searchable list; drag a person
+  // onto a team card to ADD them to it (people can be in any number of
+  // teams), × on a team card takes them off that team. Teams are the
+  // memberships.teams array. A new team lives only in local state until
+  // someone is dropped into it.
+  const [search, setSearch] = useState("");
+  const [dragging, setDragging] = useState(null);   // membership id
   const [overTeam, setOverTeam] = useState(null);
   const [newTeams, setNewTeams] = useState([]);
   const [newTeamName, setNewTeamName] = useState("");
@@ -65,16 +67,17 @@ export default function Team({ org, me, members, reload, onNavigate }) {
   const teamsOf = (m) => optimTeams[m.id] ?? (Array.isArray(m.teams) ? m.teams : []);
   const teamNames = [...new Set([...members.flatMap(teamsOf), ...newTeams])].sort((a, b) => a.localeCompare(b));
   const addTeam = () => { const n = newTeamName.trim(); if (!n) return; setNewTeams(t => (t.includes(n) ? t : [...t, n])); setNewTeamName(""); };
-  const moveToTeam = async (m, from, to) => {
-    const cur = teamsOf(m);
-    let next = from ? cur.filter(t => t !== from) : [...cur];
-    if (to !== NO_TEAM && !next.includes(to)) next = [...next, to];
-    if (next.length === cur.length && next.every(t => cur.includes(t))) return;
+  const setTeams = async (m, next) => {
     setOptimTeams(o => ({ ...o, [m.id]: next }));
     const { error } = await sb.from("memberships").update({ teams: next.length ? next : null }).eq("id", m.id);
-    if (error) { setOptimTeams(o => { const n = { ...o }; delete n[m.id]; return n; }); toast.add({ title: "Couldn't move " + (m.display_name || m.email) + ": " + error.message, type: "error" }); return; }
+    if (error) { setOptimTeams(o => { const n = { ...o }; delete n[m.id]; return n; }); toast.add({ title: "Couldn't update " + (m.display_name || m.email) + "'s teams: " + error.message, type: "error" }); return; }
     reload();
   };
+  const addToTeam = (m, t) => { const cur = teamsOf(m); if (!cur.includes(t)) setTeams(m, [...cur, t]); };
+  const removeFromTeam = (m, t) => setTeams(m, teamsOf(m).filter(x => x !== t));
+  const nameOf = (m) => m.display_name || m.email || "Invited";
+  const q = search.trim().toLowerCase();
+  const listed = members.filter(m => !q || [nameOf(m), m.email, m.job_title, ...teamsOf(m)].join(" ").toLowerCase().includes(q));
 
   const unlimitedSeats = (org.seats || 0) >= 9999;
   const seatsUsed = members.filter(m => m.status !== "suspended").length + invites.length;
@@ -85,7 +88,7 @@ export default function Team({ org, me, members, reload, onNavigate }) {
       <div className="flex items-center gap-3 flex-wrap">
         <div>
           <h2 className="text-base font-medium">People</h2>
-          <p className="text-sm text-muted-foreground">{unlimitedSeats ? `${seatsUsed} team member${seatsUsed === 1 ? "" : "s"} · unlimited invites` : `${seatsUsed} of ${org.seats} seats used`} on the {org.plan && org.plan !== "trial" ? org.plan : "current"} plan.{manage ? " Drag people between teams — hold Ctrl to add them to another team as well." : ""}</p>
+          <p className="text-sm text-muted-foreground">{unlimitedSeats ? `${seatsUsed} team member${seatsUsed === 1 ? "" : "s"} · unlimited invites` : `${seatsUsed} of ${org.seats} seats used`} on the {org.plan && org.plan !== "trial" ? org.plan : "current"} plan.{manage ? " Drag people from the list onto a team to add them — someone can be in as many teams as you like." : ""}</p>
         </div>
         {manage && <Button variant="outline" size="icon" title="Refresh" className="ml-auto" onClick={() => { loadInvites(); reload(); }}><RefreshCw /></Button>}
         {manage && <Button onClick={() => overSeats ? setUpgradeOpen(true) : setInviteOpen(true)}><Plus data-icon="inline-start" /> Invite someone</Button>}
@@ -100,59 +103,87 @@ export default function Team({ org, me, members, reload, onNavigate }) {
       )}
 
       {members.length === 0 && <Card><CardContent><Empty><EmptyHeader><EmptyTitle>No one here yet</EmptyTitle><EmptyDescription>Invite your team to get started.</EmptyDescription></EmptyHeader></Empty></CardContent></Card>}
-      {members.length > 0 && <div className="grid gap-4 @3xl/main:grid-cols-2">
-        {[...teamNames, NO_TEAM].map(t => {
-          const list = members.filter(m => t === NO_TEAM ? teamsOf(m).length === 0 : teamsOf(m).includes(t));
-          if (t === NO_TEAM && list.length === 0 && !dragging) return null;
-          return (
-          <Card key={t} className={overTeam === t ? "ring-2 ring-primary" : undefined}
-            onDragOver={(e) => { if (!dragging || !manage) return; e.preventDefault(); e.dataTransfer.dropEffect = (e.ctrlKey || e.metaKey) && t !== NO_TEAM ? "copy" : "move"; if (overTeam !== t) setOverTeam(t); }}
-            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOverTeam(o => (o === t ? null : o)); }}
-            onDrop={(e) => { e.preventDefault(); const d = dragging; setDragging(null); setOverTeam(null); if (!d || d.from === t) return; const m = members.find(x => x.id === d.id); if (m) moveToTeam(m, (e.ctrlKey || e.metaKey) && t !== NO_TEAM ? null : d.from, t); }}>
-            <CardHeader>
-              <CardTitle>{t === NO_TEAM ? "No team" : t}</CardTitle>
-              <CardDescription>{list.length} {list.length === 1 ? "person" : "people"}</CardDescription>
-            </CardHeader>
-            <CardContent>
-        {list.length === 0 && <p className="py-2 text-sm text-muted-foreground">Drag people here to add them to this team.</p>}
-        <div className="flex flex-col">
-          {list.map((m) => {
-            const role = ROLES[m.role] || ROLES.member;
-            const i = members.indexOf(m);
-            return (<div key={m.id} className={`flex items-center gap-3 border-b py-2.5 text-sm last:border-b-0 ${manage ? "cursor-grab active:cursor-grabbing" : ""} ${dragging && dragging.id === m.id && dragging.from === t ? "opacity-50" : ""}`}
-              draggable={manage} onDragStart={(e) => { e.dataTransfer.effectAllowed = "copyMove"; e.dataTransfer.setData("text/plain", m.id); setDragging({ id: m.id, from: t }); }} onDragEnd={() => { setDragging(null); setOverTeam(null); }}>
-              <Avatar><AvatarFallback className="text-white" style={{background:AVATAR_BG[i%AVATAR_BG.length]}}>{initials(m.display_name || m.email)}</AvatarFallback></Avatar>
-              <div className="min-w-0">
-                <div className="font-medium truncate">{m.display_name || m.email || "Invited"} {m.user_id === me.user_id && <span className="text-muted-foreground font-normal">(you)</span>}</div>
-                <div className="text-xs text-muted-foreground truncate">{m.email}{m.job_title ? " · " + m.job_title : ""}</div>
-              </div>
-              <div className="ml-auto flex items-center gap-2 shrink-0">
-                {m.status === "suspended" && <Badge variant="destructive">Suspended</Badge>}
-                <Badge variant="secondary">{role.label}</Badge>
-                {manage && (
-                  <Button variant="ghost" size="icon-sm" title="Manage member" onClick={() => setEditing(m)}><Pencil /></Button>
-                )}
-              </div>
-            </div>);
+      {members.length > 0 && <div className="grid gap-4 items-start @4xl/main:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+        {/* Everyone — search, see their teams, drag onto a team to add. */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Everyone</CardTitle>
+            <CardDescription>{members.length} {members.length === 1 ? "person" : "people"}{manage ? " · drag someone onto a team to add them" : ""}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            <InputGroup>
+              <InputGroupAddon><Search /></InputGroupAddon>
+              <InputGroupInput value={search} onChange={e => setSearch(e.target.value)} placeholder="Search people or teams…" />
+            </InputGroup>
+            <div className="flex flex-col">
+              {listed.map((m) => {
+                const role = ROLES[roleKey(m.role)] || ROLES.member;
+                const i = members.indexOf(m);
+                const ts = teamsOf(m);
+                return (<div key={m.id} className={`flex items-center gap-3 border-b py-2.5 text-sm last:border-b-0 ${manage ? "cursor-grab active:cursor-grabbing" : ""} ${dragging === m.id ? "opacity-50" : ""}`}
+                  draggable={manage} onDragStart={(e) => { e.dataTransfer.effectAllowed = "copy"; e.dataTransfer.setData("text/plain", m.id); setDragging(m.id); }} onDragEnd={() => { setDragging(null); setOverTeam(null); }}>
+                  <Avatar><AvatarFallback className="text-white" style={{background:AVATAR_BG[i%AVATAR_BG.length]}}>{initials(nameOf(m))}</AvatarFallback></Avatar>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium truncate">{nameOf(m)} {m.user_id === me.user_id && <span className="text-muted-foreground font-normal">(you)</span>}</div>
+                    <div className="text-xs text-muted-foreground truncate">{m.job_title || m.email}</div>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {ts.length ? ts.map(t => <Badge key={t} variant="outline">{t}</Badge>) : <span className="text-xs text-muted-foreground">No team</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {m.status === "suspended" && <Badge variant="destructive">Suspended</Badge>}
+                    <Badge variant="secondary">{role.label}</Badge>
+                    {manage && <Button variant="ghost" size="icon-sm" title="Manage member" onClick={() => setEditing(m)}><Pencil /></Button>}
+                  </div>
+                </div>);
+              })}
+              {listed.length === 0 && <p className="py-3 text-sm text-muted-foreground">No one matches "{search}".</p>}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Teams — drop targets. */}
+        <div className="grid gap-4 @6xl/main:grid-cols-2">
+          {teamNames.map(t => {
+            const list = members.filter(m => teamsOf(m).includes(t));
+            const already = dragging && list.some(m => m.id === dragging);
+            return (
+            <Card key={t} className={overTeam === t && !already ? "ring-2 ring-primary" : undefined}
+              onDragOver={(e) => { if (!dragging || !manage) return; e.preventDefault(); e.dataTransfer.dropEffect = already ? "none" : "copy"; if (overTeam !== t) setOverTeam(t); }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOverTeam(o => (o === t ? null : o)); }}
+              onDrop={(e) => { e.preventDefault(); const id = dragging; setDragging(null); setOverTeam(null); const m = members.find(x => x.id === id); if (m) addToTeam(m, t); }}>
+              <CardHeader>
+                <CardTitle>{t}</CardTitle>
+                <CardDescription>{list.length} {list.length === 1 ? "person" : "people"}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {list.length === 0 && <p className="py-2 text-sm text-muted-foreground">Drag people here to add them to this team.</p>}
+                <div className="flex flex-col">
+                  {list.map((m) => { const i = members.indexOf(m); return (
+                    <div key={m.id} className="flex items-center gap-2 border-b py-2 text-sm last:border-b-0">
+                      <Avatar size="sm"><AvatarFallback className="text-white" style={{background:AVATAR_BG[i%AVATAR_BG.length]}}>{initials(nameOf(m))}</AvatarFallback></Avatar>
+                      <span className="min-w-0 flex-1 truncate">{nameOf(m)}</span>
+                      {manage && <Button variant="ghost" size="icon-sm" title={`Remove from ${t}`} onClick={() => removeFromTeam(m, t)}><X /></Button>}
+                    </div>); })}
+                </div>
+              </CardContent>
+            </Card>);
           })}
+          {manage && (
+            <Card>
+              <CardHeader>
+                <CardTitle>New team</CardTitle>
+                <CardDescription>Name it, then drag people in.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex gap-2">
+                  <Input value={newTeamName} onChange={e => setNewTeamName(e.target.value)} placeholder="e.g. Design" onKeyDown={e => { if (e.key === "Enter") addTeam(); }} />
+                  <Button variant="outline" onClick={addTeam} disabled={!newTeamName.trim()}><Plus data-icon="inline-start" /> Add team</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
-            </CardContent>
-          </Card>);
-        })}
-        {manage && (
-          <Card>
-            <CardHeader>
-              <CardTitle>New team</CardTitle>
-              <CardDescription>Name it, then drag people in.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex gap-2">
-                <Input value={newTeamName} onChange={e => setNewTeamName(e.target.value)} placeholder="e.g. Design" onKeyDown={e => { if (e.key === "Enter") addTeam(); }} />
-                <Button variant="outline" onClick={addTeam} disabled={!newTeamName.trim()}><Plus data-icon="inline-start" /> Add team</Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>}
 
       {manage && invites.length > 0 && (
@@ -162,7 +193,7 @@ export default function Team({ org, me, members, reload, onNavigate }) {
               <div key={inv.id} className="flex items-center gap-3 border-b py-2.5 text-sm last:border-b-0">
                 <Mail className="size-4 text-muted-foreground" />
                 <div className="min-w-0"><div className="truncate">{inv.email}</div>
-                  <div className="text-xs text-muted-foreground">{(ROLES[inv.role] || {}).label} · expires {String(inv.expires_at).slice(0, 10)}</div></div>
+                  <div className="text-xs text-muted-foreground">{(ROLES[roleKey(inv.role)] || {}).label} · expires {String(inv.expires_at).slice(0, 10)}</div></div>
                 <div className="ml-auto flex items-center gap-1">
                   <Button variant="ghost" size="icon-sm" title="Copy invite link to share"
                     onClick={() => { const link = `${window.location.origin}/?invite=${inv.token}`; navigator.clipboard?.writeText(link); toast.add({ title: "Invite link copied — paste it to " + inv.email, type: "success" }); }}><LinkIcon /></Button>
@@ -229,7 +260,7 @@ export function InviteModal({ org, onClose, onSent, onSeatsFull }) {
 function AccessModal({ m, onClose, onSaved }) {
   const confirm = useConfirm();
   const isOwner = m.role === "owner";
-  const [role, setRole] = useState(m.role);
+  const [role, setRole] = useState(roleKey(m.role));
   const [extra, setExtra] = useState(Array.isArray(m.permissions) ? m.permissions : []);
   const [status, setStatus] = useState(m.status);
   const [name, setName] = useState(m.display_name || "");

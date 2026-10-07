@@ -206,11 +206,11 @@ export default function App() {
 
 
   const NAV = [
-    { key: "schedule", label: "Schedule", icon: CalendarDays, perm: "schedule.view" },
     // The Timesheet is the timesheet-lab's V3.3 (V3.2's open logger + V3.1's
     // aligned day columns + calendar planning). The other lab variants (V1–V3.2)
     // are off the menu; their code stays in src/screens/timesheet-lab for now.
     { key: "time", label: "Timesheet", icon: Clock, perm: "time.track" },
+    { key: "schedule", label: "Schedule", icon: CalendarDays, perm: "schedule.view" },
     { key: "summary", label: "Summary", icon: Table2, perm: "summary.view" }, // off the menu — its sections now live in the Timesheet (people picker, budgets, holidays)
     { key: "tasks", label: "Tasks", icon: LayoutGrid, perm: "tasks.view" },
     { key: "projects", label: terms.navProjects, icon: FolderKanban, perm: "projects.manage" },
@@ -233,9 +233,11 @@ export default function App() {
         onPickTeam={(id) => { setOrgId(id); localStorage.setItem("cadence_org", id); }}
         nav={visible.filter(n => ["schedule", "time", "tasks"].includes(n.key)).map(navItem)}
         groups={[{ label: "Manage", items: visible.filter(n => ["projects", "people"].includes(n.key)).map(navItem) }]} // Billing hidden from the nav for now — screen still exists
-        action={{ title: "Leave feedback", icon: <Gift />, onSelect: () => setFeedbackOpen(true) }}
         secondary={[
           ...visible.filter(n => n.key === "settings").map(navItem),
+          // Feedback sits quietly under Settings (it used to be the big
+          // primary button at the top of the nav).
+          { key: "feedback", title: "Leave feedback", icon: <Gift />, isActive: false, onSelect: () => setFeedbackOpen(true) },
           ...(profile?.platform_admin ? [{ key: "admin", title: "Admin console", icon: <Shield />, isActive: tab === "admin", onSelect: () => setTab("admin") }] : []),
         ]}
         tracker={can(me, "time.track") ? <SidebarTracker org={org} me={me} data={data} reload={reload} /> : null}

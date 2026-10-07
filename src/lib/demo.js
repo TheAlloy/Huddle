@@ -37,9 +37,9 @@ function seed() {
   const people = [
     { key: "troy", email: "troy@demo.com",    name: "Troy",          role: "owner",   job: "Director", admin: true },
     { key: "ben",  email: "ben@demo.studio",  name: "Ben Achebe",    role: "admin",   job: "Studio Manager" },
-    { key: "cora", email: "cora@demo.studio", name: "Cora Vane",     role: "manager", job: "Producer" },
+    { key: "cora", email: "cora@demo.studio", name: "Cora Vane",     role: "admin", job: "Producer" },
     { key: "dev",  email: "dev@demo.studio",  name: "Devon Park",    role: "member",  job: "Designer", teams: ["Design"] },
-    { key: "finn", email: "finn@demo.studio", name: "Finn Ortega",   role: "finance", job: "Finance" },
+    { key: "finn", email: "finn@demo.studio", name: "Finn Ortega",   role: "member", job: "Finance" },
     { key: "tia",  email: "tia@demo.studio",  name: "Tia Moreau",    role: "tracker", job: "Freelance Motion", teams: ["Design"] },
   ];
   const mid = (k) => "mem-" + k;

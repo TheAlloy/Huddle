@@ -6,7 +6,7 @@
 // Running: the panel becomes the timer — live clock with stop-with-note,
 // PiP, and discard.
 import React, { useState, useEffect, useMemo } from "react";
-import { toISO, startOfDay, isWeekday, hm, fmtClock, mapData, makeHandlers, NAVY } from "../../studio/core.jsx";
+import { toISO, startOfDay, isWeekday, hm, fmtClock, mapData, makeHandlers, NAVY, taskAssignees, taskOpenOn } from "../../studio/core.jsx";
 import { useRunningTimer, makeLabels, usePipTimer, taskProject } from "./shared.jsx";
 import { Play, Square, PictureInPicture2, Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -59,7 +59,7 @@ export default function SidebarTracker({ org, me, data: cadData, reload }) {
     if (l.taskId) put("T|" + l.taskId, { taskId: l.taskId, why: "In today's calendar" });
     else if (l.projectId && !scheduledProjects.has(l.projectId)) put(l.projectId + "|" + (l.phaseId || ""), { projectId: l.projectId, phaseId: l.phaseId || null, why: "In today's calendar" });
   });
-  (data.internalTasks || []).forEach((t) => { if (t.assigneeId === meId && t.status !== "done") put("T|" + t.id, { taskId: t.id, why: "Assigned to you" }); });
+  (data.internalTasks || []).forEach((t) => { if (taskAssignees(t).includes(meId) && taskOpenOn(t, todayISO)) put("T|" + t.id, { taskId: t.id, why: "Assigned to you" }); });
   const phased = new Set([...found.values()].filter((r) => r.projectId && r.phaseId && !scheduledProjects.has(r.projectId)).map((r) => r.projectId));
   const minsFor = (r) => todayLogs.filter((l) => (r.taskId ? l.taskId === r.taskId
     : !l.taskId && l.projectId === r.projectId && (r.phaseId ? (l.phaseId === r.phaseId || !l.phaseId) : true))).reduce((s, l) => s + l.minutes, 0);

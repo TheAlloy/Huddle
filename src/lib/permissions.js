@@ -21,28 +21,29 @@ export const PERMISSIONS = [
 
 export const PERMISSION_GROUPS = ["Schedule", "Time", "Tasks", "Setup", "Billing", "People", "Admin"];
 
-// Role presets — mirrored by app_has() in schema.sql.
+// Role presets — mirrored by app_has() in schema.sql. Four roles since
+// 2026-10: Administrator and Manager merged into "Admin / Manager" (full
+// access); Finance and Viewer retired.
 export const ROLES = {
   owner:   { label: "Owner",        blurb: "Full access, billing and subscription.", all: true },
-  admin:   { label: "Administrator",blurb: "Full access to everything in the studio.", all: true },
-  manager: { label: "Manager",      blurb: "Runs the schedule, projects and people's time.",
-    perms: ["schedule.view","schedule.edit","summary.view","summary.edit","projects.manage","clients.manage","tasks.view","tasks.edit","time.track","time.manual","team.view"] },
-  finance: { label: "Finance",      blurb: "Billing and invoices, plus tracking their own time and tasks.",
-    perms: ["billing.view","billing.edit","summary.view","schedule.view","team.view","time.track","time.manual","tasks.view","tasks.edit"] },
+  admin:   { label: "Admin / Manager", blurb: "Full access — runs the schedule, projects, people and the studio.", all: true },
   member:  { label: "Team member",  blurb: "Sees the schedule, tracks their own time, uses tasks.",
     perms: ["schedule.view","summary.view","tasks.view","tasks.edit","time.track","time.manual","team.view"] },
   tracker: { label: "Time tracking only", blurb: "Can only start the timer and see their schedule.",
     perms: ["time.track","schedule.view"] },
-  viewer:  { label: "Viewer",       blurb: "Read-only. Cannot change anything.",
-    perms: ["schedule.view","summary.view","tasks.view"] },
 };
 
-export const ROLE_KEYS = ["owner","admin","manager","finance","member","tracker","viewer"];
+export const ROLE_KEYS = ["owner","admin","member","tracker"];
+
+// Retired roles read as their replacement until migrations/2026-10-*.sql
+// rewrites them in the database.
+const LEGACY_ROLES = { manager: "admin", finance: "admin", viewer: "member" };
+export const roleKey = (role) => LEGACY_ROLES[role] || role;
 
 /** Everything this membership can do (role preset + any extra grants). */
 export function effectivePermissions(membership) {
   if (!membership) return [];
-  const role = ROLES[membership.role] || ROLES.member;
+  const role = ROLES[roleKey(membership.role)] || ROLES.member;
   if (role.all) return PERMISSIONS.map(p => p.key);
   const extra = Array.isArray(membership.permissions) ? membership.permissions : [];
   return [...new Set([...(role.perms || []), ...extra])];
@@ -54,14 +55,14 @@ export const OWNER_ONLY = ["account.close"];
 export function can(membership, perm) {
   if (!membership || membership.status !== "active") return false;
   if (OWNER_ONLY.includes(perm)) return membership.role === "owner";
-  const role = ROLES[membership.role];
+  const role = ROLES[roleKey(membership.role)];
   if (role && role.all) return true;
   return effectivePermissions(membership).includes(perm);
 }
 
 /** Permissions granted by the role itself (shown as locked-on in the UI). */
 export function isFromRole(membership, perm) {
-  const role = ROLES[membership?.role];
+  const role = ROLES[roleKey(membership?.role)];
   if (!role) return false;
   if (role.all) return true;
   return (role.perms || []).includes(perm);

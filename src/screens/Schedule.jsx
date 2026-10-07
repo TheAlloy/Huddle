@@ -3,7 +3,8 @@ import { sb } from "../lib/supabase.js";
 import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { phaseRanges, PeoplePicker, AVATAR_BG, initials } from "../studio/core.jsx";
+import { createPortal } from "react-dom";
+import { phaseRanges, PeoplePicker, AVATAR_BG, initials, fmtH } from "../studio/core.jsx";
 import { InviteModal } from "./Team.jsx";
 import { ProjectModal } from "./Projects.jsx";
 import { useConfirm } from "../components/confirm.tsx";
@@ -94,7 +95,9 @@ function Bar({ a, ctx, baseLeft, baseWidth, top, height, dayW, onCommit, onOpen,
     const dxSnap=Math.round(raw/dayW)*dayW;
     const dLane=(drag.mode==="move"&&canReorder&&Math.abs(rawY)>laneStep*0.55) ? Math.round(rawY/laneStep) : 0;
     const moved=drag.moved||Math.abs(raw)>4||Math.abs(rawY)>4;
-    if(dxSnap!==drag.dxSnap||dLane!==drag.dLane||moved!==drag.moved) setDrag({...drag,dxSnap,dLane,moved});
+    // Resizing tracks the pointer too, for the live duration label.
+    const track=drag.mode!=="move";
+    if(dxSnap!==drag.dxSnap||dLane!==drag.dLane||moved!==drag.moved||(track&&(e.clientX!==drag.x||e.clientY!==drag.y))) setDrag({...drag,dxSnap,dLane,moved,x:e.clientX,y:e.clientY});
   };
   const up=()=>{ if(!drag) return; const {mode,dxSnap,dLane,moved}=drag; setDrag(null);
     if(!moved){ onOpen(); return; }
@@ -113,6 +116,15 @@ function Bar({ a, ctx, baseLeft, baseWidth, top, height, dayW, onCommit, onOpen,
   width=Math.max(dayW*0.6,width); left=Math.max(0,left); topPos=Math.max(0,topPos);
   const lab=barLabel(a,ctx); const tip=[lab.top,lab.sub].filter(Boolean).join(" — ")+(note?`  (${note})`:"");
   const active=drag&&drag.moved;
+  // While an end is dragged, a label by the cursor shows the bar's new length
+  // in working weeks (5 working days = 1 week), to one decimal: "2.4 weeks".
+  let resizeLabel=null;
+  if(active&&drag.mode!=="move"){
+    const dd=Math.round(drag.dxSnap/dayW); let s=parseISO(a.start), en=parseISO(a.end);
+    if(drag.mode==="l"){ const ns=addDays(s,dd); s=ns>en?en:ns; } else { const ne=addDays(en,dd); en=ne<s?s:ne; }
+    const wd=workdaysBetween(s,en), wk=Math.round(wd/5*10)/10;
+    resizeLabel=`${fmtH(wk)} week${wk===1?"":"s"} · ${wd} day${wd===1?"":"s"}`;
+  }
   const stick=`translateX(clamp(0px, calc(var(--sl, 0px) - ${Math.round(left)}px), ${Math.max(0,Math.round(width-76))}px))`;
   return (
     <div ref={ref} onPointerMove={move} onPointerUp={up} onPointerCancel={up} title={tip}
@@ -134,6 +146,9 @@ function Bar({ a, ctx, baseLeft, baseWidth, top, height, dayW, onCommit, onOpen,
       </div>
       {ctx.canEdit && <span className="absolute left-1 top-1/2 opacity-0 group-hover:opacity-80" style={{transform:"translateY(-50%)",width:3,height:"40%",background:"#fff",borderRadius:2,pointerEvents:"none",zIndex:6}}/>}
       {ctx.canEdit && <span className="absolute right-1 top-1/2 opacity-0 group-hover:opacity-80" style={{transform:"translateY(-50%)",width:3,height:"40%",background:"#fff",borderRadius:2,pointerEvents:"none",zIndex:6}}/>}
+      {resizeLabel && drag.x!=null && createPortal(
+        <div className="fixed z-[70] pointer-events-none rounded-md bg-foreground px-2 py-1 text-xs font-medium tabular-nums text-background shadow-md" style={{left:drag.x+14,top:drag.y-32}}>{resizeLabel}</div>,
+        document.body)}
     </div>
   );
 }
@@ -561,6 +576,7 @@ async function extractPdfText(buf){
 }
 
 function ProposalForm({ org, clients, members, anchor, onCreate, onClose }) {
+  const ask=useConfirm();
   const [step,setStep]=useState("input");
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
@@ -621,19 +637,25 @@ function ProposalForm({ org, clients, members, anchor, onCreate, onClose }) {
     }
   };
   const autoCode=()=>projectName.split(/\s+/).filter(Boolean).map(w=>w[0]).join("").slice(0,4).toUpperCase()||"PROJ";
-  const confirm=()=>{
+  // Who works each phase: a phase follows the project-wide people until it
+  // is given its own list (p.people), so different people can take
+  // different phases.
+  const phasePeople=(p)=>Array.isArray(p.people)?p.people:people;
+  const create=async()=>{
     if(!projectName.trim()){ setError("Give the project a name."); return; }
     if(phases.length===0){ setError("Add at least one phase."); return; }
     let clientId, newClient=null;
     if(clientMode==="existing"){ if(!existingClientId){ setError("Choose a client."); return; } clientId=existingClientId; }
     else { newClient={id:uid(),name:(newClientName.trim()||"New client"),color:newClientColor}; clientId=newClient.id; }
+    if(!phases.some(p=>phasePeople(p).length) && !(await ask({ title:"Nobody assigned to this project", description:"Are you sure you want to continue? The project will be created with no one scheduled on it.", confirmLabel:"Yes", cancelLabel:"No" }))) return;
     const cleanPhases=phases.map(p=>({id:p.id||uid(),name:p.name.trim()||"Phase",days:Math.max(1,Math.round(p.days||1))}));
     const project={id:uid(),index:(code.trim()||autoCode()),name:projectName.trim(),clientId,billing:"perday",cost:cost===""?null:Number(cost),phases:cleanPhases};
     const ranges=phaseRanges(startDate,cleanPhases);
     const assignments=[];
-    for(const mid of people){ for(const r of ranges){ assignments.push({id:uid(),kind:"work",memberId:mid,projectId:project.id,phaseId:r.id,leaveType:null,start:r.start,end:r.end,mode:"hours_per_day",value:0,note:null,startTime:null,endTime:null}); } }
+    ranges.forEach((r,i)=>{ for(const mid of phasePeople(phases[i])){ assignments.push({id:uid(),kind:"work",memberId:mid,projectId:project.id,phaseId:r.id,leaveType:null,start:r.start,end:r.end,mode:"hours_per_day",value:0,note:null,startTime:null,endTime:null}); } });
     onCreate({newClient,project,assignments});
   };
+  const nameOf=(id)=>(members.find(m=>m.id===id)||{}).name||"—";
   const lastEnd=phases.length?phaseRanges(startDate,phases.map(p=>({id:p.id,name:p.name,days:Math.max(1,Math.round(p.days||1))}))).slice(-1)[0].end:null;
   if(step==="input"){
     return (<Dialog open onOpenChange={(o) => { if (!o) (onClose)?.(); }}><DialogContent className="sm:max-w-lg max-h-[92svh] overflow-y-auto"><DialogHeader><DialogTitle>New project from a proposal</DialogTitle></DialogHeader><FieldGroup>
@@ -673,12 +695,32 @@ function ProposalForm({ org, clients, members, anchor, onCreate, onClose }) {
     </div>
     <Field><FieldLabel>{`Project value ${currency?"("+currency+")":""}`}</FieldLabel><Input type="number" min="0" value={cost} onChange={e=>setCost(e.target.value)} placeholder="0"/></Field>
     <Field><FieldLabel>Phases & durations (working days)</FieldLabel>
-      <div className="flex flex-col gap-1.5 mb-2">{phases.map((p,i)=>(
-        <div key={p.id} className="flex items-center gap-2 text-sm">
-          <span className="text-xs text-muted-foreground w-4 shrink-0">{i+1}</span>
-          <Input className="flex-1" value={p.name} onChange={e=>setPhases(phases.map(x=>x.id===p.id?{...x,name:e.target.value}:x))}/>
-          <InputGroup className="w-20"><InputGroupInput type="number" min="1" value={p.days} onChange={e=>setPhases(phases.map(x=>x.id===p.id?{...x,days:Number(e.target.value)}:x))}/><InputGroupAddon align="inline-end"><InputGroupText>d</InputGroupText></InputGroupAddon></InputGroup>
-          <Button variant="ghost" size="icon-sm" onClick={()=>setPhases(phases.filter(x=>x.id!==p.id))}><X/></Button>
+      <div className="flex flex-col gap-3 mb-2">{phases.map((p,i)=>(
+        <div key={p.id} className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-xs text-muted-foreground w-4 shrink-0">{i+1}</span>
+            <Input className="flex-1" value={p.name} onChange={e=>setPhases(phases.map(x=>x.id===p.id?{...x,name:e.target.value}:x))}/>
+            <InputGroup className="w-20"><InputGroupInput type="number" min="1" value={p.days} onChange={e=>setPhases(phases.map(x=>x.id===p.id?{...x,days:Number(e.target.value)}:x))}/><InputGroupAddon align="inline-end"><InputGroupText>d</InputGroupText></InputGroupAddon></InputGroup>
+            <Button variant="ghost" size="icon-sm" onClick={()=>setPhases(phases.filter(x=>x.id!==p.id))}><X/></Button>
+          </div>
+          {/* This phase's people — starts as the project's people (below). */}
+          <div className="pl-6">
+            <Combobox multiple autoHighlight items={members.map(m=>m.id)} value={phasePeople(p)} itemToStringLabel={nameOf}
+              onValueChange={(v)=>setPhases(phases.map(x=>x.id===p.id?{...x,people:v}:x))}>
+              <ComboboxChips className="w-full">
+                <ComboboxValue>
+                  {(values)=>(<>
+                    {values.map(id=><ComboboxChip key={id}>{nameOf(id)}</ComboboxChip>)}
+                    <ComboboxChipsInput placeholder={values.length?"":"Who's on this phase?"} />
+                  </>)}
+                </ComboboxValue>
+              </ComboboxChips>
+              <ComboboxContent>
+                <ComboboxEmpty>No one by that name.</ComboboxEmpty>
+                <ComboboxList>{(id)=><ComboboxItem key={id} value={id}>{nameOf(id)}</ComboboxItem>}</ComboboxList>
+              </ComboboxContent>
+            </Combobox>
+          </div>
         </div>))}
       </div>
       <Button variant="ghost" size="sm" onClick={()=>setPhases([...phases,{id:uid(),name:"",days:5}])}><Plus data-icon="inline-start"/> Add phase</Button>
@@ -687,17 +729,17 @@ function ProposalForm({ org, clients, members, anchor, onCreate, onClose }) {
       <Field><FieldLabel>Start date</FieldLabel><DatePicker value={startDate} onChange={setStartDate}/></Field>
       <Field><FieldLabel>Finishes (calculated)</FieldLabel><Input readOnly disabled value={lastEnd?`${pad(parseISO(lastEnd).getDate())} ${MONTHS[parseISO(lastEnd).getMonth()]} ${parseISO(lastEnd).getFullYear()}`:"—"}/></Field>
     </div>
-    <Field><FieldLabel>Assign people (one bar per phase each)</FieldLabel>
+    <Field><FieldLabel>People on the whole project</FieldLabel>
       <ToggleGroup multiple variant="outline" size="sm" className="flex-wrap" value={people} onValueChange={setPeople}>
         {members.map(m=><ToggleGroupItem key={m.id} value={m.id}>{m.name}</ToggleGroupItem>)}
       </ToggleGroup>
-      {people.length===0 && <p className="text-xs text-muted-foreground mt-1">Optional — leave empty to create the project with no one scheduled yet.</p>}
+      <FieldDescription>Everyone here gets a bar on every phase. To put different people on different phases, change the people under each phase above.</FieldDescription>
     </Field>
     {error && <p className="text-sm text-destructive">{error}</p>}
   </FieldGroup>
   <div className="flex items-center gap-2 px-5 py-4 border-t border-border/60">
     <Button variant="ghost" onClick={()=>{setStep("input");setError("");}}><ArrowLeft data-icon="inline-start"/> Back</Button>
-    <Button className="ml-auto" onClick={confirm}>Create project &amp; schedule</Button>
+    <Button className="ml-auto" onClick={create}>Create project &amp; schedule</Button>
   </div></DialogContent></Dialog>);
 }
 /* ============================ Huddle adapter + wired glue ======================= */
@@ -735,6 +777,17 @@ export default function Schedule({ org, me, data: cadData, reload, peopleFilter:
   const projectById=useCallback((id)=>data.projects.find(p=>p.id===id),[data.projects]);
   const teams=useMemo(()=>[...new Set(data.members.flatMap(m=>m.teams||[]))].sort(),[data.members]);
   const phaseLogged=useMemo(()=>{ const map={}; data.timeLogs.forEach(l=>{ if(l.projectId){ const k=l.projectId+"|"+(l.phaseId||""); map[k]=(map[k]||0)+l.minutes; } }); return map; },[data.timeLogs]);
+  // Projects over their hours budget: the project total against its phase
+  // budgets added up (everything logged on it), plus any single phase over.
+  const overruns=useMemo(()=>data.projects.map(pr=>{
+    const phases=(pr.phases||[]).filter(ph=>Number(ph.hours)>0); if(!phases.length) return null;
+    const budget=phases.reduce((s,ph)=>s+Number(ph.hours),0);
+    const used=Object.entries(phaseLogged).filter(([k])=>k.startsWith(pr.id+"|")).reduce((s,[,m])=>s+m,0)/60;
+    const overPhases=phases.map(ph=>({name:ph.name,over:(phaseLogged[pr.id+"|"+ph.id]||0)/60-Number(ph.hours)})).filter(p=>p.over>0.05);
+    if(used-budget<=0.05 && !overPhases.length) return null;
+    return {pr,cl:data.clients.find(c=>c.id===pr.clientId),used,budget,over:used-budget,overPhases};
+  }).filter(Boolean).sort((a,b)=>b.over-a.over),[data.projects,data.clients,phaseLogged]);
+  const [overOpen,setOverOpen]=useState(()=>{ try{ return localStorage.getItem("huddle_overbudget_open")!=="0"; }catch(_){ return true; } });
   const colorOf=useCallback((a)=>{ if(a.kind==="leave") return (LEAVE_TYPES[a.leaveType]||LEAVE_TYPES.vacation).color; if(a.kind==="internal") return NAVY; const p=projectById(a.projectId); const c=p&&clientById(p.clientId); return c?c.color:"#94a3b8"; },[projectById,clientById]);
   const matches=useCallback((a)=>{ if(clientFilter!=="all"){ if(a.kind==="leave") return false; const pr=projectById(a.projectId); if(!pr||!cfIncludes(clientFilter,pr.clientId)) return false; } if(q.trim()){ const s=q.toLowerCase(); const m=data.members.find(x=>x.id===a.memberId); const pr=a.kind==="work"?projectById(a.projectId):null; const cl=pr&&clientById(pr.clientId); const tk=a.kind==="internal"?((data.internalTasks||[]).find(t=>t.id===a.taskId)||{}).title:""; const hay=[m&&m.name,pr&&pr.name,pr&&pr.index,cl&&cl.name,tk,a.kind==="leave"?(LEAVE_TYPES[a.leaveType]||{}).label:""].join(" ").toLowerCase(); if(!hay.includes(s)) return false; } return true; },[clientFilter,q,data,projectById,clientById]);
 
@@ -744,7 +797,7 @@ export default function Schedule({ org, me, data: cadData, reload, peopleFilter:
   // of the bar (lane left to auto-placement).
   const saveAssignment=async(a,ph,others=[])=>{ const row=asgRow(a); if(a.id) await sb.from("assignments").update(row).eq("id",a.id); else await sb.from("assignments").insert(row); if(others.length) await sb.from("assignments").insert(others.map(mid=>asgRow({...a,id:undefined,memberId:mid,lane:null}))); if(ph&&ph.hours!=null){ const proj=(cadData.projects||[]).find(p=>p.id===ph.projectId); if(proj){ const phases=(proj.phases||[]).map(x=>x.id===ph.phaseId?{...x,hours:ph.hours}:x); await sb.from("projects").update({phases}).eq("id",proj.id); } } reload(); };
   const delAssign=async(id)=>{ await sb.from("assignments").delete().eq("id",id); reload(); };
-  const saveInternalAssign=async({taskId,newTask,memberId,start,end})=>{ let tid=taskId; if(newTask){ const {data:t}=await sb.from("tasks").insert({org_id:org.id,title:newTask.title,priority:newTask.priority||"med",team:newTask.team||null,status:"todo",assignee_id:memberId||null,ord:Date.now()}).select().single(); tid=t&&t.id; } await sb.from("assignments").insert({org_id:org.id,kind:"task",membership_id:memberId,task_id:tid,start_date:start,end_date:end}); reload(); };
+  const saveInternalAssign=async({taskId,newTask,memberId,start,end})=>{ let tid=taskId; if(newTask){ const {data:t}=await sb.from("tasks").insert({org_id:org.id,title:newTask.title,priority:newTask.priority||"med",team:newTask.team||null,status:"todo",assignee_id:memberId||null,assignee_ids:memberId?[memberId]:[],ord:Date.now()}).select().single(); tid=t&&t.id; } await sb.from("assignments").insert({org_id:org.id,kind:"task",membership_id:memberId,task_id:tid,start_date:start,end_date:end}); reload(); };
   const createFromProposal=async({newClient,project,assignments})=>{ let clientId=project.clientId; if(newClient){ const {data:c}=await sb.from("clients").insert({org_id:org.id,name:newClient.name,color:newClient.color,payment_terms:30}).select().single(); clientId=c&&c.id; } const {data:p}=await sb.from("projects").insert({org_id:org.id,code:project.index,name:project.name,client_id:clientId,cost:project.cost,phases:project.phases}).select().single(); const projId=p&&p.id; if(projId&&assignments.length){ const rows=assignments.map(a=>({org_id:org.id,kind:"work",membership_id:a.memberId,project_id:projId,phase_id:a.phaseId||null,start_date:a.start,end_date:a.end})); await sb.from("assignments").insert(rows); } setModal(null); reload(); };
 
   const ctx={ data:dataView, anchor, matches, setModal, moveAssign, peopleFilter, zoomT, setZoomT, holidayFilter, boardScroll, phaseLogged, projectById, clientById, colorOf, canEdit, myMemberId:me.id };
@@ -786,6 +839,34 @@ export default function Schedule({ org, me, data: cadData, reload, peopleFilter:
           {canEdit && <Button onClick={()=>setModal({type:"assign"})}><Plus data-icon="inline-start" /> <span className="hidden sm:inline">Assign Work</span></Button>}
         </div>
       </div>
+
+      {/* Over budget: projects whose logged hours have overrun their hours
+          budget (phase budgets added up) or with any single phase over —
+          worst first. Collapsible; the choice is remembered per person. */}
+      {overruns.length > 0 && (
+        <div className="shrink-0 border-b border-border bg-card px-3 py-2">
+          <button className="flex items-center gap-2 text-sm font-medium" onClick={() => setOverOpen((o) => { try { localStorage.setItem("huddle_overbudget_open", o ? "0" : "1"); } catch (_) {} return !o; })}>
+            <ChevronRight size={14} className="text-muted-foreground" style={{ transform: overOpen ? "rotate(90deg)" : "none", transition: "transform .15s" }} />
+            <AlertTriangle size={15} className="text-destructive" /> Over budget <Badge variant="destructive">{overruns.length}</Badge>
+            {!overOpen && <span className="text-xs font-normal text-muted-foreground truncate">{overruns.slice(0, 3).map((o) => o.pr.index).join(", ")}{overruns.length > 3 ? "…" : ""}</span>}
+          </button>
+          {overOpen && (
+            <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+              {overruns.map(({ pr, cl, used, budget, over, overPhases }) => (
+                <div key={pr.id} className="w-64 shrink-0 rounded-lg border border-border px-3 py-2">
+                  <div className="flex items-center gap-1.5 text-sm min-w-0"><span className="size-2.5 rounded-xs shrink-0" style={{ background: cl ? cl.color : "#94a3b8" }} /><span className="truncate">{cl ? cl.name + " · " : ""}{pr.index} {pr.name}</span></div>
+                  <div className="mt-1 flex items-baseline justify-between gap-2">
+                    <span className="text-sm font-medium text-destructive">{over > 0.05 ? `+${fmtH(over)}h over` : "Phase over budget"}</span>
+                    <span className="text-xs text-muted-foreground tabular-nums">{fmtH(used)}h of {fmtH(budget)}h</span>
+                  </div>
+                  <div className="mt-1.5 h-1.5 rounded-full bg-muted overflow-hidden"><div className="h-full rounded-full bg-destructive" style={{ width: `${Math.min(100, (used / budget) * 100)}%` }} /></div>
+                  {overPhases.length > 0 && <div className="mt-1 text-xs text-muted-foreground truncate" title={overPhases.map((p) => `${p.name} +${fmtH(p.over)}h`).join(" · ")}>{overPhases.map((p) => `${p.name} +${fmtH(p.over)}h`).join(" · ")}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex-1 min-h-0"><TimelineBoard {...ctx} /></div>
 

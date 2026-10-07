@@ -41,7 +41,7 @@ create table if not exists memberships (
   user_id           uuid references auth.users(id) on delete cascade,
   email             text,                                  -- kept for pending/unclaimed seats
   display_name      text,
-  role              text not null default 'member',        -- owner | admin | manager | member | tracker | finance | viewer
+  role              text not null default 'member',        -- owner | admin ("Admin / Manager") | member | tracker
   permissions       text[] not null default '{}',          -- extra grants on top of the role preset
   status            text not null default 'active',        -- active | invited | suspended
   job_title         text,
@@ -86,7 +86,9 @@ create table if not exists clients (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references organizations(id) on delete cascade,
   name text not null, color text, payment_terms integer default 30,
-  billing_address text, created_at timestamptz not null default now()
+  billing_address text,
+  sector text,                                   -- free-text grouping shown on Clients & Projects
+  created_at timestamptz not null default now()
 );
 
 create table if not exists projects (
@@ -128,7 +130,9 @@ create table if not exists tasks (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references organizations(id) on delete cascade,
   title text not null, notes text,
-  assignee_id uuid references memberships(id) on delete set null,
+  assignee_id uuid references memberships(id) on delete set null,   -- first of assignee_ids (older code)
+  assignee_ids uuid[] not null default '{}',                         -- everyone on the task
+  start_date date,                                                   -- optional; hidden from trackers before it
   project_id uuid references projects(id) on delete set null, phase_id text,
   team text, priority text default 'med', status text default 'todo',
   ord double precision default 0, created_at timestamptz not null default now()
@@ -195,19 +199,12 @@ language sql stable security definer set search_path=public as $$
     select 1 from memberships m
     where m.org_id = o and m.user_id = auth.uid() and m.status = 'active'
       and (
-        m.role in ('owner','admin')
+        m.role in ('owner','admin')            -- admin = "Admin / Manager"
         or perm = any(m.permissions)
-        or (m.role = 'manager' and perm in (
-              'schedule.view','schedule.edit','summary.view','summary.edit',
-              'projects.manage','clients.manage','tasks.view','tasks.edit',
-              'time.track','time.manual','team.view'))
-        or (m.role = 'finance' and perm in (
-              'billing.view','billing.edit','summary.view','schedule.view','team.view'))
         or (m.role = 'member' and perm in (
               'schedule.view','summary.view','tasks.view','tasks.edit',
               'time.track','time.manual','team.view'))
         or (m.role = 'tracker' and perm in ('time.track','schedule.view'))
-        or (m.role = 'viewer'  and perm in ('schedule.view','summary.view','tasks.view'))
       )
   ) or app_is_platform_admin()
 $$;
@@ -469,6 +466,17 @@ begin
   end if;
   return d.org_id;
 end $$;
+
+-- Invite landing page: who an invite is for and which studio, so the page
+-- can greet them and pre-fill the email. Only for unused, unexpired invites;
+-- the token itself is the secret.
+create or replace function invite_info(invite_token text)
+returns table(email text, org_name text)
+language sql stable security definer set search_path=public as $$
+  select i.email, o.name from invites i join organizations o on o.id = i.org_id
+  where i.token = invite_token and i.accepted_at is null and i.expires_at > now()
+$$;
+grant execute on function invite_info(text) to anon, authenticated;
 
 -- Seat usage (used by the UI + billing limits)
 create or replace function org_seat_usage(o uuid)

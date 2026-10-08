@@ -8,6 +8,15 @@ const path = require("path");
 // ⚠️ Your live app address (the Vercel URL).
 const APP_URL = process.env.HUDDLE_URL || process.env.CADENCE_URL || "https://huddle-orpin.vercel.app";
 
+// The app's own icon, given to every window explicitly (packaged next to
+// main.js — see "files" in package.json).
+const ICON = path.join(__dirname, "icon.png");
+
+// Windows: identify as the installed app (same id as the installer's Start
+// menu / taskbar shortcut), so the taskbar matches the window to its
+// shortcut and shows the Huddle icon instead of a blank one.
+if (process.platform === "win32") app.setAppUserModelId("com.huddleapp.desktop");
+
 let win;
 let confirmWin = null;
 let confirmedClose = false;
@@ -22,6 +31,7 @@ async function readLS(key) {
 function openCloseConfirm() {
   if (confirmWin) { confirmWin.focus(); return; }
   confirmWin = new BrowserWindow({
+    icon: ICON,
     width: 400, height: 168, parent: win, modal: true, resizable: false,
     minimizable: false, maximizable: false, frame: false, backgroundColor: "#ffffff", title: "Huddle",
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false },
@@ -45,6 +55,7 @@ ipcMain.on("huddle-focus-main", () => {
 
 function createWindow() {
   win = new BrowserWindow({
+    icon: ICON,
     width: 1280, height: 860, minWidth: 900, minHeight: 600,
     title: "Huddle", backgroundColor: "#f1f5f9", autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false },
@@ -65,7 +76,7 @@ function createWindow() {
   // can't open document Picture-in-Picture) opens as a small always-on-top window.
   win.webContents.setWindowOpenHandler(({ url, frameName }) => {
     if (frameName === "studioTimer" && (!url || url === "about:blank")) {
-      return { action: "allow", overrideBrowserWindowOptions: { width: 340, height: 120, alwaysOnTop: true, minimizable: false, maximizable: false, autoHideMenuBar: true, title: "Time Tracker", backgroundColor: "#1f2d4e" } };
+      return { action: "allow", overrideBrowserWindowOptions: { icon: ICON, width: 340, height: 120, alwaysOnTop: true, minimizable: false, maximizable: false, autoHideMenuBar: true, title: "Time Tracker", backgroundColor: "#1f2d4e" } };
     }
     try { const u = new URL(url); const base = new URL(APP_URL); if (u.host === base.host) { win.loadURL(url); return { action: "deny" }; } } catch (_) {}
     // Only real web/mail links go to the system; anything else (e.g. the

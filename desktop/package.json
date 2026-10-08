@@ -1,6 +1,6 @@
 {
   "name": "huddle-desktop",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Huddle desktop app (Alloy)",
   "author": "Alloy Ltd",
   "license": "UNLICENSED",
@@ -20,7 +20,7 @@
     "publish": null,
     "artifactName": "Huddle-${version}.${ext}",
     "directories": { "output": "dist", "buildResources": "build" },
-    "files": ["main.js", "preload.js", "confirm.html", "offline.html", "package.json"],
+    "files": ["main.js", "preload.js", "confirm.html", "offline.html", "icon.png", "package.json"],
     "win": { "target": "nsis" },
     "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "perMachine": false },
     "mac": { "target": [{ "target": "dmg", "arch": ["universal"] }], "category": "public.app-category.productivity" },

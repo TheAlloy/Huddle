@@ -165,6 +165,18 @@ create table if not exists public_holidays (
   day date not null, name text
 );
 
+-- ─── Assignment comments (shared thread on each piece of scheduled work) ───
+create table if not exists assignment_comments (
+  id            uuid primary key default gen_random_uuid(),
+  org_id        uuid not null references organizations(id) on delete cascade,
+  assignment_id uuid not null references assignments(id) on delete cascade,
+  membership_id uuid references memberships(id) on delete set null,   -- author
+  body          text not null check (length(trim(body)) > 0),
+  created_at    timestamptz not null default now()
+);
+create index if not exists assignment_comments_asg_idx on assignment_comments(assignment_id);
+create index if not exists assignment_comments_org_idx on assignment_comments(org_id);
+
 -- ─── Audit log (who did what — expected in team products) ──────────────────
 create table if not exists audit_log (
   id uuid primary key default gen_random_uuid(),
@@ -225,6 +237,24 @@ alter table tasks           enable row level security;
 alter table billing_entries enable row level security;
 alter table public_holidays enable row level security;
 alter table audit_log       enable row level security;
+alter table assignment_comments enable row level security;
+
+-- assignment_comments: everyone in the studio reads; you post as yourself;
+-- you delete your own, schedule editors delete any
+drop policy if exists ac_read on assignment_comments;
+create policy ac_read on assignment_comments for select using (app_is_member(org_id));
+drop policy if exists ac_insert on assignment_comments;
+create policy ac_insert on assignment_comments for insert
+  with check (
+    app_is_member(org_id)
+    and membership_id in (select id from memberships where org_id = assignment_comments.org_id and user_id = auth.uid() and status = 'active')
+  );
+drop policy if exists ac_delete on assignment_comments;
+create policy ac_delete on assignment_comments for delete
+  using (
+    membership_id in (select id from memberships where org_id = assignment_comments.org_id and user_id = auth.uid())
+    or app_has(org_id, 'schedule.edit')
+  );
 alter table org_domains     enable row level security;
 
 -- org_domains: vendor-managed; join_domain_org() reads it as security definer

@@ -82,6 +82,9 @@ function InternalBoard(ctx){
         {avatarIndex!=null && <Avatar size="sm"><AvatarFallback className="text-white" style={{background:AVATAR_BG[avatarIndex%AVATAR_BG.length]}}>{initials(title)}</AvatarFallback></Avatar>}
         <span className="text-sm font-medium truncate">{title}</span>
         <span className="ml-auto text-xs text-muted-foreground">{cards.length}</span>
+        {/* + adds a task straight into this column (already assigned to this person). */}
+        {ctx.canEdit && id!=="__done__" && <Button variant="ghost" size="icon-xs" className="-mr-1" title={id==="__none__"?"Add an unassigned task":`Add a task for ${title}`}
+          onClick={()=>setModal({type:"task",payload:{__new:true,assigneeIds:id==="__none__"?[]:[id]}})}><Plus/></Button>}
       </div>
       <div className="p-2 flex flex-col gap-2 overflow-y-auto">
         {cards.map(t=>Card(t,id))}
@@ -118,11 +121,11 @@ function InternalBoard(ctx){
   );
 }
 
-function TaskForm({ task, members, teams=[], projects=[], clients=[], onSave, onDelete, onClose }){
+function TaskForm({ task, preset, members, teams=[], projects=[], clients=[], onSave, onDelete, onClose }){
   const [title,setTitle]=useState(task?.title||"");
   const [titleErr,setTitleErr]=useState("");
   const [notes,setNotes]=useState(task?.notes||"");
-  const [assigneeIds,setAssigneeIds]=useState(()=>task?taskAssignees(task):[]);
+  const [assigneeIds,setAssigneeIds]=useState(()=>task?taskAssignees(task):(preset?.assigneeIds||[]));
   const [startDate,setStartDate]=useState(task?.startDate||"");
   const [startOpen,setStartOpen]=useState(false);
   const nameOf=(id)=>(members.find(m=>m.id===id)||{}).name||"—";
@@ -229,7 +232,7 @@ export default function Tasks({ org, me, data: cadData, reload }){
   const ctx={ data, myMemberId:me.id, teamList, canEdit, editTask:canEdit?H.editTask:(()=>{}), setModal };
   return (<div className="h-full">
     <InternalBoard {...ctx} />
-    {modal?.type==="task" && <TaskForm task={modal.payload&&!modal.payload.__new?modal.payload:null} members={data.members} teams={teamList} projects={data.projects} clients={data.clients}
+    {modal?.type==="task" && <TaskForm task={modal.payload&&!modal.payload.__new?modal.payload:null} preset={modal.payload&&modal.payload.__new?modal.payload:null} members={data.members} teams={teamList} projects={data.projects} clients={data.clients}
       onSave={t=>{ if(t.id) H.editTask(t); else H.addTask(t); setModal(null); }} onDelete={modal.payload&&!modal.payload.__new?id=>{ H.delTask(id); setModal(null); }:null} onClose={()=>setModal(null)} />}
   </div>);
 }

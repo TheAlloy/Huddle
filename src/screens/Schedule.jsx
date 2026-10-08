@@ -15,7 +15,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
-import { FieldGroup, Field, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field";
+import { FieldGroup, FieldSet, FieldLegend, Field, FieldLabel, FieldDescription, FieldError } from "@/components/ui/field";
+import { toast } from "@/components/ui/toast";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
@@ -28,7 +29,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import {
   Plus, X, ChevronLeft, ChevronRight, Search, Trash2, AlertTriangle,
   Pencil, ZoomIn, ZoomOut, Plane, Building2, Calendar,
-  Sparkles, Upload, FileText, ArrowLeft,
+  Sparkles, Upload, FileText, ArrowLeft, MessageSquare,
 } from "lucide-react";
 
 /* ============================ helpers (from studio tool) ========================= */
@@ -140,7 +141,10 @@ function Bar({ a, ctx, baseLeft, baseWidth, top, height, dayW, onCommit, onOpen,
       <div onPointerDown={begin("r")} className="absolute right-0 top-0 bottom-0" style={{width:9,zIndex:5,cursor:ctx.canEdit?"ew-resize":"default"}}/>
       <div onPointerDown={begin("move")} onClick={()=>{ if(!ctx.canEdit) onOpen(); }} className="absolute inset-0" style={{padding:"4px 11px",zIndex:2}}>
         <div style={{transform:stick,willChange:"transform"}}>
-          <div className="font-bold leading-tight truncate" style={{fontSize:11}}>{lab.top}</div>
+          <div className="flex items-center gap-1 font-bold leading-tight" style={{fontSize:11}}>
+            <span className="truncate">{lab.top}</span>
+            {(ctx.commentCounts||{})[a.id]>0 && <span className="inline-flex shrink-0 items-center gap-0.5 opacity-90" title={`${ctx.commentCounts[a.id]} comment${ctx.commentCounts[a.id]===1?"":"s"}`}><MessageSquare size={10}/>{ctx.commentCounts[a.id]}</span>}
+          </div>
           {lab.sub && <div className="leading-tight truncate" style={{fontSize:10,opacity:.92}}>{lab.sub}</div>}
         </div>
       </div>
@@ -372,8 +376,30 @@ function DatePicker({ value, onChange, className="w-full" }){
   );
 }
 
-function AssignForm({ assignment, preset, members, projects, clients, anchor, onSave, onDelete, onClose, onInternalAssign, onInvite, onNewProject, tasks=[], teams=[] }){
+function AssignForm({ assignment, preset, members, projects, clients, anchor, onSave, onDelete, onClose, onInternalAssign, onInvite, onNewProject, tasks=[], teams=[], orgId, meId, canEdit=false, onCommentsChanged }){
   const [kind,setKind]=useState(assignment?.kind||"work");
+  // Project list order: newest first (so a just-created project is on top)
+  // or A–Z by name; remembered per person.
+  const [projSort,setProjSort]=useState(()=>{ try{ return localStorage.getItem("huddle_project_sort")||"newest"; }catch(_){ return "newest"; } });
+  const pickProjSort=(v)=>{ setProjSort(v); try{ localStorage.setItem("huddle_project_sort",v); }catch(_){} };
+  const sortedProjects=[...projects].sort((a,b)=> projSort==="name"
+    ? String(a.name).localeCompare(String(b.name))
+    : String(b.createdAt||"").localeCompare(String(a.createdAt||"")) || String(a.name).localeCompare(String(b.name)));
+  // Notes & comments: a shared thread on this piece of work — everyone can
+  // read and add; you delete your own (schedule editors can delete any).
+  // New work can carry a first comment, posted once it's saved.
+  const [comments,setComments]=useState([]);
+  const [commentsReady,setCommentsReady]=useState(false);
+  const [commentDraft,setCommentDraft]=useState("");
+  const [firstNote,setFirstNote]=useState("");
+  const loadComments=async()=>{ if(!assignment?.id) return; const { data, error }=await sb.from("assignment_comments").select("*").eq("assignment_id",assignment.id).order("created_at"); if(!error) setComments(data||[]); setCommentsReady(true); };
+  useEffect(()=>{ loadComments(); },[assignment?.id]); // eslint-disable-line
+  const postComment=async()=>{ const body=commentDraft.trim(); if(!body||!assignment?.id) return;
+    const { error }=await sb.from("assignment_comments").insert({ org_id:orgId, assignment_id:assignment.id, membership_id:meId, body });
+    if(error){ toast.add({ title:"Couldn't post the comment: "+error.message, type:"error" }); return; }
+    setCommentDraft(""); loadComments(); onCommentsChanged&&onCommentsChanged(); };
+  const deleteComment=async(id)=>{ const { error }=await sb.from("assignment_comments").delete().eq("id",id); if(error){ toast.add({ title:"Couldn't delete the comment: "+error.message, type:"error" }); return; } loadComments(); onCommentsChanged&&onCommentsChanged(); };
+  const whenOf=(iso)=>{ const d=new Date(iso); return `${d.getDate()} ${MONTHS[d.getMonth()]}, ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   const [taskId,setTaskId]=useState(assignment?.taskId||"");
   const [taskTitle,setTaskTitle]=useState(""),[taskPri,setTaskPri]=useState("med"),[taskTeam,setTaskTeam]=useState("");
   const [memberId,setMemberId]=useState(assignment?.memberId||preset?.memberId||members[0]?.id||"");
@@ -426,8 +452,9 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
     const primary=assignment&&people.includes(assignment.memberId)?assignment.memberId:people[0];
     const others=people.filter(id=>id!==primary);
     const base={...(assignment||{}),memberId:primary,start,end,value:0,mode:"hours_per_day",note:null,startTime:null,endTime:null};
-    if(kind==="leave") onSave({...base,kind:"leave",leaveType,projectId:null,phaseId:null,startTime:partDay?sTime:null,endTime:partDay?eTime:null}, null, others);
-    else onSave({...base,kind:"work",projectId,phaseId:phaseId||null,leaveType:null}, phaseId?{projectId,phaseId,hours:phaseHours===""?null:Number(phaseHours)}:null, others);
+    const note=assignment?null:(firstNote.trim()||null);
+    if(kind==="leave") onSave({...base,kind:"leave",leaveType,projectId:null,phaseId:null,startTime:partDay?sTime:null,endTime:partDay?eTime:null}, null, others, note);
+    else onSave({...base,kind:"work",projectId,phaseId:phaseId||null,leaveType:null}, phaseId?{projectId,phaseId,hours:phaseHours===""?null:Number(phaseHours)}:null, others, note);
   };
   {/* min-height pinned to the tallest tab so switching kinds doesn't resize the dialog */}
   return (<Dialog open onOpenChange={(o) => { if (!o) (onClose)?.(); }}><DialogContent className="sm:max-w-lg max-h-[92svh] overflow-y-auto"><DialogHeader><DialogTitle>{assignment?"Edit assignment":"Assign work"}</DialogTitle></DialogHeader><FieldGroup className={assignment?undefined:"min-h-[30rem]"}>
@@ -469,17 +496,26 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
     {(errs.memberId) ? <FieldError>{errs.memberId}</FieldError> : null}</Field>
     )}
     {kind==="work" ? (<>
-      <Field><FieldLabel>Project</FieldLabel>
+      <Field>
+        <div className="flex items-center justify-between gap-2">
+          <FieldLabel>Project</FieldLabel>
+          <ToggleGroup variant="outline" size="sm" spacing={0} value={[projSort]} onValueChange={(v)=>{ if(v[0]) pickProjSort(v[0]); }}>
+            <ToggleGroupItem value="newest" title="Newest projects first">Newest</ToggleGroupItem>
+            <ToggleGroupItem value="name" title="Project name, A to Z">A–Z</ToggleGroupItem>
+          </ToggleGroup>
+        </div>
         <Select value={projectId} onValueChange={(v)=>{ if(v==="__new__"){ onNewProject&&onNewProject(); return; } setProjectId(v);setPhaseId(""); }}
           items={{...Object.fromEntries(projects.map(p=>[p.id,`${p.index} — ${p.name}`])),...(onNewProject?{__new__:"New project / client…"}:{})}}>
           <SelectTrigger className="w-full"><SelectValue/></SelectTrigger>
           <SelectContent>
-            {projectsByClient(projects,clients).map(g=>(
-              <SelectGroup key={g.client?g.client.id:"none"}>
-                <SelectLabel>{g.client?g.client.name:"No client"}</SelectLabel>
-                {g.projects.map(p=><SelectItem key={p.id} value={p.id}>{p.index} — {p.name}</SelectItem>)}
-              </SelectGroup>
-            ))}
+            <SelectGroup>
+              <SelectLabel>{projSort==="name"?"A–Z by name":"Newest first"}</SelectLabel>
+              {sortedProjects.map(p=>{ const c=clients.find(x=>x.id===p.clientId); return (
+                <SelectItem key={p.id} value={p.id}>
+                  <span className="size-2 rounded-xs shrink-0" style={{background:c?c.color:"#94a3b8"}}/>
+                  {p.index} — {p.name}{c?<span className="text-muted-foreground"> · {c.name}</span>:null}
+                </SelectItem>); })}
+            </SelectGroup>
             {onNewProject && <SelectGroup><SelectItem value="__new__"><Plus/> New project / client…</SelectItem></SelectGroup>}
           </SelectContent>
         </Select>
@@ -550,6 +586,30 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
       </div>}
     </div>}
     <p className="text-xs text-muted-foreground">Tip: on the board you can drag the bar to move it, or drag either end to change the dates.</p>
+    {kind!=="internal" && (assignment ? (
+      <FieldSet>
+        <FieldLegend variant="label">Notes &amp; comments</FieldLegend>
+        <div className="flex flex-col gap-3">
+          {commentsReady && comments.length===0 && <p className="text-sm text-muted-foreground">No comments yet — add the first one below.</p>}
+          {comments.map(c=>{ const i=members.findIndex(m=>m.id===c.membership_id); const who=members[i]; const mine=c.membership_id===meId; return (
+            <div key={c.id} className="flex gap-2.5">
+              <Avatar size="sm"><AvatarFallback className="text-white" style={{background:AVATAR_BG[(i<0?0:i)%AVATAR_BG.length]}}>{initials(who?who.name:"?")}</AvatarFallback></Avatar>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-2 text-xs"><span className="font-medium text-foreground">{who?who.name:"Former member"}{mine?" (you)":""}</span><span className="text-muted-foreground">{whenOf(c.created_at)}</span>
+                  {(mine||canEdit) && <Button variant="ghost" size="icon-xs" className="ml-auto" title="Delete comment" onClick={()=>deleteComment(c.id)}><X/></Button>}</div>
+                <p className="text-sm whitespace-pre-wrap break-words">{c.body}</p>
+              </div>
+            </div>); })}
+          <Textarea rows={2} value={commentDraft} onChange={e=>setCommentDraft(e.target.value)} placeholder="Add a comment… (Ctrl + Enter to post)" onKeyDown={e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)) postComment(); }}/>
+          <Button variant="outline" className="self-end" onClick={postComment} disabled={!commentDraft.trim()}>Post comment</Button>
+        </div>
+      </FieldSet>
+    ) : (
+      <Field><FieldLabel>Notes (optional)</FieldLabel>
+        <Textarea rows={2} value={firstNote} onChange={e=>setFirstNote(e.target.value)} placeholder="Anything the team should know about this work…"/>
+        <FieldDescription>Starts a comment thread on this work — everyone can read it and reply.</FieldDescription>
+      </Field>
+    ))}
   </FieldGroup>
   <DialogFooter>{(onDelete?()=>onDelete(assignment.id):null) ? <Button variant="destructive" onClick={onDelete?()=>onDelete(assignment.id):null}><Trash2 data-icon="inline-start" /> Delete</Button> : null}<Button onClick={save}>{assignment?"Save":"Assign"}</Button></DialogFooter></DialogContent></Dialog>);
 }
@@ -747,7 +807,7 @@ function mapData(cad) {
   return {
     members: (cad.members || []).filter(m => m.status !== "suspended").map(m => ({ id:m.id, name:m.display_name||m.email||"—", role:m.job_title||(m.role||""), email:m.email||"", teams:m.teams||[], daily:m.daily_hours||8, holidayAllowance:m.holiday_allowance??30, hourlyRate:m.hourly_rate })),
     clients: (cad.clients || []).map(c => ({ id:c.id, name:c.name, color:c.color, paymentTerms:c.payment_terms, billingAddress:c.billing_address||"" })),
-    projects: (cad.projects || []).map(p => ({ id:p.id, index:p.code, name:p.name, clientId:p.client_id, phases:p.phases||[], cost:p.cost })),
+    projects: (cad.projects || []).map(p => ({ id:p.id, index:p.code, name:p.name, clientId:p.client_id, phases:p.phases||[], cost:p.cost, createdAt:p.created_at||"" })),
     assignments: (cad.assignments || []).map(a => ({ id:a.id, kind:a.kind==="task"?"internal":a.kind, memberId:a.membership_id, projectId:a.project_id, phaseId:a.phase_id, leaveType:a.leave_type, start:a.start_date, end:a.end_date, lane:Number.isFinite(a.lane)?a.lane:null, taskId:a.task_id, startTime:a.start_time, endTime:a.end_time, mode:a.mode, value:a.value })),
     timeLogs: (cad.timeLogs || []).map(l => ({ id:l.id, memberId:l.membership_id, projectId:l.project_id, phaseId:l.phase_id, taskId:l.task_id, date:l.log_date, minutes:l.minutes, source:l.source||"manual" })),
     internalTasks: (cad.tasks || []).map(t => ({ id:t.id, title:t.title, assigneeId:t.assignee_id, status:t.status, priority:t.priority, team:t.team, projectId:t.project_id, phaseId:t.phase_id, ord:t.ord, notes:t.notes })),
@@ -795,12 +855,18 @@ export default function Schedule({ org, me, data: cadData, reload, peopleFilter:
   const asgRow=(a)=>({ org_id:org.id, kind:a.kind==="internal"?"task":a.kind, membership_id:a.memberId, project_id:a.projectId||null, phase_id:a.phaseId||null, leave_type:a.leaveType||null, start_date:a.start, end_date:a.end, mode:a.mode||null, value:(a.value??null), note:a.note||null, start_time:a.startTime||null, end_time:a.endTime||null, lane:Number.isFinite(a.lane)?a.lane:null, task_id:a.taskId||null });
   // `others`: more people to put on the same work — each gets their own copy
   // of the bar (lane left to auto-placement).
-  const saveAssignment=async(a,ph,others=[])=>{ const row=asgRow(a); if(a.id) await sb.from("assignments").update(row).eq("id",a.id); else await sb.from("assignments").insert(row); if(others.length) await sb.from("assignments").insert(others.map(mid=>asgRow({...a,id:undefined,memberId:mid,lane:null}))); if(ph&&ph.hours!=null){ const proj=(cadData.projects||[]).find(p=>p.id===ph.projectId); if(proj){ const phases=(proj.phases||[]).map(x=>x.id===ph.phaseId?{...x,hours:ph.hours}:x); await sb.from("projects").update({phases}).eq("id",proj.id); } } reload(); };
+  // `note` (new work only) starts the bar's comment thread, posted as you.
+  const saveAssignment=async(a,ph,others=[],note=null)=>{ const row=asgRow(a);
+    if(a.id) await sb.from("assignments").update(row).eq("id",a.id);
+    else { const { data:ins }=await sb.from("assignments").insert(row).select().single();
+      if(note&&ins?.id){ const { error }=await sb.from("assignment_comments").insert({ org_id:org.id, assignment_id:ins.id, membership_id:me.id, body:note }); if(error) toast.add({ title:"The work was saved, but the note couldn't be: "+error.message, type:"error" }); } } if(others.length) await sb.from("assignments").insert(others.map(mid=>asgRow({...a,id:undefined,memberId:mid,lane:null}))); if(ph&&ph.hours!=null){ const proj=(cadData.projects||[]).find(p=>p.id===ph.projectId); if(proj){ const phases=(proj.phases||[]).map(x=>x.id===ph.phaseId?{...x,hours:ph.hours}:x); await sb.from("projects").update({phases}).eq("id",proj.id); } } reload(); };
   const delAssign=async(id)=>{ await sb.from("assignments").delete().eq("id",id); reload(); };
   const saveInternalAssign=async({taskId,newTask,memberId,start,end})=>{ let tid=taskId; if(newTask){ const {data:t}=await sb.from("tasks").insert({org_id:org.id,title:newTask.title,priority:newTask.priority||"med",team:newTask.team||null,status:"todo",assignee_id:memberId||null,assignee_ids:memberId?[memberId]:[],ord:Date.now()}).select().single(); tid=t&&t.id; } await sb.from("assignments").insert({org_id:org.id,kind:"task",membership_id:memberId,task_id:tid,start_date:start,end_date:end}); reload(); };
   const createFromProposal=async({newClient,project,assignments})=>{ let clientId=project.clientId; if(newClient){ const {data:c}=await sb.from("clients").insert({org_id:org.id,name:newClient.name,color:newClient.color,payment_terms:30}).select().single(); clientId=c&&c.id; } const {data:p}=await sb.from("projects").insert({org_id:org.id,code:project.index,name:project.name,client_id:clientId,cost:project.cost,phases:project.phases}).select().single(); const projId=p&&p.id; if(projId&&assignments.length){ const rows=assignments.map(a=>({org_id:org.id,kind:"work",membership_id:a.memberId,project_id:projId,phase_id:a.phaseId||null,start_date:a.start,end_date:a.end})); await sb.from("assignments").insert(rows); } setModal(null); reload(); };
 
-  const ctx={ data:dataView, anchor, matches, setModal, moveAssign, peopleFilter, zoomT, setZoomT, holidayFilter, boardScroll, phaseLogged, projectById, clientById, colorOf, canEdit, myMemberId:me.id };
+  // How many comments each assignment has, for the count on its bar.
+  const commentCounts=useMemo(()=>{ const m={}; (cadData.comments||[]).forEach(c=>{ m[c.assignment_id]=(m[c.assignment_id]||0)+1; }); return m; },[cadData.comments]);
+  const ctx={ data:dataView, anchor, matches, setModal, moveAssign, peopleFilter, zoomT, setZoomT, holidayFilter, boardScroll, phaseLogged, projectById, clientById, colorOf, canEdit, myMemberId:me.id, commentCounts };
 
   if(!can(me,"schedule.view")) return <NoAccess what="the schedule" />;
   // Jump to a date already on the board; anything further away rebuilds the
@@ -880,7 +946,8 @@ export default function Schedule({ org, me, data: cadData, reload, peopleFilter:
 
       {modal?.type==="assign" && <AssignForm assignment={modal.payload&&modal.payload.id?modal.payload:null} preset={modal.payload} members={data.members} projects={data.projects} clients={data.clients} anchor={anchor} tasks={data.internalTasks||[]} teams={teams}
         onInvite={canEdit?()=>setQuickModal("invite"):null} onNewProject={canEdit?()=>setQuickModal("newproject"):null}
-        onInternalAssign={(x)=>{ saveInternalAssign(x); setModal(null); }} onSave={(a,ph,others)=>{ saveAssignment(a,ph,others); setModal(null); }} onDelete={modal.payload&&modal.payload.id?id=>{ delAssign(id); setModal(null); }:null} onClose={()=>setModal(null)} />}
+        onInternalAssign={(x)=>{ saveInternalAssign(x); setModal(null); }} orgId={org.id} meId={me.id} canEdit={canEdit} onCommentsChanged={reload}
+        onSave={(a,ph,others,note)=>{ saveAssignment(a,ph,others,note); setModal(null); }} onDelete={modal.payload&&modal.payload.id?id=>{ delAssign(id); setModal(null); }:null} onClose={()=>setModal(null)} />}
       {modal?.type==="member" && <MemberForm org={org} member={modal.payload} teams={teams} canEdit={canEdit} onClose={()=>setModal(null)} onSaved={()=>{ setModal(null); reload(); }} />}
       {modal?.type==="client" && <ClientForm org={org} client={modal.payload} canEdit={canEdit} onClose={()=>setModal(null)} onSaved={()=>{ setModal(null); reload(); }} />}
       {modal?.type==="proposal" && <ProposalForm org={org} clients={data.clients} members={data.members} anchor={anchor} onCreate={createFromProposal} onClose={()=>setModal(null)} />}

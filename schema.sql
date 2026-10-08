@@ -43,7 +43,7 @@ create table if not exists memberships (
   display_name      text,
   role              text not null default 'member',        -- owner | admin ("Admin / Manager") | member | tracker
   permissions       text[] not null default '{}',          -- extra grants on top of the role preset
-  status            text not null default 'active',        -- active | invited | suspended
+  status            text not null default 'active',        -- active | invited | suspended | left (via leave_team)
   job_title         text,
   teams             text[],
   hourly_rate       numeric,
@@ -495,6 +495,26 @@ begin
     insert into audit_log(org_id, user_id, action, entity) values (d.org_id, u.id, 'domain.joined', 'membership');
   end if;
   return d.org_id;
+end $$;
+
+-- Settings → "Leave this team": marks the caller's membership 'left' (never
+-- deletes it — that would cascade away their logged time and schedule bars).
+-- The last owner can't leave. A later invite reactivates the membership.
+create or replace function leave_team(o uuid)
+returns void language plpgsql security definer set search_path=public as $$
+declare m memberships%rowtype;
+begin
+  if auth.uid() is null then raise exception 'not signed in'; end if;
+  select * into m from memberships where org_id = o and user_id = auth.uid();
+  if not found then return; end if;
+  if m.role = 'owner' and not exists (
+    select 1 from memberships where org_id = o and role = 'owner' and status = 'active' and id <> m.id
+  ) then
+    raise exception 'You are the only owner of this team — make someone else an owner first.';
+  end if;
+  update memberships set status = 'left' where id = m.id;
+  delete from running_timers where membership_id = m.id;
+  insert into audit_log(org_id, user_id, action, entity) values (o, auth.uid(), 'member.left', 'membership');
 end $$;
 
 -- Called by the app after sign-in: accepts every open invite sent to the

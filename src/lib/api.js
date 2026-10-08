@@ -28,7 +28,9 @@ export async function loadOrgData(orgId){
   let comments = [];
   try { const c = await q("assignment_comments", "id,assignment_id"); if(!c.error) comments = c.data||[]; } catch(_) {}
   return {
-    members: (members.data||[]).map(m => ({ ...m, display_name: (m.display_name && String(m.display_name).trim()) ? m.display_name : prettyName(m.email) })),
+    // People who left the team (status 'left') drop out of every list and
+    // board; their past time and comments stay in the database.
+    members: (members.data||[]).filter(m => m.status !== "left").map(m => ({ ...m, display_name: (m.display_name && String(m.display_name).trim()) ? m.display_name : prettyName(m.email) })),
     clients: clients.data||[], projects: projects.data||[],
     assignments: assignments.data||[], timeLogs: timeLogs.data||[], tasks: tasks.data||[],
     holidays: holidays.data||[], billing, comments,

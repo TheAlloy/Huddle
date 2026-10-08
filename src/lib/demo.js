@@ -303,6 +303,16 @@ export function createDemoClient() {
       inv.accepted_at = nowISO();
       return { data: inv.org_id, error: null };
     }
+    if (name === "leave_team") {
+      // Mirrors the server: mark the caller's membership 'left'; the last owner can't leave.
+      if (!session) return { data: null, error: { message: "Not signed in." } };
+      const m = db.memberships.find(x => x.org_id === args.o && x.user_id === session.user.id);
+      if (!m) return { data: null, error: null };
+      if (m.role === "owner" && !db.memberships.some(x => x.org_id === args.o && x.role === "owner" && x.status === "active" && x.id !== m.id))
+        return { data: null, error: { message: "You are the only owner of this team — make someone else an owner first." } };
+      m.status = "left";
+      return { data: null, error: null };
+    }
     if (name === "accept_my_invites") {
       // Mirrors the server: open invites to the signed-in email join their
       // teams. Demo addresses count as confirmed.

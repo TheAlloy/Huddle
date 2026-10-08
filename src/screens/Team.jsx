@@ -290,8 +290,12 @@ function AccessModal({ m, onClose, onSaved }) {
   const remove = async () => {
     if (!(await confirm({ title: `Remove ${m.display_name || m.email} from this studio?`, description: "Their bookings and logged time stay, but they lose access.", confirmLabel: "Remove", destructive: true }))) return;
     setBusy(true);
-    await sb.from("memberships").delete().eq("id", m.id);
-    setBusy(false); onSaved();
+    // Marked 'left', not deleted: deleting a membership cascades away the
+    // person's logged time and schedule bars, which the message promises to keep.
+    const { error } = await sb.from("memberships").update({ status: "left" }).eq("id", m.id);
+    setBusy(false);
+    if (error) { toast.add({ title: "Couldn't remove them: " + error.message, type: "error" }); return; }
+    onSaved();
   };
 
   return (<Dialog open onOpenChange={(o) => { if (!o) (onClose)?.(); }}><DialogContent className="sm:max-w-3xl max-h-[90svh] overflow-y-auto"><DialogHeader><DialogTitle>{`Manage — ${m.display_name || m.email}`}</DialogTitle></DialogHeader>

@@ -16,7 +16,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarDays, Plus, X } from "lucide-react";
+import { CalendarDays, Plus, X, LogOut } from "lucide-react";
+import { useConfirm } from "../components/confirm.tsx";
 import { MONTHS, pad, toISO, parseISO } from "../studio/core.jsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
@@ -45,6 +46,21 @@ export default function Settings({ org, me, members, holidays = [], reload }) {
 
   const setF = (k, v) => setInv(p => ({ ...p, [k]: v }));
   const admin = can(me, "org.admin");
+  const confirmDlg = useConfirm();
+  // Leave the selected team via leave_team(): your membership is marked
+  // "left" rather than deleted — deleting it would cascade away your logged
+  // time and schedule bars — so the team's history keeps your work. The last
+  // owner can't leave (that would strand the studio); the database checks it too.
+  const owners = (members || []).filter(m => m.role === "owner" && m.status === "active");
+  const lastOwner = me.role === "owner" && owners.length <= 1;
+  const leaveTeam = async () => {
+    if (lastOwner) return;
+    if (!(await confirmDlg({ title: `Leave ${org.name}?`, description: "You'll lose access to this team straight away. Your logged time stays in the team's records. To come back you'd need a new invite.", confirmLabel: "Leave team", cancelLabel: "Stay", destructive: true }))) return;
+    const { error } = await sb.rpc("leave_team", { o: org.id });
+    if (error) { toast.add({ title: "Couldn't leave the team: " + error.message, type: "error" }); return; }
+    try { localStorage.removeItem("cadence_org"); } catch (_) {}
+    window.location.reload(); // land in one of your other teams (or set-up if none)
+  };
   const [plans, setPlans] = useState(null);
   const [plansMsg, setPlansMsg] = useState("");
   const [liveSub, setLiveSub] = useState(null);
@@ -280,6 +296,17 @@ export default function Settings({ org, me, members, holidays = [], reload }) {
               <Button onClick={addHoliday} disabled={!newHoliday}><Plus data-icon="inline-start" /> Add public holiday</Button>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Leave this team</CardTitle>
+          <CardDescription>You're in <span className="font-medium text-foreground">{org.name}</span>. Leaving removes it from your team switcher; your logged time stays in the team's records.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col items-start gap-2">
+          <Button variant="outline" className="text-destructive" onClick={leaveTeam} disabled={lastOwner}><LogOut data-icon="inline-start" /> Leave {org.name}</Button>
+          {lastOwner && <p className="text-xs text-muted-foreground">You're the only owner of this team. Make someone else an owner (People → Manage member) before leaving.</p>}
         </CardContent>
       </Card>
 

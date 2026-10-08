@@ -1,11 +1,14 @@
 -- ============================================================
--- Huddle: comments on schedule assignments
+-- Huddle: comments on schedule assignments + leaving a team
 -- Run in Supabase → SQL Editor (project ewszodwpenvxjktcknfp),
 -- BEFORE the matching app code goes live. Safe to run more than once.
 --
--- A shared thread on each piece of scheduled work: everyone in the studio
--- can read it and add their own comments; people delete their own, and
--- schedule editors can delete any.
+-- 1. A shared thread on each piece of scheduled work: everyone in the
+--    studio can read it and add their own comments; people delete their
+--    own, and schedule editors can delete any.
+-- 2. leave_team(): Settings → "Leave this team". Marks your membership
+--    'left' (never deletes it — deleting a membership cascades away that
+--    person's logged time and schedule bars). The last owner can't leave.
 -- ============================================================
 
 create table if not exists assignment_comments (
@@ -38,5 +41,23 @@ create policy ac_delete on assignment_comments for delete
     membership_id in (select id from memberships where org_id = assignment_comments.org_id and user_id = auth.uid())
     or app_has(org_id, 'schedule.edit')
   );
+
+-- 2) Leaving a team ------------------------------------------------------
+create or replace function leave_team(o uuid)
+returns void language plpgsql security definer set search_path=public as $$
+declare m memberships%rowtype;
+begin
+  if auth.uid() is null then raise exception 'not signed in'; end if;
+  select * into m from memberships where org_id = o and user_id = auth.uid();
+  if not found then return; end if;
+  if m.role = 'owner' and not exists (
+    select 1 from memberships where org_id = o and role = 'owner' and status = 'active' and id <> m.id
+  ) then
+    raise exception 'You are the only owner of this team — make someone else an owner first.';
+  end if;
+  update memberships set status = 'left' where id = m.id;
+  delete from running_timers where membership_id = m.id;
+  insert into audit_log(org_id, user_id, action, entity) values (o, auth.uid(), 'member.left', 'membership');
+end $$;
 
 notify pgrst, 'reload schema';

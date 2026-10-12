@@ -64,16 +64,32 @@ export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, r
   const placed = logs.filter((l) => l.startMin != null);
   const bounds = placed.flatMap((l) => [l.startMin / 60, (l.startMin + l.minutes) / 60]);
   if (run) { const d = new Date(run.startedAt); bounds.push((d.getHours() * 60 + d.getMinutes()) / 60); }
-  const rangeStart = Math.max(0, Math.min(8, Math.floor(Math.min(...bounds, 8))));
-  const rangeEnd = Math.min(24, Math.max(18, Math.ceil(Math.max(...bounds, 18))));
+  // The visible hours: 8–18 by default, widened to fit any entry, and grown
+  // an hour at a time (down to 0:00 / up to 24:00) when a drag reaches the
+  // top or bottom edge — flexi hours and overtime need room past 18:00.
+  const [extra, setExtra] = useState({ before: 0, after: 0 });
+  const rangeStart = Math.max(0, Math.min(8 - extra.before, Math.floor(Math.min(...bounds, 8))));
+  const rangeEnd = Math.min(24, Math.max(18 + extra.after, Math.ceil(Math.max(...bounds, 18))));
   const rangeH = rangeEnd - rangeStart;
-  const clampStart = (s, minutes) => Math.max(rangeStart * 60, Math.min(rangeEnd * 60 - minutes, s));
+  // Drags outlive renders, so the current range is read through a ref.
+  const rangeRef = useRef({ rangeStart, rangeEnd });
+  rangeRef.current = { rangeStart, rangeEnd };
+  const clampStart = (s, minutes) => { const { rangeStart: a, rangeEnd: b } = rangeRef.current; return Math.max(a * 60, Math.min(b * 60 - minutes, s)); };
 
   const yToMin = (dISO, clientY) => {
-    const el = colRefs.current[dISO]; if (!el) return rangeStart * 60;
+    const { rangeStart: a, rangeEnd: b } = rangeRef.current;
+    const el = colRefs.current[dISO]; if (!el) return a * 60;
     const r = el.getBoundingClientRect();
-    const m = rangeStart * 60 + ((clientY - r.top) / PPH) * 60;
-    return Math.max(rangeStart * 60, Math.min(rangeEnd * 60, m));
+    const m = a * 60 + ((clientY - r.top) / PPH) * 60;
+    return Math.max(a * 60, Math.min(b * 60, m));
+  };
+  // While dragging, touching the column's top/bottom edge reveals another hour.
+  const growAt = useRef(0);
+  const growIfAtEdge = (dISO, clientY) => {
+    const el = colRefs.current[dISO]; if (!el || Date.now() - growAt.current < 300) return;
+    const r = el.getBoundingClientRect(); const { rangeStart: a, rangeEnd: b } = rangeRef.current;
+    if (clientY >= r.bottom - 6 && b < 24) { growAt.current = Date.now(); setExtra((x) => ({ ...x, after: x.after + 1 })); }
+    else if (clientY <= r.top + 6 && a > 0) { growAt.current = Date.now(); setExtra((x) => ({ ...x, before: x.before + 1 })); }
   };
   const colUnder = (clientX) => Object.entries(colRefs.current).find(([, el]) => { if (!el) return false; const r = el.getBoundingClientRect(); return clientX >= r.left && clientX <= r.right; })?.[0] || null;
 
@@ -97,6 +113,7 @@ export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, r
     const move = (ev) => {
       if (!d.moved && Math.hypot(ev.clientX - d.x0, ev.clientY - d.y0) < 4) return;
       d.moved = true; document.body.style.userSelect = "none";
+      if (d.mode !== "place" || colUnder(ev.clientX)) growIfAtEdge(d.dISO, ev.clientY);
       const cur = yToMin(d.dISO, ev.clientY);
       if (d.mode === "create") {
         const a = Math.min(d.anchor, cur), b = Math.max(d.anchor, cur);
@@ -108,7 +125,7 @@ export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, r
         d.minutes = Math.max(SNAP, snap(cur) - d.startMin);
       } else if (d.mode === "t") {
         const end = d.startMin0 + d.minutes0;
-        d.startMin = Math.min(end - SNAP, Math.max(rangeStart * 60, snap(cur)));
+        d.startMin = Math.min(end - SNAP, Math.max(rangeRef.current.rangeStart * 60, snap(cur)));
         d.minutes = end - d.startMin;
       }
       setPreview({ id: d.mode === "copy" ? "copy" : d.id, dISO: d.dISO, startMin: d.startMin, minutes: d.minutes, color: d.color, label: d.label });
@@ -257,6 +274,10 @@ export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, r
           {/* hour axis */}
           <div className="relative" style={{ height: rangeH * PPH }}>
             {hourMarks.filter((h) => h > rangeStart).map((h) => <div key={h} className="absolute inset-x-0 -translate-y-1/2 text-center text-xs text-muted-foreground tabular-nums" style={{ top: (h - rangeStart) * PPH }}>{h}:00</div>)}
+            {/* Reveal later hours without dragging (e.g. to double-click an evening slot). */}
+            {rangeEnd < 24 && <div className="absolute inset-x-0 flex justify-center" style={{ top: rangeH * PPH - 34 }}>
+              <Button variant="ghost" size="xs" title="Show later hours" onClick={() => setExtra((x) => ({ ...x, after: x.after + Math.min(2, 24 - rangeEnd) }))}><Plus data-icon="inline-start" /> later</Button>
+            </div>}
           </div>
 
           {/* day columns */}

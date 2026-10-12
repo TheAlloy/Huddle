@@ -27,3 +27,10 @@ body { margin: 0; -webkit-font-smoothing: antialiased; }
     @apply bg-background text-foreground; }
   html {
     @apply font-sans; } }
+/* Schedule: a one-off flash on a project's bars when it's picked from the
+   Over budget strip (rendered as an overlay inside each bar). */
+@keyframes huddle-flash {
+  0%   { background: rgb(255 255 255 / 0);    box-shadow: inset 0 0 0 0 rgb(255 255 255 / 0); }
+  25%  { background: rgb(255 255 255 / 0.55); box-shadow: inset 0 0 0 3px rgb(255 255 255 / 0.95); }
+  100% { background: rgb(255 255 255 / 0);    box-shadow: inset 0 0 0 0 rgb(255 255 255 / 0); }
+}

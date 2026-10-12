@@ -16,6 +16,10 @@ import { Card, CardHeader, CardTitle, CardAction, CardContent } from "@/componen
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
 import { toast } from "@/components/ui/toast";
+import { Badge } from "@/components/ui/badge";
+import { DialogDescription } from "@/components/ui/dialog";
+import ProjectView, { projectStatus } from "./ProjectView.jsx";
+import { MONTHS, toISO, startOfDay, parseISO, fmtH } from "../studio/core.jsx";
 
 const CLIENT_COLORS = ["#2f80ed", "#9b51e0", "#16a0a0", "#eb5757", "#27ae60", "#f2994a", "#2d9cdb", "#eb5757", "#6b7a99", "#b5179e"];
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -65,7 +69,7 @@ export default function Projects({ org, me, data, reload, terms }) {
               {list.map(c => (
                 <div key={c.id} className="flex items-center gap-3 py-2 text-sm group">
                   <span className="w-3.5 h-3.5 rounded-xs" style={{ background: c.color || "#94a3b8" }} />
-                  <span className="text-foreground">{c.name}</span>
+                  <button className="text-foreground hover:underline underline-offset-4" title="See this client's projects" onClick={() => setModal({ type: "client-view", c })}>{c.name}</button>
                   <span className="ml-auto text-xs text-muted-foreground">{c.payment_terms || 30} day terms</span>
                   {mayClients && <Button variant="ghost" size="icon-sm" title="Edit client" onClick={() => setModal({ type: "client", c })}><Pencil /></Button>}
                 </div>
@@ -112,7 +116,7 @@ export default function Projects({ org, me, data, reload, terms }) {
                   const phaseDays = (p.phases || []).reduce((s, ph) => s + (Number(ph.days) || 0), 0);
                   return (<div key={p.id} className="flex items-center gap-3 py-2 text-sm">
                     <div className="min-w-0 flex-1">
-                      <div className="text-foreground truncate">{p.code ? p.code + " · " : ""}{p.name}</div>
+                      <button className="block max-w-full text-left text-foreground truncate hover:underline underline-offset-4" title="View project" onClick={() => setModal({ type: "project-view", id: p.id })}>{p.code ? p.code + " · " : ""}{p.name}</button>
                       <div className="text-xs text-muted-foreground">{(p.phases || []).length} phase{(p.phases || []).length === 1 ? "" : "s"}{phaseDays ? ` · ${phaseDays} days` : ""}</div>
                     </div>
                     <span className="text-xs text-muted-foreground shrink-0">{money(p.cost)}</span>
@@ -129,8 +133,54 @@ export default function Projects({ org, me, data, reload, terms }) {
 
       {modal?.type === "client" && <ClientModal org={org} client={modal.c} sectors={sectors} onClose={() => setModal(null)} onSaved={() => { setModal(null); reload(); }} />}
       {modal?.type === "project" && <ProjectModal org={org} project={modal.p} clients={data.clients} onClose={() => setModal(null)} onSaved={() => { setModal(null); reload(); }} />}
+      {modal?.type === "project-view" && <ProjectView org={org} me={me} data={data} projectId={modal.id} reload={reload} onClose={() => setModal(null)} />}
+      {modal?.type === "client-view" && <ClientView client={modal.c} data={data} mayClients={mayClients}
+        onOpenProject={(id) => setModal({ type: "project-view", id })} onEdit={() => setModal({ type: "client", c: modal.c })} onClose={() => setModal(null)} />}
     </div></ScrollArea>
   );
+}
+
+// A client's projects, current and past — status from their schedule bars,
+// with hours logged; each opens the project view.
+function ClientView({ client, data, mayClients, onOpenProject, onEdit, onClose }) {
+  const todayISO = toISO(startOfDay(new Date()));
+  const rows = data.projects.filter(p => p.client_id === client.id).map(p => {
+    const bars = (data.assignments || []).filter(a => a.project_id === p.id && a.kind === "work");
+    const hours = (data.timeLogs || []).filter(l => l.project_id === p.id).reduce((s, l) => s + l.minutes, 0) / 60;
+    return { p, status: projectStatus(bars, todayISO), hours };
+  });
+  const groups = [
+    ["Current & upcoming", rows.filter(r => r.status.label === "In progress" || r.status.label === "Upcoming")],
+    ["Past", rows.filter(r => r.status.label === "Finished")],
+    ["Not scheduled", rows.filter(r => r.status.label === "Not scheduled")],
+  ];
+  const fmtDay = (iso) => { const d = parseISO(iso); return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`; };
+  return (<Dialog open onOpenChange={(o) => { if (!o) onClose?.(); }}><DialogContent className="sm:max-w-lg max-h-[90svh] overflow-y-auto">
+    <DialogHeader>
+      <DialogTitle className="flex items-center gap-2"><span className="size-3 rounded-xs shrink-0" style={{ background: client.color || "#94a3b8" }} />{client.name}</DialogTitle>
+      <DialogDescription>{client.sector ? client.sector + " · " : ""}{rows.length} project{rows.length === 1 ? "" : "s"} · {client.payment_terms || 30} day terms</DialogDescription>
+    </DialogHeader>
+    <div className="flex flex-col gap-4">
+      {groups.map(([label, list]) => list.length > 0 && (
+        <div key={label}>
+          <div className="mb-1 text-xs font-medium text-muted-foreground">{label}</div>
+          <div className="divide-y divide-border/60">
+            {list.map(({ p, status, hours }) => (
+              <button key={p.id} className="flex w-full items-center gap-3 py-2 text-left text-sm hover:bg-muted/50" onClick={() => onOpenProject(p.id)}>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate">{p.code ? p.code + " · " : ""}{p.name}</div>
+                  <div className="text-xs text-muted-foreground">{status.first ? `${fmtDay(status.first)} – ${fmtDay(status.last)}` : "No dates yet"} · {fmtH(hours)}h logged</div>
+                </div>
+                <Badge variant={status.variant}>{status.label}</Badge>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+      {rows.length === 0 && <p className="text-sm text-muted-foreground">No projects for this client yet.</p>}
+    </div>
+    <DialogFooter><Button variant="ghost" onClick={onClose}>Close</Button>{mayClients && <Button variant="outline" onClick={onEdit}><Pencil data-icon="inline-start" /> Edit client</Button>}</DialogFooter>
+  </DialogContent></Dialog>);
 }
 
 function ClientModal({ org, client, sectors = [], onClose, onSaved }) {
@@ -170,13 +220,18 @@ function ClientModal({ org, client, sectors = [], onClose, onSaved }) {
   <DialogFooter>{<>{client && <Button variant="destructive" className="mr-auto" onClick={del}><Trash2 size={14} /> Delete</Button>}<Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={busy || !name.trim()}>Save</Button></>}</DialogFooter></DialogContent></Dialog>);
 }
 
-export function ProjectModal({ org, project, clients, onClose, onSaved }) {
+// `extraPhase` ({ name, hours }) opens the form with an extra phase already
+// added at the end — the project view's "Add overflow phase".
+export function ProjectModal({ org, project, clients, extraPhase = null, onClose, onSaved }) {
   const confirm = useConfirm();
   const [name, setName] = useState(project?.name || "");
   const [code, setCode] = useState(project?.code || "");
   const [clientId, setClientId] = useState(project?.client_id || "");
   const [cost, setCost] = useState(project?.cost ?? "");
-  const [phases, setPhases] = useState(project?.phases?.length ? project.phases.map(p => ({ ...p })) : [{ id: uid(), name: "Phase 1", days: 5, hours: "", fee: "" }]);
+  const [phases, setPhases] = useState(() => {
+    const base = project?.phases?.length ? project.phases.map(p => ({ ...p })) : [{ id: uid(), name: "Phase 1", days: 5, hours: "", fee: "" }];
+    return extraPhase ? [...base, { id: uid(), name: extraPhase.name || "Overflow", days: extraPhase.days || 5, hours: extraPhase.hours ?? "", fee: "" }] : base;
+  });
   const [busy, setBusy] = useState(false);
 
   const setPhase = (i, k, v) => setPhases(phases.map((p, j) => j === i ? { ...p, [k]: v } : p));

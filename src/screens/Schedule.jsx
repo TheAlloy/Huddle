@@ -4,6 +4,7 @@ import { can } from "../lib/permissions.js";
 import { NoAccess } from "./Workspace.jsx";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { createPortal } from "react-dom";
+import ProjectView from "./ProjectView.jsx";
 import { phaseRanges, PeoplePicker, AVATAR_BG, initials, fmtH } from "../studio/core.jsx";
 import { InviteModal } from "./Team.jsx";
 import { ProjectModal } from "./Projects.jsx";
@@ -128,7 +129,7 @@ function Bar({ a, ctx, baseLeft, baseWidth, top, height, dayW, onCommit, onOpen,
   }
   const stick=`translateX(clamp(0px, calc(var(--sl, 0px) - ${Math.round(left)}px), ${Math.max(0,Math.round(width-76))}px))`;
   return (
-    <div ref={ref} onPointerMove={move} onPointerUp={up} onPointerCancel={up} title={tip}
+    <div ref={ref} data-asg={a.id} onPointerMove={move} onPointerUp={up} onPointerCancel={up} title={tip}
       className="absolute rounded-md text-white overflow-hidden select-none group"
       style={{left,top:topPos,width,height,background:ctx.colorOf(a),touchAction:"none",zIndex:drag?30:1,boxShadow:active?"0 8px 20px rgba(0,0,0,.28)":"0 1px 2px rgba(0,0,0,.12)",cursor:ctx.canEdit?(drag?(drag.mode==="move"?"grabbing":"ew-resize"):"grab"):"pointer",transition:drag?"none":"box-shadow .15s"}}>
       {fill!=null && <><div className="absolute inset-y-0 left-0 pointer-events-none" style={{width:`${fill*100}%`,background:"rgba(0,0,0,0.22)"}}/>
@@ -150,6 +151,9 @@ function Bar({ a, ctx, baseLeft, baseWidth, top, height, dayW, onCommit, onOpen,
       </div>
       {ctx.canEdit && <span className="absolute left-1 top-1/2 opacity-0 group-hover:opacity-80" style={{transform:"translateY(-50%)",width:3,height:"40%",background:"#fff",borderRadius:2,pointerEvents:"none",zIndex:6}}/>}
       {ctx.canEdit && <span className="absolute right-1 top-1/2 opacity-0 group-hover:opacity-80" style={{transform:"translateY(-50%)",width:3,height:"40%",background:"#fff",borderRadius:2,pointerEvents:"none",zIndex:6}}/>}
+      {/* One flash when this bar's project is picked from Over budget (keyed so each pick replays it). */}
+      {ctx.flash && ctx.flash.projectId===a.projectId && a.kind==="work" &&
+        <div key={ctx.flash.n} className="absolute inset-0 pointer-events-none rounded-md" style={{zIndex:9,animation:"huddle-flash 1.6s ease-out 1"}}/>}
       {resizeLabel && drag.x!=null && createPortal(
         <div className="fixed z-[70] pointer-events-none rounded-md bg-foreground px-2 py-1 text-xs font-medium tabular-nums text-background shadow-md" style={{left:drag.x+14,top:drag.y-32}}>{resizeLabel}</div>,
         document.body)}
@@ -321,7 +325,7 @@ function TimelineBoard(ctx) {
                   return (
                     <Bar key={a.id} a={a} ctx={ctx} baseLeft={left} baseWidth={w} top={top} height={LANE_H} dayW={conf.dayW} fill={fill} ratio={ratio} note={note}
                       laneIndex={laneIndex} laneStep={LANE_H+LANE_GAP}
-                      onOpen={()=>setModal({type:"assign",payload:a})} onCommit={(ns,ne,nl)=>moveAssign(a,ns,ne,nl)} />
+                      onOpen={()=>setModal({type:"view",payload:a})} onCommit={(ns,ne,nl)=>moveAssign(a,ns,ne,nl)} />
                   );
                 })}
                 {placed.length===0 && <div className="absolute text-xs text-muted-foreground/40" style={{left:10,top:ROW_PAD+4}}>No assignments</div>}
@@ -376,6 +380,76 @@ function DatePicker({ value, onChange, className="w-full" }){
   );
 }
 
+// Notes & comments: a shared thread on one piece of scheduled work —
+// everyone in the studio can read and add; you delete your own (schedule
+// editors can delete any). Shown in both the bar's view and its edit form.
+function AssignmentComments({ assignmentId, orgId, meId, canEdit=false, members, onChanged }){
+  const [comments,setComments]=useState([]);
+  const [ready,setReady]=useState(false);
+  const [draft,setDraft]=useState("");
+  const load=async()=>{ const { data, error }=await sb.from("assignment_comments").select("*").eq("assignment_id",assignmentId).order("created_at"); if(!error) setComments(data||[]); setReady(true); };
+  useEffect(()=>{ load(); },[assignmentId]); // eslint-disable-line
+  const post=async()=>{ const body=draft.trim(); if(!body) return;
+    const { error }=await sb.from("assignment_comments").insert({ org_id:orgId, assignment_id:assignmentId, membership_id:meId, body });
+    if(error){ toast.add({ title:"Couldn't post the comment: "+error.message, type:"error" }); return; }
+    setDraft(""); load(); onChanged&&onChanged(); };
+  const remove=async(id)=>{ const { error }=await sb.from("assignment_comments").delete().eq("id",id); if(error){ toast.add({ title:"Couldn't delete the comment: "+error.message, type:"error" }); return; } load(); onChanged&&onChanged(); };
+  const whenOf=(iso)=>{ const d=new Date(iso); return `${d.getDate()} ${MONTHS[d.getMonth()]}, ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  return (
+    <FieldSet>
+      <FieldLegend variant="label">Notes &amp; comments</FieldLegend>
+      <div className="flex flex-col gap-3">
+        {ready && comments.length===0 && <p className="text-sm text-muted-foreground">No comments yet — add the first one below.</p>}
+        {comments.map(c=>{ const i=members.findIndex(m=>m.id===c.membership_id); const who=members[i]; const mine=c.membership_id===meId; return (
+          <div key={c.id} className="flex gap-2.5">
+            <Avatar size="sm"><AvatarFallback className="text-white" style={{background:AVATAR_BG[(i<0?0:i)%AVATAR_BG.length]}}>{initials(who?who.name:"?")}</AvatarFallback></Avatar>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline gap-2 text-xs"><span className="font-medium text-foreground">{who?who.name:"Former member"}{mine?" (you)":""}</span><span className="text-muted-foreground">{whenOf(c.created_at)}</span>
+                {(mine||canEdit) && <Button variant="ghost" size="icon-xs" className="ml-auto" title="Delete comment" onClick={()=>remove(c.id)}><X/></Button>}</div>
+              <p className="text-sm whitespace-pre-wrap break-words">{c.body}</p>
+            </div>
+          </div>); })}
+        <Textarea rows={2} value={draft} onChange={e=>setDraft(e.target.value)} placeholder="Add a comment… (Ctrl + Enter to post)" onKeyDown={e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)) post(); }}/>
+        <Button variant="outline" className="self-end" onClick={post} disabled={!draft.trim()}>Post comment</Button>
+      </div>
+    </FieldSet>
+  );
+}
+
+// Clicking a bar opens this read-only view; Edit switches to the form.
+function AssignmentView({ a, data, projectById, clientById, phaseLogged, orgId, meId, canEdit, onEdit, onViewProject, onCommentsChanged, onClose }){
+  const m=data.members.find(x=>x.id===a.memberId);
+  const pr=a.kind==="work"?projectById(a.projectId):null; const cl=pr&&clientById(pr.clientId);
+  const ph=pr&&a.phaseId?(pr.phases||[]).find(p=>p.id===a.phaseId):null;
+  const task=a.kind==="internal"?(data.internalTasks||[]).find(t=>t.id===a.taskId):null;
+  const s=parseISO(a.start), e=parseISO(a.end); const wd=workdaysBetween(s,e); const wk=Math.round(wd/5*10)/10;
+  const fmtD=(d)=>`${DOW[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  const title=a.kind==="leave"?(LEAVE_TYPES[a.leaveType]||LEAVE_TYPES.vacation).label:a.kind==="internal"?("Task · "+(task?task.title:"task")):`${cl?cl.name+" - ":""}${pr?pr.name:"Project"}`;
+  const phLogged=ph?((phaseLogged||{})[pr.id+"|"+ph.id]||0)/60:0; const phBudget=ph&&Number(ph.hours)>0?Number(ph.hours):null;
+  const rows=[
+    ["Person", m?m.name:"—"],
+    ...(pr?[["Project", `${pr.index} — ${pr.name}`], ["Phase", ph?ph.name:"—"]]:[]),
+    ["Dates", `${fmtD(s)} – ${fmtD(e)}`],
+    ["Duration", `${fmtH(wk)} week${wk===1?"":"s"} · ${wd} working day${wd===1?"":"s"}`],
+    ...(a.startTime||a.endTime?[["Time", `${a.startTime||"—"} – ${a.endTime||"—"}`]]:[]),
+    ...(phBudget!=null?[["Phase budget", `${fmtH(phLogged)}h of ${fmtH(phBudget)}h logged${phLogged-phBudget>0.05?` · ${fmtH(phLogged-phBudget)}h over`:""}`]]:[]),
+  ];
+  return (<Dialog open onOpenChange={(o)=>{ if(!o) onClose?.(); }}><DialogContent className="sm:max-w-lg max-h-[92svh] overflow-y-auto">
+    <DialogHeader><DialogTitle className="flex items-center gap-2"><span className="size-3 rounded-xs shrink-0" style={{background:a.kind==="leave"?(LEAVE_TYPES[a.leaveType]||LEAVE_TYPES.vacation).color:a.kind==="internal"?NAVY:(cl?cl.color:"#94a3b8")}}/>{title}</DialogTitle></DialogHeader>
+    <FieldGroup>
+      <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-2 text-sm">
+        {rows.map(([k,v])=><React.Fragment key={k}><dt className="text-muted-foreground">{k}</dt><dd className={k==="Phase budget"&&phBudget!=null&&phLogged-phBudget>0.05?"text-destructive":""}>{v}</dd></React.Fragment>)}
+      </dl>
+      {a.kind!=="internal" && <AssignmentComments assignmentId={a.id} orgId={orgId} meId={meId} canEdit={canEdit} members={data.members} onChanged={onCommentsChanged} />}
+    </FieldGroup>
+    <DialogFooter>
+      {pr && <Button variant="outline" className="sm:mr-auto" onClick={()=>onViewProject(pr.id)}>View project</Button>}
+      <Button variant="ghost" onClick={onClose}>Close</Button>
+      {canEdit && <Button onClick={onEdit}><Pencil data-icon="inline-start"/> Edit</Button>}
+    </DialogFooter>
+  </DialogContent></Dialog>);
+}
+
 function AssignForm({ assignment, preset, members, projects, clients, anchor, onSave, onDelete, onClose, onInternalAssign, onInvite, onNewProject, tasks=[], teams=[], orgId, meId, canEdit=false, onCommentsChanged }){
   const [kind,setKind]=useState(assignment?.kind||"work");
   // Project list order: newest first (so a just-created project is on top)
@@ -385,21 +459,9 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
   const sortedProjects=[...projects].sort((a,b)=> projSort==="name"
     ? String(a.name).localeCompare(String(b.name))
     : String(b.createdAt||"").localeCompare(String(a.createdAt||"")) || String(a.name).localeCompare(String(b.name)));
-  // Notes & comments: a shared thread on this piece of work — everyone can
-  // read and add; you delete your own (schedule editors can delete any).
-  // New work can carry a first comment, posted once it's saved.
-  const [comments,setComments]=useState([]);
-  const [commentsReady,setCommentsReady]=useState(false);
-  const [commentDraft,setCommentDraft]=useState("");
+  // New work can carry a first comment, posted once it's saved (the thread
+  // itself is AssignmentComments, shown when editing existing work).
   const [firstNote,setFirstNote]=useState("");
-  const loadComments=async()=>{ if(!assignment?.id) return; const { data, error }=await sb.from("assignment_comments").select("*").eq("assignment_id",assignment.id).order("created_at"); if(!error) setComments(data||[]); setCommentsReady(true); };
-  useEffect(()=>{ loadComments(); },[assignment?.id]); // eslint-disable-line
-  const postComment=async()=>{ const body=commentDraft.trim(); if(!body||!assignment?.id) return;
-    const { error }=await sb.from("assignment_comments").insert({ org_id:orgId, assignment_id:assignment.id, membership_id:meId, body });
-    if(error){ toast.add({ title:"Couldn't post the comment: "+error.message, type:"error" }); return; }
-    setCommentDraft(""); loadComments(); onCommentsChanged&&onCommentsChanged(); };
-  const deleteComment=async(id)=>{ const { error }=await sb.from("assignment_comments").delete().eq("id",id); if(error){ toast.add({ title:"Couldn't delete the comment: "+error.message, type:"error" }); return; } loadComments(); onCommentsChanged&&onCommentsChanged(); };
-  const whenOf=(iso)=>{ const d=new Date(iso); return `${d.getDate()} ${MONTHS[d.getMonth()]}, ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   const [taskId,setTaskId]=useState(assignment?.taskId||"");
   const [taskTitle,setTaskTitle]=useState(""),[taskPri,setTaskPri]=useState("med"),[taskTeam,setTaskTeam]=useState("");
   const [memberId,setMemberId]=useState(assignment?.memberId||preset?.memberId||members[0]?.id||"");
@@ -587,23 +649,7 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
     </div>}
     <p className="text-xs text-muted-foreground">Tip: on the board you can drag the bar to move it, or drag either end to change the dates.</p>
     {kind!=="internal" && (assignment ? (
-      <FieldSet>
-        <FieldLegend variant="label">Notes &amp; comments</FieldLegend>
-        <div className="flex flex-col gap-3">
-          {commentsReady && comments.length===0 && <p className="text-sm text-muted-foreground">No comments yet — add the first one below.</p>}
-          {comments.map(c=>{ const i=members.findIndex(m=>m.id===c.membership_id); const who=members[i]; const mine=c.membership_id===meId; return (
-            <div key={c.id} className="flex gap-2.5">
-              <Avatar size="sm"><AvatarFallback className="text-white" style={{background:AVATAR_BG[(i<0?0:i)%AVATAR_BG.length]}}>{initials(who?who.name:"?")}</AvatarFallback></Avatar>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline gap-2 text-xs"><span className="font-medium text-foreground">{who?who.name:"Former member"}{mine?" (you)":""}</span><span className="text-muted-foreground">{whenOf(c.created_at)}</span>
-                  {(mine||canEdit) && <Button variant="ghost" size="icon-xs" className="ml-auto" title="Delete comment" onClick={()=>deleteComment(c.id)}><X/></Button>}</div>
-                <p className="text-sm whitespace-pre-wrap break-words">{c.body}</p>
-              </div>
-            </div>); })}
-          <Textarea rows={2} value={commentDraft} onChange={e=>setCommentDraft(e.target.value)} placeholder="Add a comment… (Ctrl + Enter to post)" onKeyDown={e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)) postComment(); }}/>
-          <Button variant="outline" className="self-end" onClick={postComment} disabled={!commentDraft.trim()}>Post comment</Button>
-        </div>
-      </FieldSet>
+      <AssignmentComments assignmentId={assignment.id} orgId={orgId} meId={meId} canEdit={canEdit} members={members} onChanged={onCommentsChanged} />
     ) : (
       <Field><FieldLabel>Notes (optional)</FieldLabel>
         <Textarea rows={2} value={firstNote} onChange={e=>setFirstNote(e.target.value)} placeholder="Anything the team should know about this work…"/>
@@ -866,7 +912,21 @@ export default function Schedule({ org, me, data: cadData, reload, peopleFilter:
 
   // How many comments each assignment has, for the count on its bar.
   const commentCounts=useMemo(()=>{ const m={}; (cadData.comments||[]).forEach(c=>{ m[c.assignment_id]=(m[c.assignment_id]||0)+1; }); return m; },[cadData.comments]);
-  const ctx={ data:dataView, anchor, matches, setModal, moveAssign, peopleFilter, zoomT, setZoomT, holidayFilter, boardScroll, phaseLogged, projectById, clientById, colorOf, canEdit, myMemberId:me.id, commentCounts };
+  // Picking a project in Over budget: jump to its most relevant bar (on now,
+  // else the next, else the latest) and flash all of its bars once.
+  const [flash,setFlash]=useState(null); // {projectId, n}
+  const flashProject=(projectId)=>{
+    const today=toISO(startOfDay(new Date()));
+    const bars=dataView.assignments.filter(a=>a.kind==="work"&&a.projectId===projectId);
+    if(!bars.length){ toast.add({ title:"That project has no bars on the schedule." }); return; }
+    const pick=bars.find(a=>a.start<=today&&a.end>=today)
+      || bars.filter(a=>a.start>today).sort((x,y)=>x.start.localeCompare(y.start))[0]
+      || bars.slice().sort((x,y)=>y.end.localeCompare(x.end))[0];
+    if(!boardScroll.current?.goTo(parseISO(pick.start))) setAnchor(parseISO(pick.start));
+    setFlash({projectId,n:Date.now()});
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{ document.querySelector(`[data-asg="${pick.id}"]`)?.scrollIntoView({block:"center",inline:"nearest"}); }));
+  };
+  const ctx={ data:dataView, anchor, matches, setModal, moveAssign, peopleFilter, zoomT, setZoomT, holidayFilter, boardScroll, phaseLogged, projectById, clientById, colorOf, canEdit, myMemberId:me.id, commentCounts, flash };
 
   if(!can(me,"schedule.view")) return <NoAccess what="the schedule" />;
   // Jump to a date already on the board; anything further away rebuilds the
@@ -921,8 +981,11 @@ export default function Schedule({ org, me, data: cadData, reload, peopleFilter:
           {overOpen && (
             <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
               {overruns.map(({ pr, cl, used, budget, over, overPhases }) => (
-                <div key={pr.id} className="w-64 shrink-0 rounded-lg border border-border px-3 py-2">
-                  <div className="flex items-center gap-1.5 text-sm min-w-0"><span className="size-2.5 rounded-xs shrink-0" style={{ background: cl ? cl.color : "#94a3b8" }} /><span className="truncate">{cl ? cl.name + " · " : ""}{pr.index} {pr.name}</span></div>
+                <div key={pr.id} role="button" tabIndex={0} title="Show where this project is on the schedule"
+                  onClick={() => flashProject(pr.id)} onKeyDown={(e) => { if (e.key === "Enter") flashProject(pr.id); }}
+                  className="w-64 shrink-0 cursor-pointer rounded-lg border border-border px-3 py-2 hover:bg-muted/40">
+                  <div className="flex items-center gap-1.5 text-sm min-w-0"><span className="size-2.5 rounded-xs shrink-0" style={{ background: cl ? cl.color : "#94a3b8" }} /><span className="truncate">{cl ? cl.name + " · " : ""}{pr.index} {pr.name}</span>
+                    <Button variant="link" size="xs" className="ml-auto h-auto shrink-0 p-0" onClick={(e) => { e.stopPropagation(); setModal({ type: "project-view", id: pr.id }); }}>Details</Button></div>
                   <div className="mt-1 flex items-baseline justify-between gap-2">
                     <span className="text-sm font-medium text-destructive">{over > 0.05 ? `+${fmtH(over)}h over` : "Phase over budget"}</span>
                     <span className="text-xs text-muted-foreground tabular-nums">{fmtH(used)}h of {fmtH(budget)}h</span>
@@ -944,6 +1007,10 @@ export default function Schedule({ org, me, data: cadData, reload, peopleFilter:
       </div>
 
 
+      {modal?.type==="view" && <AssignmentView a={modal.payload} data={data} projectById={projectById} clientById={clientById} phaseLogged={phaseLogged}
+        orgId={org.id} meId={me.id} canEdit={canEdit} onCommentsChanged={reload}
+        onEdit={()=>setModal({type:"assign",payload:modal.payload})} onViewProject={(id)=>setModal({type:"project-view",id})} onClose={()=>setModal(null)} />}
+      {modal?.type==="project-view" && <ProjectView org={org} me={me} data={cadData} projectId={modal.id} reload={reload} onClose={()=>setModal(null)} />}
       {modal?.type==="assign" && <AssignForm assignment={modal.payload&&modal.payload.id?modal.payload:null} preset={modal.payload} members={data.members} projects={data.projects} clients={data.clients} anchor={anchor} tasks={data.internalTasks||[]} teams={teams}
         onInvite={canEdit?()=>setQuickModal("invite"):null} onNewProject={canEdit?()=>setQuickModal("newproject"):null}
         onInternalAssign={(x)=>{ saveInternalAssign(x); setModal(null); }} orgId={org.id} meId={me.id} canEdit={canEdit} onCommentsChanged={reload}

@@ -14,6 +14,7 @@ import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
 import { ProjectCombobox, recentCombos, parseHours } from "./tracker/shared.jsx";
 import { defaultPhase } from "./timesheet-lab/weekData.js";
+import ProjectView from "./ProjectView.jsx";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -336,7 +337,8 @@ function SummaryView(ctx) {
             <div className="flex items-center gap-2 mb-2 text-sm font-medium"><Clock size={15} className="text-muted-foreground"/> Project hours <span className="text-xs font-normal text-muted-foreground">(worked in this period · budget is the whole project, everyone's time)</span></div>
             <div className="grid gap-2" style={{gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))"}}>
               {cards.map(({pid,pr,cl,mins,who,budgetH,usedH})=>{ const has=budgetH>0; const over=usedH-budgetH; const isOver=has&&over>0.05; const frac=has?Math.min(1,usedH/budgetH):0;
-                return (<div key={pid} className="border border-border rounded-lg px-3 py-2">
+                return (<div key={pid} className={`border border-border rounded-lg px-3 py-2 ${ctx.openProject ? "cursor-pointer hover:bg-muted/40" : ""}`}
+                  {...(ctx.openProject ? { role: "button", tabIndex: 0, title: "View project details", onClick: () => ctx.openProject(pid), onKeyDown: (e) => { if (e.key === "Enter") ctx.openProject(pid); } } : {})}>
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0 text-sm text-foreground truncate"><span className="inline-block w-2.5 h-2.5 rounded-xs mr-1.5 align-middle" style={{background:cl?cl.color:"#94a3b8"}}/>{cl?cl.name+" · ":""}{pr.index} {pr.name}</div>
                     <div className="text-sm font-medium tabular-nums shrink-0">{fmtH(mins/60)}h</div>
@@ -435,5 +437,9 @@ export default function Summary({ org, me, data: cadData, reload, peopleFilter: 
 export function SummaryPanels({ org, me, data: cadData, reload, rs, re, period, peopleFilter, showGrid = false }){
   const selfOnly = Array.isArray(peopleFilter) && peopleFilter.length===1 && peopleFilter[0]===me.id;
   const ctx=useSummaryCtx({ org, me, cadData, reload, peopleFilter, setPeople:()=>{}, selfOnly });
-  return <SummaryView {...ctx} embed={{ rs, re, period, showGrid }} />;
+  const [viewing,setViewing]=useState(null); // project id shown in the project view
+  return <>
+    <SummaryView {...ctx} embed={{ rs, re, period, showGrid }} openProject={setViewing} />
+    {viewing && <ProjectView org={org} me={me} data={cadData} projectId={viewing} reload={reload} onClose={()=>setViewing(null)} />}
+  </>;
 }

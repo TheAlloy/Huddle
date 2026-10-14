@@ -89,11 +89,13 @@ export function openFloatingTimer({ getTop, getElapsed, onStop }){
     // Timesheet (App listens for "huddle:open-tab") and the main window comes
     // forward — via the desktop app's bridge where present (Windows won't let
     // a page raise its own window), else a best-effort window.focus().
+    // Raise first, close after: once the timer window closes, Windows hands
+    // the foreground to whatever is behind it and Huddle may only flash.
     d.getElementById("ps").addEventListener("click",()=>{
       try{onStop();}catch(_){}
-      try{win.close();}catch(_){}
       try{ window.dispatchEvent(new CustomEvent("huddle:open-tab",{detail:"time"})); }catch(_){}
       try{ if(window.huddle&&window.huddle.focusMain) window.huddle.focusMain(); else window.focus(); }catch(_){}
+      setTimeout(()=>{ try{win.close();}catch(_){} },150);
     });
     const int=setInterval(paint,1000);
     const done=()=>{ try{clearInterval(int);}catch(_){} };

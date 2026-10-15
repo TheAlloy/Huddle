@@ -23,10 +23,10 @@ export async function loadOrgData(orgId){
   // Billing is permission-gated at the database level; a denial here is normal, not fatal.
   let billing = [];
   try { const b = await q("billing_entries"); if(!b.error) billing = b.data||[]; } catch(_) {}
-  // Which assignments have comments (for the count on schedule bars). The
-  // threads themselves load when an assignment is opened. Non-fatal.
+  // Comments: the counts on schedule bars, and loaded in full so a thread can
+  // still be read (and added to) offline. Non-fatal.
   let comments = [];
-  try { const c = await q("assignment_comments", "id,assignment_id"); if(!c.error) comments = c.data||[]; } catch(_) {}
+  try { const c = await q("assignment_comments"); if(!c.error) comments = c.data||[]; } catch(_) {}
   return {
     // People who left the team (status 'left') drop out of every list and
     // board; their past time and comments stay in the database.

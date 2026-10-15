@@ -43,3 +43,9 @@ class ErrorBoundary extends React.Component {
 createRoot(document.getElementById("root")).render(
   <React.StrictMode><ErrorBoundary><ConfirmProvider><App /><Toaster />{import.meta.env.DEV && <Agentation />}</ConfirmProvider></ErrorBoundary></React.StrictMode>
 );
+
+// Offline shell (public/sw.js): keeps a copy of the app so it opens with no
+// connection. Production only — in dev it would serve stale code.
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => { navigator.serviceWorker.register("/sw.js").catch(() => {}); });
+}

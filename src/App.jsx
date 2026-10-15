@@ -1,5 +1,8 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useSyncExternalStore } from "react";
 import { sb, CONFIGURED, DEMO } from "./lib/supabase.js";
+import { offline } from "./lib/offline.js";
+import SyncStatus from "./screens/SyncStatus.jsx";
+import { useConfirm } from "./components/confirm.tsx";
 import DemoSwitcher from "./lib/DemoSwitcher.jsx";
 import { loadOrgData, memberName } from "./lib/api.js";
 import { can } from "./lib/permissions.js";
@@ -34,6 +37,8 @@ const PRODUCT = "Huddle";
 const planLabel = (p) => !p || p === "trial" ? "Trial" : p.charAt(0).toUpperCase() + p.slice(1);
 
 export default function App() {
+  const confirm = useConfirm();
+  const net = useSyncExternalStore(offline.subscribe, offline.getState);
   const [session, setSession] = useState(undefined);
   const [profile, setProfile] = useState(null);
   const [memberships, setMemberships] = useState(null);
@@ -138,6 +143,15 @@ export default function App() {
   }, [active]);
   useEffect(() => { reload(); }, [reload]);
 
+  // Back online, or offline changes finished uploading: pull the latest,
+  // which also brings in what everyone else did meanwhile.
+  useEffect(() => {
+    const fresh = () => { loadMeRef.current?.(); reload(); };
+    window.addEventListener("huddle:online", fresh);
+    window.addEventListener("huddle:synced", fresh);
+    return () => { window.removeEventListener("huddle:online", fresh); window.removeEventListener("huddle:synced", fresh); };
+  }, [reload]);
+
   // The pop-out timer's Stop & log asks to show a tab (the Timesheet).
   useEffect(() => {
     const open = (e) => { if (e.detail) setTab(e.detail); };
@@ -171,6 +185,11 @@ export default function App() {
     if (!active || !org) return;
     const localOk = !!org.stripe_subscription_id && ["active", "trialing", "past_due"].includes(org.status);
     if (localOk) { setBillingOk(true); setBillingChecked(true); return; }
+    // The last answer is remembered so the app still opens offline.
+    const cacheKey = "huddle_sub_ok_" + active.org_id;
+    const remember = (ok) => { try { localStorage.setItem(cacheKey, ok ? "1" : "0"); } catch (_) {} };
+    const remembered = () => { try { return localStorage.getItem(cacheKey) === "1"; } catch (_) { return false; } };
+    if (!offline.getState().online) { setBillingOk(remembered()); setBillingChecked(true); return; }
     let live = true;
     (async () => {
       try {
@@ -178,26 +197,40 @@ export default function App() {
         const r = await fetch("/api/subscription", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgId: active.org_id, accessToken: token }) });
         const b = await r.json();
         if (!live) return;
-        if (b.free) setBillingOk(true); // free internal domain
-        else if (b.configured === false) setBillingOk(true); // billing not set up yet → don't lock anyone out
-        else setBillingOk(!!(b.hasSubscription && ["active", "trialing", "past_due"].includes(b.status)));
-      } catch (_) { if (live) setBillingOk(false); }
+        const ok = b.free ? true // free internal domain
+          : b.configured === false ? true // billing not set up yet → don't lock anyone out
+          : !!(b.hasSubscription && ["active", "trialing", "past_due"].includes(b.status));
+        setBillingOk(ok); remember(ok);
+      } catch (_) { if (live) setBillingOk(remembered()); } // offline / unreachable: last known answer
       if (live) setBillingChecked(true);
     })();
     return () => { live = false; };
   }, [active?.org_id, org?.id, org?.status, org?.stripe_subscription_id]); // eslint-disable-line
 
+  // Changes made offline that haven't uploaded yet are kept on this computer
+  // through a sign-out — but say so first.
+  const signOut = async () => {
+    const n = offline.pendingCount();
+    if (n && !(await confirm({ title: "Sign out before your changes upload?", description: `${n} ${n === 1 ? "change hasn't" : "changes haven't"} reached the server yet. ${n === 1 ? "It's" : "They're"} kept on this computer and will upload the next time you sign in here.`, confirmLabel: "Sign out" }))) return;
+    await sb.auth.signOut(); window.location.reload();
+  };
+  // With no connection and nothing saved on this computer yet, say why
+  // rather than spin forever.
+  const waiting = (msg) => (!net.online
+    ? <Fatal title="You're offline" msg="Huddle works offline once it has been opened on this computer with a connection. Connect to the internet and it will carry on from here." />
+    : <div className="h-full grid place-items-center"><div className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner /> {msg}</div></div>);
+
   if (!CONFIGURED) return <Fatal title="Not configured" msg="Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then redeploy." />;
   if (recovery) return <ResetPassword />;
   if (session === undefined) return <div className="h-full grid place-items-center"><div className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner /> Starting…</div></div>;
   if (!session) return <Auth inviteToken={pendingInvite} inviteError={inviteErr} productName={PRODUCT} />;
-  if (memberships === null) return <div className="h-full grid place-items-center"><div className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner /> Loading your account…</div></div>;
+  if (memberships === null) return waiting("Loading your account…");
   if (memberships.length === 0) {
     if (pendingInvite || inviteBusy) return <div className="h-full grid place-items-center"><div className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner /> Joining your team…</div></div>;
     if (inviteErr) return <Fatal title="Couldn't join the team" msg={inviteErr} />;
     return <Onboarding user={session.user} onDone={(id) => { setOrgId(id); localStorage.setItem("cadence_org", id); loadMe(); }} />;
   }
-  if (!org || !data) return <div className="h-full grid place-items-center"><div className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner /> Loading your studio…</div></div>;
+  if (!org || !data) return waiting("Loading your studio…");
 
   const me = active ? { ...active, display_name: memberName(active) } : active;
   const suspended = org.status === "suspended" || org.status === "cancelled";
@@ -208,7 +241,7 @@ export default function App() {
     if (!billingChecked) return <div className="h-full grid place-items-center"><div className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner /> Checking subscription…</div></div>;
     return <Paywall org={org} me={me} memberships={memberships}
       onPickOrg={(id) => { setOrgId(id); localStorage.setItem("cadence_org", id); }}
-      onSignOut={async () => { await sb.auth.signOut(); window.location.reload(); }} />;
+      onSignOut={signOut} />;
   }
 
 
@@ -250,9 +283,9 @@ export default function App() {
         tracker={can(me, "time.track") ? <SidebarTracker org={org} me={me} data={data} reload={reload} /> : null}
         user={{ name: userName, email: me.email, initials: initials(userName) }}
         onAccount={() => setTab("settings")}
-        onSignOut={async () => { await sb.auth.signOut(); window.location.reload(); }} />
+        onSignOut={signOut} />
       <SidebarInset className="overflow-hidden">
-      <SiteHeader title={tab === "admin" && profile?.platform_admin ? "Subscribers" : (visible.find(n => n.key === current)?.label || "")} />
+      <SiteHeader title={tab === "admin" && profile?.platform_admin ? "Subscribers" : (visible.find(n => n.key === current)?.label || "")}><SyncStatus /></SiteHeader>
       {can(me, "time.track") && <TimerOverrunGuard org={org} me={me} data={data} reload={reload} />}
 
       {suspended && <div className="text-xs bg-destructive/10 border-b border-destructive/30 text-destructive px-4 py-2">

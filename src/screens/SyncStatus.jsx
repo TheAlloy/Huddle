@@ -4,12 +4,13 @@
 // attention" — that opens the detail, including any change the server
 // refused or that clashed with someone else's edit made in the meantime.
 import React, { useEffect, useState, useSyncExternalStore } from "react";
-import { offline, fmtDay } from "../lib/offline.js";
+import { offline, fmtDay, NOUN } from "../lib/offline.js";
 import { CloudOff, CloudCheck, RefreshCw, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const show = (v) => (v == null || v === "" ? "empty" : typeof v === "object" ? "edited" : String(fmtDay(v)));
+const plural = (n, c) => (c === 1 ? n : n.endsWith("y") ? n.slice(0, -1) + "ies" : n + "s");
 const label = (f) => f.replace(/_id$/, "").replace(/_/g, " ");
 
 export default function SyncStatus() {
@@ -58,12 +59,27 @@ export default function SyncStatus() {
                   <p className="text-sm text-muted-foreground">Someone else changed this while you were offline.</p>
                   <div className="flex flex-col gap-1 text-sm">
                     {it.clashes.map((c, i) => (
-                      <div key={i}><span className="font-medium capitalize">{label(c.field)}</span> — theirs: {show(c.theirs)} · yours: {show(c.mine)}</div>
+                      <div key={i}><span className="font-medium capitalize">{[label(c.field), ...(c.path || []).map((x) => label(String(x)))].join(" › ")}</span> — theirs: {show(c.theirs)} · yours: {show(c.mine)}</div>
                     ))}
                   </div>
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" size="sm" onClick={() => offline.discardIssue(it.id)}>Keep theirs</Button>
                     <Button size="sm" onClick={() => offline.keepMine(it.id)}>Keep mine</Button>
+                  </div>
+                </>}
+                {it.kind === "delclash" && <>
+                  <p className="text-sm text-muted-foreground">You deleted this while offline, but someone changed it since — so it hasn't been deleted.</p>
+                  <div className="flex flex-col gap-1 text-sm">
+                    {it.clashes.map((c, i) => (
+                      <div key={i}><span className="font-medium capitalize">{label(c.field)}</span> — now: {show(c.theirs)} (was {show(c.mine)})</div>
+                    ))}
+                    {(it.kids || []).map((k, i) => (
+                      <div key={"k" + i}>{k.count} {plural(NOUN[k.table] || k.table.replace(/_/g, " "), k.count)} on it {k.count === 1 ? "was" : "were"} added or changed — deleting would remove {k.count === 1 ? "it" : "them"} too.</div>
+                    ))}
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" size="sm" onClick={() => offline.discardIssue(it.id)}>Keep it</Button>
+                    <Button variant="destructive" size="sm" onClick={() => offline.keepMine(it.id)}>Delete anyway</Button>
                   </div>
                 </>}
                 {it.kind === "failed" && <>

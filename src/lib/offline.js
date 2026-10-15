@@ -54,7 +54,47 @@ const NOUN = {
 const uuid = () => (globalThis.crypto && crypto.randomUUID) ? crypto.randomUUID()
   : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => { const r = Math.random() * 16 | 0; return (c === "x" ? r : (r & 3 | 8)).toString(16); });
 const clone = (v) => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
-const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+// Postgres stores JSON with its own key order, so compare with keys sorted.
+const stable = (v) => (Array.isArray(v) ? "[" + v.map(stable).join(",") + "]"
+  : v && typeof v === "object" ? "{" + Object.keys(v).sort().filter((k) => v[k] !== undefined).map((k) => JSON.stringify(k) + ":" + stable(v[k])).join(",") + "}"
+  : JSON.stringify(v ?? null));
+const same = (a, b) => stable(a) === stable(b);
+const isObj = (v) => v && typeof v === "object" && !Array.isArray(v);
+
+// Three-way merge of a value I changed offline (mine) with what's on the
+// server now (theirs), from what it was when I changed it (base). Lists of
+// things with ids (a project's phases) merge item by item and settings merge
+// key by key — so two people editing different phases don't clash. Only a
+// real collision (the same phase field changed both ways) fails — unless
+// mineWins ("Keep mine"), where mine takes just the collided spots.
+function merge3(b, m, t, mineWins = false) {
+  if (same(m, t)) return { ok: true, value: m };
+  if (same(m, b)) return { ok: true, value: t };
+  if (same(t, b)) return { ok: true, value: m };
+  const withIds = (a) => Array.isArray(a) && a.every((x) => isObj(x) && x.id != null);
+  if (withIds(m) && withIds(t) && (b == null || withIds(b))) {
+    const map = (a) => new Map((a || []).map((x) => [str(x.id), x]));
+    const B = map(b), M = map(m), T = map(t);
+    const out = [];
+    for (const id of new Set([...m.map((x) => str(x.id)), ...t.map((x) => str(x.id)).filter((id) => !B.has(id))])) {
+      const r = merge3(B.get(id) ?? null, M.get(id) ?? null, T.get(id) ?? null, mineWins);
+      if (!r.ok) { const it = M.get(id) || T.get(id) || B.get(id); return { ...r, path: [it.name || it.title || id, ...(r.path || [])] }; }
+      if (r.value != null) out.push(r.value);
+    }
+    return { ok: true, value: out };
+  }
+  if (isObj(m) && isObj(t) && (b == null || isObj(b))) {
+    const out = {};
+    for (const key of new Set([...Object.keys(m), ...Object.keys(t), ...Object.keys(b || {})])) {
+      const r = merge3(b ? b[key] : undefined, m[key], t[key], mineWins);
+      if (!r.ok) return { ...r, path: [key, ...(r.path || [])] };
+      if (r.value !== undefined) out[key] = r.value;
+    }
+    return { ok: true, value: out };
+  }
+  if (mineWins) return { ok: true, value: m };
+  return { ok: false, theirs: t, mine: m }; // the exact spot that collided
+}
 
 /* --------------------------------- storage -------------------------------- */
 // IndexedDB key/value; memory (+ localStorage for the outbox) if unavailable.
@@ -404,6 +444,25 @@ function baseFor(t, chain) {
   return base;
 }
 
+// For a delete: the rows as they were, and what was attached to them that
+// the delete would take too (a project's bookings…), so the upload can tell
+// whether anyone changed them in the meantime.
+function deleteSnapshot(t, chain) {
+  if (kindOf(chain) !== "delete") return null;
+  const fs = filtersOf(chain), k = keyOf(t);
+  const rows = (S.tables[t] || []).filter((r) => fs.every((f) => f(r)));
+  const snap = { rows: {}, kids: {} };
+  rows.forEach((r) => { snap.rows[str(r[k])] = clone(r); });
+  const ids = new Set(rows.map((r) => str(r.id)));
+  for (const [child, fk, how] of CASCADE[t] || []) {
+    if (how !== "cascade" || !S.seen.has(child)) continue;
+    const ck = keyOf(child);
+    snap.kids[child] = { fk, rows: {} };
+    (S.tables[child] || []).filter((c) => c[fk] != null && ids.has(str(c[fk]))).forEach((c) => { snap.kids[child].rows[str(c[ck])] = clone(c); });
+  }
+  return snap;
+}
+
 async function runWrite(t, chain) {
   await S.loaded;
   const kind = kindOf(chain);
@@ -426,6 +485,7 @@ async function runWrite(t, chain) {
   if (!S.uid) return { data: null, error: { message: OFFLINE_MSG, code: "OFFLINE" }, count: null, status: 0, statusText: "" };
 
   const base = baseFor(t, chain);
+  const del = deleteSnapshot(t, chain);
   const res = execLocal(t, chain);
   const last = S.outbox[S.outbox.length - 1];
   // Repeated edits to the same thing (dragging a bar about) become one change.
@@ -439,7 +499,7 @@ async function runWrite(t, chain) {
     S.outbox[S.outbox.length - 1] = merged;
     await edit("outbox", (l) => [...l.filter((x) => x.id !== last.id), merged]);
   } else {
-    const op = { id: uuid(), table: t, chain: stripReturn(chain), base, at: Date.now(), uid: S.uid };
+    const op = { id: uuid(), table: t, chain: stripReturn(chain), base, del, at: Date.now(), uid: S.uid };
     S.outbox.push(op);
     await putOp(op);
   }
@@ -495,7 +555,7 @@ async function send(op) {
   const kind = kindOf(op.chain), k = keyOf(op.table);
   const issue = (kindName, extra = {}) => ({ id: uuid(), kind: kindName, op, at: Date.now(), ...extra });
 
-  if (kind === "update" && op.base && !op.force) {
+  if (kind === "update" && op.base) {
     const ids = Object.keys(op.base);
     if (ids.length) {
       const fields = [...new Set(ids.flatMap((id) => Object.keys(op.base[id])))];
@@ -503,15 +563,57 @@ async function send(op) {
       if (isNet(cur)) return "net";
       if (!cur.error) {
         const patch = argOf(op.chain, "update")[0] || {};
-        const clashes = [];
+        const clashes = [], perRow = {};
+        let merged = false;
         for (const row of cur.data || []) {
-          const before = op.base[str(row[k])] || {};
+          const id = str(row[k]), before = op.base[id] || {};
+          perRow[id] = { ...patch };
           for (const f of Object.keys(before)) {
-            if (!same(row[f], before[f]) && !same(row[f], patch[f])) clashes.push({ row: str(row[k]), field: f, theirs: row[f], mine: patch[f] });
+            if (same(row[f], before[f]) || same(row[f], patch[f])) continue;
+            const r = merge3(before[f], patch[f], row[f], !!op.force);
+            if (r.ok) { perRow[id][f] = r.value; merged = true; }
+            else clashes.push({ row: id, field: f, path: r.path || [], theirs: r.path ? r.theirs : row[f], mine: r.path ? r.mine : patch[f] });
           }
         }
         if (clashes.length) return issue("clash", { clashes });
         if (!(cur.data || []).length) return issue("gone");
+        // Merged with someone else's edit: send each row its merged values.
+        if (merged) {
+          for (const [id, rowPatch] of Object.entries(perRow)) {
+            const res = await S.real.from(op.table).update(rowPatch).eq(k, id);
+            if (isNet(res)) return "net";
+            if (res.error && isAuthErr(res)) return "auth";
+            if (res.error) return issue("failed", { error: res.error.message || "The server refused this change." });
+          }
+          return "ok";
+        }
+      }
+    }
+  }
+
+  // Nothing is deleted if someone changed it (or added to it) since: the
+  // delete waits for "Delete anyway" / "Keep it".
+  if (kind === "delete" && op.del && !op.force) {
+    const ids = Object.keys(op.del.rows);
+    if (ids.length) {
+      const cur = await S.real.from(op.table).select("*").in(k, ids);
+      if (isNet(cur)) return "net";
+      if (!cur.error) {
+        const changes = [];
+        for (const row of cur.data || []) {
+          const before = op.del.rows[str(row[k])] || {};
+          for (const f of Object.keys(row)) if (f in before && !same(row[f], before[f])) changes.push({ row: str(row[k]), field: f, theirs: row[f], mine: before[f] });
+        }
+        const kids = [];
+        for (const [child, { fk, rows }] of Object.entries(op.del.kids || {})) {
+          const kc = await S.real.from(child).select("*").in(fk, ids);
+          if (isNet(kc)) return "net";
+          if (kc.error) continue;
+          const ck = keyOf(child);
+          const n = (kc.data || []).filter((c) => { const was = rows[str(c[ck])]; return !was || !same(c, { ...c, ...was }); }).length;
+          if (n) kids.push({ table: child, count: n });
+        }
+        if (changes.length || kids.length) return issue("delclash", { clashes: changes, kids });
       }
     }
   }
@@ -556,7 +658,7 @@ async function discardIssue(issueId) {
 }
 
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-export const fmtDay = (v) => { const m = /^(d{4})-(d{2})-(d{2})$/.exec(String(v || "")); return m ? `${Number(m[3])} ${MON[Number(m[2]) - 1]}` : v; };
+export const fmtDay = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v || "")); return m ? `${Number(m[3])} ${MON[Number(m[2]) - 1]}` : v; };
 
 // "Add time entry · 3 Oct · 2h · Launch site", "Change booking · Devon · 20 Oct – 24 Oct", …
 function describeOp(op) {
@@ -565,6 +667,7 @@ function describeOp(op) {
   const verb = { insert: "Add", upsert: "Save", update: "Change", delete: "Delete" }[kind] || "Save";
   let row = null;
   if (kind === "insert" || kind === "upsert") row = (argOf(op.chain, kind)[0] || [])[0];
+  else if (kind === "delete" && op.del) row = Object.values(op.del.rows)[0] || null;
   else { const fs = filtersOf(op.chain); row = (S.tables[op.table] || []).find((r) => fs.every((f) => f(r))); }
   let label = "";
   if (row) {
@@ -688,4 +791,4 @@ export function withOffline(real, { url = null, anon = null } = {}) {
   return client;
 }
 
-export { OFFLINE_MSG };
+export { OFFLINE_MSG, NOUN };

@@ -75,36 +75,71 @@ export const pfIncludes = (pf,id) => pf==="all" || (Array.isArray(pf)?pf.include
 export const pfList = (members,pf) => pf==="all"?members:members.filter(m=>pfIncludes(pf,m.id));
 export const lsGet = (k) => { try{ const v=localStorage.getItem(k); return v==null?null:JSON.parse(v); }catch(_){ return null; } };
 export const lsSet = (k,v) => { try{ v==null?localStorage.removeItem(k):localStorage.setItem(k,JSON.stringify(v)); }catch(_){} };
-export function openFloatingTimer({ getTop, getElapsed, onStop, onNote }){
+// The floating timer: a small always-on-top strip (document Picture-in-
+// Picture, or a popup in the desktop app). With onNote, a pen button opens a
+// notes panel under the strip — this session's private notes, live
+// (getNotes), and a box to keep adding — and the window grows to fit; the pen
+// again (or Esc) folds it away and the window shrinks back.
+export function openFloatingTimer({ getTop, getElapsed, onStop, onNote, getNotes }){
   const FONT="font-family:system-ui,-apple-system,sans-serif;";
   const PEN='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
-  const html='<div id="row" style="padding:6px 10px;display:flex;align-items:center;gap:10px;height:100%;box-sizing:border-box;'+FONT+'color:#fff">'
+  const esc=(t)=>String(t).replace(/[&<>"]/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);
+  const html='<div id="row" style="flex:none;padding:6px 10px;display:flex;align-items:center;gap:10px;box-sizing:border-box;color:#fff">'
     +'<div style="min-width:0;flex:1;display:flex;flex-direction:column">'
     +'<div id="pl" style="font-size:10px;font-weight:600;color:#d7deec;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>'
     +'<div id="pt" style="font-size:17px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums"></div></div>'
-    +(onNote?'<button id="pn" title="Add a private note" style="flex:none;display:grid;place-items:center;background:rgba(255,255,255,.18);color:#fff;border:none;border-radius:7px;padding:6px 7px;cursor:pointer">'+PEN+'</button>':'')
+    +(onNote?'<button id="pn" title="Notes for this session (private)" style="flex:none;display:grid;place-items:center;background:rgba(255,255,255,.18);color:#fff;border:none;border-radius:7px;padding:6px 7px;cursor:pointer">'+PEN+'</button>':'')
     +'<button id="ps" style="flex:none;display:flex;align-items:center;gap:5px;background:#fff;color:'+NAVY+';border:none;border-radius:7px;padding:6px 10px;font-size:11.5px;font-weight:700;white-space:nowrap;cursor:pointer">&#9632; Stop &amp; log</button></div>'
-    // Note mode: the same strip becomes a one-line private note box.
-    +'<div id="nrow" style="display:none;padding:6px 10px;align-items:center;gap:6px;height:100%;box-sizing:border-box;'+FONT+'">'
-    +'<input id="ni" placeholder="Private note… (Enter to save)" style="flex:1;min-width:0;border:none;border-radius:7px;padding:7px 9px;font-size:12px;outline:none;'+FONT+'" />'
+    +'<div id="panel" style="display:none;flex:1;min-height:0;flex-direction:column;gap:6px;padding:0 10px 8px;box-sizing:border-box;color:#fff">'
+    +'<div style="flex:none;font-size:10px;font-weight:600;color:#d7deec">NOTES THIS SESSION · ONLY YOU SEE THESE</div>'
+    +'<div id="list" style="flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:4px;font-size:12px"></div>'
+    +'<div id="nrow" style="flex:none;display:flex;align-items:center;gap:6px">'
+    +'<input id="ni" placeholder="Add a note… (Enter to save)" style="flex:1;min-width:0;border:none;border-radius:7px;padding:7px 9px;font-size:12px;outline:none;'+FONT+'" />'
     +'<button id="ns" style="flex:none;background:#fff;color:'+NAVY+';border:none;border-radius:7px;padding:6px 10px;font-size:11.5px;font-weight:700;cursor:pointer">Save</button>'
-    +'<button id="nx" title="Cancel" style="flex:none;background:transparent;color:#fff;border:none;font-size:18px;line-height:1;cursor:pointer">&times;</button></div>';
+    +'</div></div>';
   const wire=(win)=>{
     if(!win) return null;
     const d=win.document; try{ d.title="Time Tracker — "+getTop(); }catch(_){}
-    d.body.style.cssText="margin:0;background:"+NAVY+";overflow:hidden";
+    d.body.style.cssText="margin:0;background:"+NAVY+";overflow:hidden;display:flex;flex-direction:column;height:100vh;"+FONT;
     d.body.innerHTML=html;
-    const tEl=d.getElementById("pt"), lEl=d.getElementById("pl");
-    let flash=null, flashUntil=0;
-    const paint=()=>{ try{ lEl.textContent=(flash&&Date.now()<flashUntil)?flash:getTop(); tEl.textContent=getElapsed(); }catch(_){} };
+    const tEl=d.getElementById("pt"), lEl=d.getElementById("pl"), row=d.getElementById("row");
+    const baseH=win.innerHeight||64;           // the strip's own size — what we shrink back to
+    row.style.height=baseH+"px";
+    const paint=()=>{ try{ lEl.textContent=getTop(); tEl.textContent=getElapsed(); }catch(_){} };
+    let tick=()=>{};
     if(onNote){
-      const row=d.getElementById("row"), nrow=d.getElementById("nrow"), ni=d.getElementById("ni");
-      const show=(note)=>{ row.style.display=note?"none":"flex"; nrow.style.display=note?"flex":"none"; if(note){ ni.value=""; ni.focus(); } };
-      const save=async()=>{ const t=ni.value.trim(); if(!t){ show(false); return; } try{ await onNote(t); flash="\u2713 Saved to My notes"; flashUntil=Date.now()+2500; }catch(_){} show(false); paint(); };
-      d.getElementById("pn").addEventListener("click",()=>show(true));
+      const panel=d.getElementById("panel"), list=d.getElementById("list"), nrow=d.getElementById("nrow"), ni=d.getElementById("ni"), pn=d.getElementById("pn");
+      let open=false, sig=null;
+      // chrome = the title bar, capped so an odd reading can't balloon the window
+      const resize=(h)=>{ try{ const chrome=Math.min(80,Math.max(0,(win.outerHeight||0)-(win.innerHeight||0))); win.resizeTo(win.outerWidth||340, Math.round(h+chrome)); }catch(_){} };
+      const fit=()=>{ if(!open){ resize(baseH); return; } resize(Math.min(460, baseH+24+list.scrollHeight+nrow.offsetHeight+16)); };
+      const render=()=>{
+        const ns=(getNotes?getNotes():[]).slice().sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));
+        const k=ns.map((n)=>n.id).join(",");
+        if(k===sig) return false;
+        sig=k;
+        list.innerHTML=ns.length
+          ? ns.map((n)=>{ const t=new Date(n.createdAt); return '<div style="display:flex;gap:6px;line-height:1.3"><span style="flex:none;opacity:.7;font-variant-numeric:tabular-nums">'+pad(t.getHours())+':'+pad(t.getMinutes())+'</span><span style="min-width:0;white-space:pre-wrap;word-break:break-word">'+esc(n.body)+'</span></div>'; }).join("")
+          : '<div style="opacity:.7">Nothing yet — notes you add here are private and saved to My notes.</div>';
+        list.scrollTop=list.scrollHeight;
+        return true;
+      };
+      const toggle=(on)=>{
+        open=on; panel.style.display=on?"flex":"none";
+        pn.style.background=on?"#fff":"rgba(255,255,255,.18)"; pn.style.color=on?NAVY:"#fff";
+        if(on){ sig=null; render(); ni.focus(); }
+        fit();
+      };
+      const save=async()=>{
+        const t=ni.value.trim(); if(!t) return;
+        ni.value="";
+        try{ await onNote(t); }catch(_){}
+        setTimeout(()=>{ if(render()) fit(); },350);   // the saved note arrives with the next refresh
+      };
+      pn.addEventListener("click",()=>toggle(!open));
       d.getElementById("ns").addEventListener("click",save);
-      d.getElementById("nx").addEventListener("click",()=>show(false));
-      ni.addEventListener("keydown",(e)=>{ if(e.key==="Enter") save(); else if(e.key==="Escape") show(false); });
+      ni.addEventListener("keydown",(e)=>{ if(e.key==="Enter") save(); else if(e.key==="Escape") toggle(false); });
+      tick=()=>{ if(open && render()) fit(); };
     }
     paint();
     // Stop & log hands the person back to Huddle: the app switches to the
@@ -119,7 +154,7 @@ export function openFloatingTimer({ getTop, getElapsed, onStop, onNote }){
       try{ if(window.huddle&&window.huddle.focusMain) window.huddle.focusMain(); else window.focus(); }catch(_){}
       setTimeout(()=>{ try{win.close();}catch(_){} },150);
     });
-    const int=setInterval(paint,1000);
+    const int=setInterval(()=>{ paint(); tick(); },1000);
     const done=()=>{ try{clearInterval(int);}catch(_){} };
     win.addEventListener("pagehide",done); win.addEventListener("beforeunload",done);
     return { win, close:()=>{ done(); try{win.close();}catch(_){} } };

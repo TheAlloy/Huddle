@@ -155,13 +155,13 @@ export default function ProjectView({ org, me, data, projectId, reload, onClose 
           </div>
         </div>
 
-        <CommentsThread orgId={org.id} meId={me.id} projectId={project.id} members={data.members || []} canModerate={can(me, "schedule.edit")} tagFor={tagFor} onChanged={reload} />
+        <CommentsThread orgId={org.id} meId={me.id} projectId={project.id} phases={phases} members={data.members || []} canModerate={can(me, "schedule.edit")} tagFor={tagFor} onChanged={reload} />
 
         <FieldSet>
           <FieldLegend variant="label">My notes</FieldLegend>
           <div className="flex flex-col gap-2">
-            <NoteComposer projectId={project.id} placeholder="A private note on this project… (Ctrl + Enter to save)"
-              onSave={({ body }) => H.addNote({ memberId: me.id, body, projectId: project.id })} />
+            <NoteComposer projectId={project.id} phasesOf={() => phases} placeholder="A private note on this project… (Ctrl + Enter to save)"
+              onSave={({ body, phaseId }) => H.addNote({ memberId: me.id, body, projectId: project.id, phaseId })} />
             {myNotes.map((n) => <NoteItem key={n.id} note={n} labels={labels} logs={mapped.timeLogs} when="full" showProject={false}
               onEdit={H.editNote} onDelete={delNote} onShare={async (x) => { if (await shareNote(org, me, x)) reload && reload(); }} />)}
           </div>

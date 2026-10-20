@@ -139,9 +139,9 @@ export const taskProject = (data, taskId) => {
 /* ------------------------------- PiP wiring ------------------------------- */
 // One owner for the document-Picture-in-Picture floating timer: closes it
 // when the run ends or the owning component unmounts. Returns openPip.
-export function usePipTimer({ run, stop, top, capMinutes, onNote }) {
+export function usePipTimer({ run, stop, top, capMinutes, onNote, notes }) {
   const pip = React.useRef(null), actions = React.useRef({});
-  actions.current = { run, stop, top, capMinutes, onNote };
+  actions.current = { run, stop, top, capMinutes, onNote, notes };
   const closePip = () => { if (pip.current) { try { pip.current.close(); } catch (_) {} pip.current = null; } };
   useEffect(() => { if (!run) closePip(); }, [run]); // eslint-disable-line
   useEffect(() => () => closePip(), []); // eslint-disable-line
@@ -153,6 +153,7 @@ export function usePipTimer({ run, stop, top, capMinutes, onNote }) {
       getElapsed: () => { const a = actions.current; const r = a.run; return r ? fmtClock(Math.min((Date.now() - r.startedAt) / 1000, (a.capMinutes || 720) * 60)) : "0:00:00"; },
       onStop: () => { const s = actions.current.stop; if (s) s(); },
       onNote: onNote ? (text) => { const n = actions.current.onNote; return n ? n(text) : null; } : undefined,
+      getNotes: () => actions.current.notes || [],
     });
     if (ctl) pip.current = ctl;
   };

@@ -51,8 +51,10 @@ export function AppSidebar({
         {/* The time tracker sits at the foot of the nav, just above
             Settings, so it's on show from every screen. */}
         {/* min-h-0 lets the tracker shrink (and scroll inside) only once
-            it has used every bit of free height in the sidebar. */}
-        {tracker && <div className="mt-auto flex min-h-0 flex-col">{tracker}</div>}
+            it has used every bit of free height in the sidebar. While it's
+            recording (notes growing under the clock) it keeps its full
+            height instead, and a short sidebar scrolls. */}
+        {tracker && <div className="mt-auto flex min-h-0 flex-col has-[[data-recording]]:shrink-0">{tracker}</div>}
         {secondary && secondary.length > 0 && (
           <NavSecondary items={secondary} className={tracker ? undefined : "mt-auto"} />
         )}

@@ -405,7 +405,7 @@ function AssignmentView({ a, data, projectById, clientById, phaseLogged, orgId, 
       <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-2 text-sm">
         {rows.map(([k,v])=><React.Fragment key={k}><dt className="text-muted-foreground">{k}</dt><dd className={k==="Phase budget"&&phBudget!=null&&phLogged-phBudget>0.05?"text-destructive":""}>{v}</dd></React.Fragment>)}
       </dl>
-      {a.kind!=="internal" && <CommentsThread assignmentId={a.id} projectId={a.projectId||null} orgId={orgId} meId={meId} canModerate={canEdit} members={data.members} onChanged={onCommentsChanged} />}
+      {a.kind!=="internal" && <CommentsThread assignmentId={a.id} projectId={a.projectId||null} phaseId={a.phaseId||null} orgId={orgId} meId={meId} canModerate={canEdit} members={data.members} onChanged={onCommentsChanged} />}
     </FieldGroup>
     <DialogFooter>
       {pr && <Button variant="outline" className="sm:mr-auto" onClick={()=>onViewProject(pr.id)}>View project</Button>}
@@ -614,7 +614,7 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
     </div>}
     <p className="text-xs text-muted-foreground">Tip: on the board you can drag the bar to move it, or drag either end to change the dates.</p>
     {kind!=="internal" && (assignment ? (
-      <CommentsThread assignmentId={assignment.id} projectId={assignment.projectId||null} orgId={orgId} meId={meId} canModerate={canEdit} members={members} onChanged={onCommentsChanged} />
+      <CommentsThread assignmentId={assignment.id} projectId={assignment.projectId||null} phaseId={assignment.phaseId||null} orgId={orgId} meId={meId} canModerate={canEdit} members={members} onChanged={onCommentsChanged} />
     ) : (
       <Field><FieldLabel>Comment (optional)</FieldLabel>
         <Textarea rows={2} value={firstNote} onChange={e=>setFirstNote(e.target.value)} placeholder="Anything the team should know about this work…"/>
@@ -870,7 +870,7 @@ export default function Schedule({ org, me, data: cadData, reload, peopleFilter:
   const saveAssignment=async(a,ph,others=[],note=null)=>{ const row=asgRow(a);
     if(a.id) await sb.from("assignments").update(row).eq("id",a.id);
     else { const { data:ins }=await sb.from("assignments").insert(row).select().single();
-      if(note&&ins?.id){ const { error }=await sb.from("assignment_comments").insert({ org_id:org.id, assignment_id:ins.id, project_id:ins.project_id||null, membership_id:me.id, body:note }); if(error) toast.add({ title:"The work was saved, but the note couldn't be: "+error.message, type:"error" }); } } if(others.length) await sb.from("assignments").insert(others.map(mid=>asgRow({...a,id:undefined,memberId:mid,lane:null}))); if(ph&&ph.hours!=null){ const proj=(cadData.projects||[]).find(p=>p.id===ph.projectId); if(proj){ const phases=(proj.phases||[]).map(x=>x.id===ph.phaseId?{...x,hours:ph.hours}:x); await sb.from("projects").update({phases}).eq("id",proj.id); } } reload(); };
+      if(note&&ins?.id){ const { error }=await sb.from("assignment_comments").insert({ org_id:org.id, assignment_id:ins.id, project_id:ins.project_id||null, phase_id:ins.phase_id||null, membership_id:me.id, body:note }); if(error) toast.add({ title:"The work was saved, but the note couldn't be: "+error.message, type:"error" }); } } if(others.length) await sb.from("assignments").insert(others.map(mid=>asgRow({...a,id:undefined,memberId:mid,lane:null}))); if(ph&&ph.hours!=null){ const proj=(cadData.projects||[]).find(p=>p.id===ph.projectId); if(proj){ const phases=(proj.phases||[]).map(x=>x.id===ph.phaseId?{...x,hours:ph.hours}:x); await sb.from("projects").update({phases}).eq("id",proj.id); } } reload(); };
   const delAssign=async(id)=>{ await sb.from("assignments").delete().eq("id",id); reload(); };
   const saveInternalAssign=async({taskId,newTask,memberId,start,end})=>{ let tid=taskId; if(newTask){ const {data:t}=await sb.from("tasks").insert({org_id:org.id,title:newTask.title,priority:newTask.priority||"med",team:newTask.team||null,status:"todo",assignee_id:memberId||null,assignee_ids:memberId?[memberId]:[],ord:Date.now()}).select().single(); tid=t&&t.id; } await sb.from("assignments").insert({org_id:org.id,kind:"task",membership_id:memberId,task_id:tid,start_date:start,end_date:end}); reload(); };
   const createFromProposal=async({newClient,project,assignments})=>{ let clientId=project.clientId; if(newClient){ const {data:c}=await sb.from("clients").insert({org_id:org.id,name:newClient.name,color:newClient.color,payment_terms:30}).select().single(); clientId=c&&c.id; } const {data:p}=await sb.from("projects").insert({org_id:org.id,code:project.index,name:project.name,client_id:clientId,cost:project.cost,phases:project.phases}).select().single(); const projId=p&&p.id; if(projId&&assignments.length){ const rows=assignments.map(a=>({org_id:org.id,kind:"work",membership_id:a.memberId,project_id:projId,phase_id:a.phaseId||null,start_date:a.start,end_date:a.end})); await sb.from("assignments").insert(rows); } setModal(null); reload(); };

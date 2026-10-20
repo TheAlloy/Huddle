@@ -174,6 +174,7 @@ create table if not exists assignment_comments (
   org_id        uuid not null references organizations(id) on delete cascade,
   assignment_id uuid references assignments(id) on delete set null,
   project_id    uuid references projects(id) on delete cascade,
+  phase_id      text,                                                -- the project phase it's about (null = general)
   membership_id uuid references memberships(id) on delete set null,   -- author
   body          text not null check (length(trim(body)) > 0),
   created_at    timestamptz not null default now()

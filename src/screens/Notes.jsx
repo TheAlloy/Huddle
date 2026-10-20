@@ -16,6 +16,8 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/in
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { toast } from "@/components/ui/toast";
 
 const clock = (iso) => { const d = new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
@@ -27,17 +29,17 @@ const dayHeading = (iso, todayISO) => {
   return `${DOW[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 };
 
-// Shares a note's text to its project's team comments.
+// Shares a note's text to its project's team comments, under the phase it's on.
 export async function shareNote(org, me, note) {
   if (!note.projectId) return false;
-  const { error } = await sb.from("assignment_comments").insert({ org_id: org.id, project_id: note.projectId, membership_id: me.id, body: note.body });
+  const { error } = await sb.from("assignment_comments").insert({ org_id: org.id, project_id: note.projectId, phase_id: note.phaseId || null, membership_id: me.id, body: note.body });
   if (error) { toast.add({ title: "Couldn't share it: " + error.message, type: "error" }); return false; }
   toast.add({ title: "Shared to the project's comments — your note stays private." });
   return true;
 }
 
 // One note: when, what it's on, the text; edit / share / delete.
-export function NoteItem({ note, labels, logs = [], when = "time", showProject = true, onEdit, onDelete, onShare }) {
+export function NoteItem({ note, labels, logs = [], when = "time", showProject = true, showPhase = true, onEdit, onDelete, onShare }) {
   const [editing, setEditing] = useState(null);
   const log = note.timeLogId ? logs.find((l) => l.id === note.timeLogId) : null;
   const edited = note.updatedAt && Math.abs(new Date(note.updatedAt) - new Date(note.createdAt)) > 60000;
@@ -51,6 +53,7 @@ export function NoteItem({ note, labels, logs = [], when = "time", showProject =
           <span className="size-2 shrink-0 rounded-xs" style={{ background: labels.colorOf(note.projectId) }} />
           <span className="truncate">{labels.labProj(note.projectId)}{phase ? " · " + phase : ""}</span>
         </span>}
+        {!showProject && showPhase && phase && <span className="truncate">· {phase}</span>}
         {log && <span className="shrink-0">· with {hm(log.minutes)} tracked</span>}
         <span className="ml-auto flex shrink-0 items-center gap-0.5">
           {onShare && note.projectId && <Button variant="ghost" size="icon-sm" title="Share with the team (posts it to the project's comments)" onClick={() => onShare(note)}><Share2 /></Button>}
@@ -72,22 +75,35 @@ export function NoteItem({ note, labels, logs = [], when = "time", showProject =
   );
 }
 
-// Write a note — on a fixed project (project view) or pick one (optional).
-export function NoteComposer({ onSave, groups, recents, projectId = undefined, placeholder = "Write a private note… (Ctrl + Enter to save)" }) {
+// Write a note — on a fixed project (project view) or pick one (optional) —
+// and, when the project has phases, which phase it's about (so sharing it
+// lands in that phase's comments).
+const WHOLE = "whole";
+export function NoteComposer({ onSave, groups, recents, projectId = undefined, phasesOf = () => [], placeholder = "Write a private note… (Ctrl + Enter to save)" }) {
   const [text, setText] = useState("");
   const [pick, setPick] = useState({ projectId: "", phaseId: null });
   const fixed = projectId !== undefined;
+  const pid = fixed ? projectId : (pick.projectId || null);
+  const phases = pid ? phasesOf(pid) : [];
+  const phaseVal = pick.phaseId && phases.some((p) => p.id === pick.phaseId) ? pick.phaseId : WHOLE;
+  const phaseItems = { [WHOLE]: "Whole project", ...Object.fromEntries(phases.map((p) => [p.id, p.name])) };
   const save = async () => {
     const t = text.trim(); if (!t) return;
-    const ok = await onSave({ body: t, projectId: fixed ? projectId : (pick.projectId || null), phaseId: fixed ? null : pick.phaseId });
+    const ok = await onSave({ body: t, projectId: pid, phaseId: phaseVal === WHOLE ? null : phaseVal });
     if (ok) setText("");
   };
   return (
     <div className="flex flex-col gap-2">
       <Textarea rows={2} value={text} onChange={(e) => setText(e.target.value)} placeholder={placeholder}
         onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) save(); }} />
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {!fixed && <ProjectCombobox selP={pick.projectId} selPh={pick.phaseId || ""} onPick={(p) => setPick(p)} groups={groups} recents={recents} placeholder="Project (optional)…" className="w-64" />}
+        {phases.length > 0 && (
+          <Select value={phaseVal} onValueChange={(v) => setPick((x) => ({ ...x, phaseId: v === WHOLE ? null : v }))} items={phaseItems}>
+            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectGroup>{Object.entries(phaseItems).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectGroup></SelectContent>
+          </Select>
+        )}
         <span className="flex items-center gap-1 text-xs text-muted-foreground"><Lock className="size-3" /> Only you can see this</span>
         <Button className="ml-auto" onClick={save} disabled={!text.trim()}>Save note</Button>
       </div>
@@ -105,6 +121,8 @@ export default function Notes({ org, me, data: cadData, reload }) {
   const todayISO = toISO(startOfDay(new Date()));
   const [query, setQuery] = useState("");
   const [proj, setProj] = useState("all");
+  const [view, setView] = useState("project"); // "project" | "date"
+  const phasesOf = (pid) => { const pr = labels.projById(pid); return (pr && pr.phases) || []; };
 
   const mine = data.notes.filter((n) => n.memberId === me.id);
   const projIds = [...new Set(mine.map((n) => n.projectId).filter(Boolean))].filter((id) => labels.projById(id));
@@ -113,6 +131,19 @@ export default function Notes({ org, me, data: cadData, reload }) {
     && (!q || n.body.toLowerCase().includes(q) || (n.projectId && labels.labProj(n.projectId).toLowerCase().includes(q))));
   const byDay = [];
   shown.forEach((n) => { const h = dayHeading(n.createdAt, todayISO); const last = byDay[byDay.length - 1]; if (last && last.h === h) last.notes.push(n); else byDay.push({ h, notes: [n] }); });
+  // By project: a card per project (most recently noted first, "No project"
+  // last), split by phase — whole-project notes first, then phases in order.
+  const byProject = [];
+  shown.forEach((n) => { const k = n.projectId && labels.projById(n.projectId) ? n.projectId : ""; let g = byProject.find((x) => x.k === k); if (!g) byProject.push(g = { k, notes: [] }); g.notes.push(n); });
+  byProject.sort((a, b) => (a.k === "" ? 1 : b.k === "" ? -1 : 0));
+  const phaseSections = (g) => {
+    const phases = g.k ? phasesOf(g.k) : [];
+    const known = new Set(phases.map((p) => p.id));
+    return [
+      { key: WHOLE, name: phases.length ? "Whole project" : null, notes: g.notes.filter((n) => !n.phaseId || !known.has(n.phaseId)) },
+      ...phases.map((p) => ({ key: p.id, name: p.name, notes: g.notes.filter((n) => n.phaseId === p.id) })),
+    ].filter((x) => x.notes.length);
+  };
 
   const filterItems = { all: "All projects", none: "No project", ...Object.fromEntries(projIds.map((id) => [id, labels.labProj(id)])) };
   const del = async (n) => { if (await confirm({ title: "Delete this note?", description: "It's gone for good — notes aren't backed up anywhere else.", confirmLabel: "Delete", destructive: true })) H.delNote(n.id); };
@@ -122,7 +153,7 @@ export default function Notes({ org, me, data: cadData, reload }) {
     <ScrollArea className="h-full">
       <div className="mx-auto flex max-w-3xl flex-col gap-4 p-4 lg:p-6">
         <p className="flex items-center gap-1.5 text-sm text-muted-foreground"><Lock className="size-3.5" /> Your private notes — nobody else can see them, not even owners. Share one with the team to post it to its project's comments.</p>
-        <NoteComposer groups={groups} recents={recents} onSave={({ body, projectId, phaseId }) => H.addNote({ memberId: me.id, body, projectId, phaseId })} />
+        <NoteComposer groups={groups} recents={recents} phasesOf={phasesOf} onSave={({ body, projectId, phaseId }) => H.addNote({ memberId: me.id, body, projectId, phaseId })} />
         <div className="flex flex-wrap items-center gap-2">
           <InputGroup className="w-64">
             <InputGroupAddon><Search /></InputGroupAddon>
@@ -133,8 +164,30 @@ export default function Notes({ org, me, data: cadData, reload }) {
             <SelectContent><SelectGroup>{Object.entries(filterItems).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectGroup></SelectContent>
           </Select>
           <span className="ml-auto text-xs text-muted-foreground">{shown.length} {shown.length === 1 ? "note" : "notes"}</span>
+          <ToggleGroup variant="outline" spacing={0} value={[view]} onValueChange={(v) => { if (v[0]) setView(v[0]); }}>
+            <ToggleGroupItem value="project">By project</ToggleGroupItem>
+            <ToggleGroupItem value="date">By date</ToggleGroupItem>
+          </ToggleGroup>
         </div>
-        {byDay.map((g) => (
+        {view === "project" ? byProject.map((g) => (
+          <Card key={g.k || "none"}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <span className="size-3 shrink-0 rounded-xs" style={{ background: g.k ? labels.colorOf(g.k) : "#94a3b8" }} />
+                {g.k ? labels.labProj(g.k) : "No project"}
+              </CardTitle>
+              <CardDescription>{g.notes.length} {g.notes.length === 1 ? "note" : "notes"} · last one {fullWhen(g.notes[0].createdAt)}</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              {phaseSections(g).map((sec) => (
+                <div key={sec.key} className="flex flex-col gap-2">
+                  {sec.name && <div className="text-xs font-medium text-muted-foreground">{sec.name}</div>}
+                  {sec.notes.map((n) => <NoteItem key={n.id} note={n} labels={labels} logs={data.timeLogs} when="full" showProject={false} showPhase={false} onEdit={H.editNote} onDelete={del} onShare={share} />)}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )) : byDay.map((g) => (
           <div key={g.h} className="flex flex-col gap-2">
             <div className="text-sm font-medium">{g.h}</div>
             {g.notes.map((n) => <NoteItem key={n.id} note={n} labels={labels} logs={data.timeLogs} onEdit={H.editNote} onDelete={del} onShare={share} />)}

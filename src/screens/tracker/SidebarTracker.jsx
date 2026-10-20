@@ -5,8 +5,8 @@
 // tasks as one-tap starts.
 // Running: the panel becomes the timer — live clock with stop-with-note,
 // PiP, and discard.
-import React, { useState, useEffect, useMemo } from "react";
-import { toISO, startOfDay, isWeekday, hm, fmtClock, mapData, makeHandlers, NAVY, taskAssignees, taskOpenOn } from "../../studio/core.jsx";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import { toISO, startOfDay, isWeekday, hm, fmtClock, pad, mapData, makeHandlers, NAVY, taskAssignees, taskOpenOn } from "../../studio/core.jsx";
 import { useRunningTimer, makeLabels, usePipTimer, taskProject } from "./shared.jsx";
 import { rowDragProps } from "./WeekCalendar.jsx";
 import { Play, Square, PictureInPicture2, Timer } from "lucide-react";
@@ -39,8 +39,10 @@ export default function SidebarTracker({ org, me, data: cadData, reload }) {
     return H.addNote({ memberId: meId, body: text, projectId: run.projectId, phaseId: run.phaseId, taskId: run.taskId });
   };
   const addNoteNow = async () => { if (await saveRunNote(stopNote)) setStopNote(""); };
+  const notesEnd = useRef(null);
   const runNotes = run ? (data.notes || []).filter((n) => n.memberId === meId && !n.timeLogId && new Date(n.createdAt).getTime() >= run.startedAt - 1000) : [];
-  const openPip = usePipTimer({ run, stop, top: () => labels.runTop(run), capMinutes, onNote: saveRunNote });
+  useEffect(() => { const el = notesEnd.current; if (el) el.scrollTop = el.scrollHeight; }, [runNotes.length]);
+  const openPip = usePipTimer({ run, stop, top: () => labels.runTop(run), capMinutes, onNote: saveRunNote, notes: runNotes });
   const elapsed = run ? fmtClock(Math.min((Date.now() - run.startedAt) / 1000, capMinutes * 60)) : null;
 
   // Today's start list, from exactly three sources (in this order):
@@ -96,8 +98,8 @@ export default function SidebarTracker({ org, me, data: cadData, reload }) {
   // project's colour.
   return (
     <SidebarGroup className="min-h-0">
-      <div className={`flex min-h-0 flex-col gap-2 rounded-lg p-2 shadow-xs ${run ? "text-white" : "border bg-background"}`} style={run ? { background: runColor } : undefined}>
-        <div className="flex items-center gap-1.5 px-1 whitespace-nowrap">
+      <div data-recording={run ? "" : undefined} className={`flex min-h-0 flex-col gap-2 rounded-lg p-2 shadow-xs ${run ? "text-white" : "border bg-background"}`} style={run ? { background: runColor } : undefined}>
+        <div className="flex shrink-0 items-center gap-1.5 px-1 whitespace-nowrap">
           <Timer className={`size-4 shrink-0 ${run ? "opacity-90" : "text-muted-foreground"}`} />
           <span className="min-w-0 truncate text-xs font-medium">{run ? "Recording" : "Tracker"}</span>
           {run && <span className="size-1.5 shrink-0 rounded-full bg-white" style={{ animation: "pulse 1.5s infinite" }} />}
@@ -105,15 +107,28 @@ export default function SidebarTracker({ org, me, data: cadData, reload }) {
         </div>
         {run ? (
           <>
-            <div className="min-w-0 px-1 leading-tight">
+            <div className="min-w-0 shrink-0 px-1 leading-tight">
               <div className="text-sm font-medium truncate">{labels.runTop(run)}</div>
               {runPhase && <div className="text-xs opacity-90 truncate">{runPhase}</div>}
             </div>
-            <div className="px-1 text-2xl font-medium tabular-nums leading-none">{elapsed}</div>
-            <SidebarInput value={stopNote} onChange={(e) => setStopNote(e.target.value)} placeholder="Private note… (Enter to save)" className="text-foreground"
+            <div className="shrink-0 px-1 text-2xl font-medium tabular-nums leading-none">{elapsed}</div>
+            {/* this session's notes, oldest first — the panel grows as you
+                write, up to the room the sidebar has, then the list scrolls */}
+            {runNotes.length > 0 && (
+              <div className="flex shrink-0 flex-col gap-1 px-1">
+                <div className="shrink-0 text-xs font-medium opacity-90">Notes this session · only you see these</div>
+                <div ref={notesEnd} className="flex max-h-[40vh] flex-col gap-1 overflow-y-auto">
+                  {runNotes.slice().reverse().map((n) => { const d = new Date(n.createdAt); return (
+                    <div key={n.id} className="flex shrink-0 gap-1.5 text-xs leading-snug">
+                      <span className="shrink-0 tabular-nums opacity-80">{pad(d.getHours())}:{pad(d.getMinutes())}</span>
+                      <span className="min-w-0 whitespace-pre-wrap break-words">{n.body}</span>
+                    </div>); })}
+                </div>
+              </div>
+            )}
+            <SidebarInput value={stopNote} onChange={(e) => setStopNote(e.target.value)} placeholder="Private note… (Enter to save)" className="shrink-0 text-foreground"
               onKeyDown={(e) => { if (e.key === "Enter") addNoteNow(); }} />
-            {runNotes.length > 0 && <div className="px-1 text-xs opacity-90">{runNotes.length} private {runNotes.length === 1 ? "note" : "notes"} this session · in My notes</div>}
-            <div className="flex items-center gap-1.5">
+            <div className="flex shrink-0 items-center gap-1.5">
               <Button variant="secondary" size="sm" className="flex-1" onClick={stop}><Square data-icon="inline-start" /> Stop &amp; log</Button>
               <Button variant="secondary" size="icon-sm" title="Pop out floating timer" onClick={openPip}><PictureInPicture2 /></Button>
             </div>

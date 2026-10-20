@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { toISO, startOfDay, isWeekday, hm, fmtClock, mapData, makeHandlers, NAVY, taskAssignees, taskOpenOn } from "../../studio/core.jsx";
 import { useRunningTimer, makeLabels, usePipTimer, taskProject } from "./shared.jsx";
+import { rowDragProps } from "./WeekCalendar.jsx";
 import { Play, Square, PictureInPicture2, Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarGroup, SidebarInput, SidebarMenu, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
@@ -70,9 +71,9 @@ export default function SidebarTracker({ org, me, data: cadData, reload }) {
       // task over its project, when it has one).
       if (r.taskId) {
         const tp = taskProject(data, r.taskId);
-        return { key, color: tp.projectId ? labels.colorOf(tp.projectId) : NAVY, label: labels.taskById(r.taskId).title || "task", sub: tp.projectId ? [labels.labProj(tp.projectId), labels.phName(tp.projectId, tp.phaseId)].filter(Boolean).join(" · ") : "Task", mins: minsFor(r), onStart: () => startTask(r.taskId, tp) };
+        return { key, color: tp.projectId ? labels.colorOf(tp.projectId) : NAVY, label: labels.taskById(r.taskId).title || "task", sub: tp.projectId ? [labels.labProj(tp.projectId), labels.phName(tp.projectId, tp.phaseId)].filter(Boolean).join(" · ") : "Task", mins: minsFor(r), onStart: () => startTask(r.taskId, tp), drag: { projectId: tp.projectId || null, phaseId: tp.phaseId || null, taskId: r.taskId } };
       }
-      return { key, color: labels.colorOf(r.projectId), label: labels.labProj(r.projectId), sub: labels.phName(r.projectId, r.phaseId), mins: minsFor(r), onStart: () => start(r.projectId, r.phaseId) };
+      return { key, color: labels.colorOf(r.projectId), label: labels.labProj(r.projectId), sub: labels.phName(r.projectId, r.phaseId), mins: minsFor(r), onStart: () => start(r.projectId, r.phaseId), drag: { projectId: r.projectId, phaseId: r.phaseId || null, taskId: null } };
     })
     .slice(0, MAX_ITEMS);
 
@@ -110,11 +111,14 @@ export default function SidebarTracker({ org, me, data: cadData, reload }) {
           </>
         ) : (
           // The list takes all the height the sidebar can spare and only
-          // scrolls once that's used up.
+          // scrolls once that's used up. Click an item to start its timer, or
+          // drag it onto a Timesheet calendar day to log an hour there (same as
+          // the logger rows above the calendar).
           <SidebarMenu className="gap-1 min-h-0 overflow-y-auto">
             {items.map((it) => (
               <SidebarMenuItem key={it.key}>
-                <SidebarMenuButton size="lg" onClick={it.onStart} tooltip={"Start · " + it.label} className={it.mins ? "pr-14" : undefined}>
+                <SidebarMenuButton size="lg" onClick={it.onStart} tooltip={"Start · " + it.label} className={it.mins ? "pr-14" : undefined}
+                  title="Click to start · drag onto the calendar to log time" {...rowDragProps({ ...it.drag, color: it.color, label: it.label })}>
                   <span className="grid place-items-center size-6 rounded-full text-white shrink-0" style={{ background: it.color }}><Play className="size-3!" /></span>
                   <span className="grid flex-1 min-w-0 text-left leading-tight">
                     <span className="truncate">{it.label}</span>

@@ -11,7 +11,7 @@ import { can } from "../lib/permissions.js";
 import { MONTHS, AVATAR_BG, initials, fmtH, money, toISO, startOfDay, parseISO, mapData, makeHandlers } from "../studio/core.jsx";
 import { ProjectModal } from "./Projects.jsx";
 import CommentsThread from "./Comments.jsx";
-import { NoteItem, NoteComposer, shareNote } from "./Notes.jsx";
+import { NotesByDay, NoteComposer, shareNote } from "./Notes.jsx";
 import { makeLabels } from "./tracker/shared.jsx";
 import { useConfirm } from "../components/confirm.tsx";
 import { FieldSet, FieldLegend } from "@/components/ui/field";
@@ -162,8 +162,8 @@ export default function ProjectView({ org, me, data, projectId, reload, onClose 
           <div className="flex flex-col gap-2">
             <NoteComposer projectId={project.id} phasesOf={() => phases} placeholder="A private note on this project… (Ctrl + Enter to save)"
               onSave={({ body, phaseId }) => H.addNote({ memberId: me.id, body, projectId: project.id, phaseId })} />
-            {myNotes.map((n) => <NoteItem key={n.id} note={n} labels={labels} logs={mapped.timeLogs} when="full" showProject={false}
-              onEdit={H.editNote} onDelete={delNote} onShare={async (x) => { if (await shareNote(org, me, x)) reload && reload(); }} />)}
+            <NotesByDay notes={myNotes} todayISO={todayISO} labels={labels} logs={mapped.timeLogs} showProject={false}
+              onEdit={H.editNote} onDelete={delNote} onShare={async (x) => { if (await shareNote(org, me, x)) reload && reload(); }} />
           </div>
         </FieldSet>
 

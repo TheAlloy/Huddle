@@ -79,7 +79,8 @@ export const lsSet = (k,v) => { try{ v==null?localStorage.removeItem(k):localSto
 // Picture, or a popup in the desktop app). With onNote, a pen button opens a
 // notes panel under the strip — this session's private notes, live
 // (getNotes), and a box to keep adding — and the window grows to fit; the pen
-// again (or Esc) folds it away and the window shrinks back.
+// again (or Esc) folds it away and the window shrinks back. getNotes gives
+// today's notes on what's being tracked.
 export function openFloatingTimer({ getTop, getElapsed, onStop, onNote, getNotes }){
   const FONT="font-family:system-ui,-apple-system,sans-serif;";
   const PEN='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
@@ -91,7 +92,7 @@ export function openFloatingTimer({ getTop, getElapsed, onStop, onNote, getNotes
     +(onNote?'<button id="pn" title="Notes for this session (private)" style="flex:none;display:grid;place-items:center;background:rgba(255,255,255,.18);color:#fff;border:none;border-radius:7px;padding:6px 7px;cursor:pointer">'+PEN+'</button>':'')
     +'<button id="ps" style="flex:none;display:flex;align-items:center;gap:5px;background:#fff;color:'+NAVY+';border:none;border-radius:7px;padding:6px 10px;font-size:11.5px;font-weight:700;white-space:nowrap;cursor:pointer">&#9632; Stop &amp; log</button></div>'
     +'<div id="panel" style="display:none;flex:1;min-height:0;flex-direction:column;gap:6px;padding:0 10px 8px;box-sizing:border-box;color:#fff">'
-    +'<div style="flex:none;font-size:10px;font-weight:600;color:#d7deec">NOTES THIS SESSION · ONLY YOU SEE THESE</div>'
+    +'<div style="flex:none;font-size:10px;font-weight:600;color:#d7deec">TODAY’S NOTES · ONLY YOU SEE THESE</div>'
     +'<div id="list" style="flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:4px;font-size:12px"></div>'
     +'<div id="nrow" style="flex:none;display:flex;align-items:center;gap:6px">'
     +'<input id="ni" placeholder="Add notes" style="flex:1;min-width:0;border:none;border-radius:7px;padding:7px 9px;font-size:12px;outline:none;'+FONT+'" />'
@@ -120,7 +121,7 @@ export function openFloatingTimer({ getTop, getElapsed, onStop, onNote, getNotes
         sig=k;
         list.innerHTML=ns.length
           ? ns.map((n)=>{ const t=new Date(n.createdAt); return '<div style="display:flex;gap:6px;line-height:1.3"><span style="flex:none;opacity:.7;font-variant-numeric:tabular-nums">'+pad(t.getHours())+':'+pad(t.getMinutes())+'</span><span style="min-width:0;white-space:pre-wrap;word-break:break-word">'+esc(n.body)+'</span></div>'; }).join("")
-          : '<div style="opacity:.7">Nothing yet — notes you add here are private and saved to My notes.</div>';
+          : '<div style="opacity:.7">Nothing yet today — notes you add here are private and saved to My notes.</div>';
         list.scrollTop=list.scrollHeight;
         return true;
       };

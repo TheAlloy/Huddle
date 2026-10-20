@@ -40,7 +40,10 @@ export default function SidebarTracker({ org, me, data: cadData, reload }) {
   };
   const addNoteNow = async () => { if (await saveRunNote(stopNote)) setStopNote(""); };
   const notesEnd = useRef(null);
-  const runNotes = run ? (data.notes || []).filter((n) => n.memberId === meId && !n.timeLogId && new Date(n.createdAt).getTime() >= run.startedAt - 1000) : [];
+  // Today's notes on what's being tracked — they stay after Stop & log and
+  // come back when you start it again; the list starts fresh each day.
+  const runNotes = run ? (data.notes || []).filter((n) => n.memberId === meId && toISO(startOfDay(new Date(n.createdAt))) === todayISO
+    && (run.taskId ? n.taskId === run.taskId : n.projectId === run.projectId)) : [];
   useEffect(() => { const el = notesEnd.current; if (el) el.scrollTop = el.scrollHeight; }, [runNotes.length]);
   const openPip = usePipTimer({ run, stop, top: () => labels.runTop(run), capMinutes, onNote: saveRunNote, notes: runNotes });
   const elapsed = run ? fmtClock(Math.min((Date.now() - run.startedAt) / 1000, capMinutes * 60)) : null;
@@ -112,11 +115,11 @@ export default function SidebarTracker({ org, me, data: cadData, reload }) {
               {runPhase && <div className="text-xs opacity-90 truncate">{runPhase}</div>}
             </div>
             <div className="shrink-0 px-1 text-2xl font-medium tabular-nums leading-none">{elapsed}</div>
-            {/* this session's notes, oldest first — the panel grows as you
-                write, up to the room the sidebar has, then the list scrolls */}
+            {/* today's notes on this work, oldest first — the panel grows as
+                you write (the sidebar scrolls if it runs out of room) */}
             {runNotes.length > 0 && (
               <div className="flex shrink-0 flex-col gap-1 px-1">
-                <div className="shrink-0 text-xs font-medium opacity-90">Notes this session · only you see these</div>
+                <div className="shrink-0 text-xs font-medium opacity-90">Today's notes · only you see these</div>
                 <div ref={notesEnd} className="flex max-h-[40vh] flex-col gap-1 overflow-y-auto">
                   {runNotes.slice().reverse().map((n) => { const d = new Date(n.createdAt); return (
                     <div key={n.id} className="flex shrink-0 gap-1.5 text-xs leading-snug">

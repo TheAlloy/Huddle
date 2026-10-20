@@ -22,12 +22,9 @@ import { toast } from "@/components/ui/toast";
 
 const clock = (iso) => { const d = new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 const fullWhen = (iso) => { const d = new Date(iso); return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}, ${clock(iso)}`; };
-const dayHeading = (iso, todayISO) => {
-  const d = startOfDay(new Date(iso)), k = toISO(d);
-  if (k === todayISO) return "Today";
-  if (k === toISO(addDays(new Date(todayISO + "T00:00:00"), -1))) return "Yesterday";
-  return `${DOW[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-};
+const dayKey = (iso) => toISO(startOfDay(new Date(iso)));
+const dayLong = (key) => { const d = new Date(key + "T00:00:00"); return `${DOW[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`; };
+const dayRel = (key, todayISO) => (key === todayISO ? "Today" : key === toISO(addDays(new Date(todayISO + "T00:00:00"), -1)) ? "Yesterday" : "");
 
 // Shares a note's text to its project's team comments, under the phase it's on.
 export async function shareNote(org, me, note) {
@@ -39,21 +36,21 @@ export async function shareNote(org, me, note) {
 }
 
 // One note: when, what it's on, the text; edit / share / delete.
-export function NoteItem({ note, labels, logs = [], when = "time", showProject = true, showPhase = true, onEdit, onDelete, onShare }) {
+export function NoteItem({ note, labels, logs = [], when = "time", showProject = true, showPhase = true, bare = false, onEdit, onDelete, onShare }) {
   const [editing, setEditing] = useState(null);
   const log = note.timeLogId ? logs.find((l) => l.id === note.timeLogId) : null;
   const edited = note.updatedAt && Math.abs(new Date(note.updatedAt) - new Date(note.createdAt)) > 60000;
   const phase = note.projectId && note.phaseId ? labels.phName(note.projectId, note.phaseId) : "";
   const save = () => { const t = (editing || "").trim(); if (t && t !== note.body) onEdit(note.id, t); setEditing(null); };
   return (
-    <div className="group flex flex-col gap-1.5 rounded-lg border p-3">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+    <div className={`group flex flex-col gap-1.5 ${bare ? "py-2.5" : "rounded-lg border p-3"}`}>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
         <span className="tabular-nums">{when === "full" ? fullWhen(note.createdAt) : clock(note.createdAt)}{edited ? " · edited" : ""}</span>
         {showProject && note.projectId && <span className="flex min-w-0 items-center gap-1.5">
           <span className="size-2 shrink-0 rounded-xs" style={{ background: labels.colorOf(note.projectId) }} />
           <span className="truncate">{labels.labProj(note.projectId)}{phase ? " · " + phase : ""}</span>
         </span>}
-        {!showProject && showPhase && phase && <span className="truncate">· {phase}</span>}
+        {!showProject && showPhase && phase && <span>· {phase}</span>}
         {log && <span className="shrink-0">· with {hm(log.minutes)} tracked</span>}
         <span className="ml-auto flex shrink-0 items-center gap-0.5">
           {onShare && note.projectId && <Button variant="ghost" size="icon-sm" title="Share with the team (posts it to the project's comments)" onClick={() => onShare(note)}><Share2 /></Button>}
@@ -73,6 +70,26 @@ export function NoteItem({ note, labels, logs = [], when = "time", showProject =
           </div>}
     </div>
   );
+}
+
+// A box per day (newest day first), that day's notes inside it in the order
+// they were written — so a day of notes while working reads as one record.
+export function NotesByDay({ notes, todayISO, ...item }) {
+  const days = [];
+  notes.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).forEach((n) => {
+    const k = dayKey(n.createdAt); const last = days[days.length - 1];
+    if (last && last.k === k) last.notes.unshift(n); else days.push({ k, notes: [n] });
+  });
+  return days.map((d) => { const rel = dayRel(d.k, todayISO); return (
+    <div key={d.k} className="rounded-lg border">
+      <div className="flex items-baseline gap-2 border-b px-3 py-2">
+        <span className="text-sm font-medium">{dayLong(d.k)}</span>
+        <span className="text-xs text-muted-foreground">{rel ? rel + " · " : ""}{d.notes.length} {d.notes.length === 1 ? "note" : "notes"}</span>
+      </div>
+      <div className="divide-y px-3">
+        {d.notes.map((n) => <NoteItem key={n.id} note={n} bare {...item} />)}
+      </div>
+    </div>); });
 }
 
 // Write a note — on a fixed project (project view) or pick one (optional) —
@@ -129,21 +146,12 @@ export default function Notes({ org, me, data: cadData, reload }) {
   const q = query.trim().toLowerCase();
   const shown = mine.filter((n) => (proj === "all" || (proj === "none" ? !n.projectId : n.projectId === proj))
     && (!q || n.body.toLowerCase().includes(q) || (n.projectId && labels.labProj(n.projectId).toLowerCase().includes(q))));
-  const byDay = [];
-  shown.forEach((n) => { const h = dayHeading(n.createdAt, todayISO); const last = byDay[byDay.length - 1]; if (last && last.h === h) last.notes.push(n); else byDay.push({ h, notes: [n] }); });
   // By project: a card per project (most recently noted first, "No project"
-  // last), split by phase — whole-project notes first, then phases in order.
+  // last), each holding a box per day.
   const byProject = [];
   shown.forEach((n) => { const k = n.projectId && labels.projById(n.projectId) ? n.projectId : ""; let g = byProject.find((x) => x.k === k); if (!g) byProject.push(g = { k, notes: [] }); g.notes.push(n); });
   byProject.sort((a, b) => (a.k === "" ? 1 : b.k === "" ? -1 : 0));
-  const phaseSections = (g) => {
-    const phases = g.k ? phasesOf(g.k) : [];
-    const known = new Set(phases.map((p) => p.id));
-    return [
-      { key: WHOLE, name: phases.length ? "Whole project" : null, notes: g.notes.filter((n) => !n.phaseId || !known.has(n.phaseId)) },
-      ...phases.map((p) => ({ key: p.id, name: p.name, notes: g.notes.filter((n) => n.phaseId === p.id) })),
-    ].filter((x) => x.notes.length);
-  };
+  const dayCount = (ns) => new Set(ns.map((n) => dayKey(n.createdAt))).size;
 
   const filterItems = { all: "All projects", none: "No project", ...Object.fromEntries(projIds.map((id) => [id, labels.labProj(id)])) };
   const del = async (n) => { if (await confirm({ title: "Delete this note?", description: "It's gone for good — notes aren't backed up anywhere else.", confirmLabel: "Delete", destructive: true })) H.delNote(n.id); };
@@ -176,23 +184,13 @@ export default function Notes({ org, me, data: cadData, reload }) {
                 <span className="size-3 shrink-0 rounded-xs" style={{ background: g.k ? labels.colorOf(g.k) : "#94a3b8" }} />
                 {g.k ? labels.labProj(g.k) : "No project"}
               </CardTitle>
-              <CardDescription>{g.notes.length} {g.notes.length === 1 ? "note" : "notes"} · last one {fullWhen(g.notes[0].createdAt)}</CardDescription>
+              <CardDescription>{g.notes.length} {g.notes.length === 1 ? "note" : "notes"} over {dayCount(g.notes)} {dayCount(g.notes) === 1 ? "day" : "days"} · last one {fullWhen(g.notes[0].createdAt)}</CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              {phaseSections(g).map((sec) => (
-                <div key={sec.key} className="flex flex-col gap-2">
-                  {sec.name && <div className="text-xs font-medium text-muted-foreground">{sec.name}</div>}
-                  {sec.notes.map((n) => <NoteItem key={n.id} note={n} labels={labels} logs={data.timeLogs} when="full" showProject={false} showPhase={false} onEdit={H.editNote} onDelete={del} onShare={share} />)}
-                </div>
-              ))}
+            <CardContent className="flex flex-col gap-3">
+              <NotesByDay notes={g.notes} todayISO={todayISO} labels={labels} logs={data.timeLogs} showProject={false} onEdit={H.editNote} onDelete={del} onShare={share} />
             </CardContent>
           </Card>
-        )) : byDay.map((g) => (
-          <div key={g.h} className="flex flex-col gap-2">
-            <div className="text-sm font-medium">{g.h}</div>
-            {g.notes.map((n) => <NoteItem key={n.id} note={n} labels={labels} logs={data.timeLogs} onEdit={H.editNote} onDelete={del} onShare={share} />)}
-          </div>
-        ))}
+        )) : <NotesByDay notes={shown} todayISO={todayISO} labels={labels} logs={data.timeLogs} onEdit={H.editNote} onDelete={del} onShare={share} />}
         {shown.length === 0 && (
           <Empty>
             <EmptyHeader>

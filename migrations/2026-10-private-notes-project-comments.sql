@@ -61,8 +61,14 @@ create index if not exists assignment_comments_project_idx on assignment_comment
 
 -- 3. Tracker notes → private notes --------------------------------------
 insert into notes (org_id, membership_id, project_id, phase_id, task_id, time_log_id, body, created_at, updated_at)
-  select l.org_id, l.membership_id, l.project_id, l.phase_id, l.task_id, l.id, l.note, l.created_at, l.created_at
+  -- dated by the entry itself: its day, at its start time (9:00 if it has none)
+  select l.org_id, l.membership_id, l.project_id, l.phase_id, l.task_id, l.id, l.note,
+         l.log_date + make_interval(mins => coalesce(l.start_min, 540)),
+         l.log_date + make_interval(mins => coalesce(l.start_min, 540))
   from time_logs l
   where l.note is not null and length(trim(l.note)) > 0 and l.membership_id is not null
     and not exists (select 1 from notes n where n.time_log_id = l.id);
 update time_logs set note = null where note is not null;
+
+-- Let the API see the new table and column straight away.
+notify pgrst, 'reload schema';

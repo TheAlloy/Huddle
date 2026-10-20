@@ -12,7 +12,7 @@ export function memberName(m) {
 }
 
 /** Everything here is org-scoped. The database enforces it too (RLS). */
-export async function loadOrgData(orgId){
+export async function loadOrgData(orgId, meId){
   const q = (t, sel="*") => sb.from(t).select(sel).eq("org_id", orgId);
   const [members, clients, projects, assignments, timeLogs, tasks, holidays] = await Promise.all([
     q("memberships"), q("clients"), q("projects"), q("assignments"),
@@ -27,13 +27,17 @@ export async function loadOrgData(orgId){
   // still be read (and added to) offline. Non-fatal.
   let comments = [];
   try { const c = await q("assignment_comments"); if(!c.error) comments = c.data||[]; } catch(_) {}
+  // Your private notes. The database only ever returns your own; the filter
+  // says so too. Non-fatal (e.g. before the notes table exists).
+  let notes = [];
+  if (meId) { try { const n = await q("notes").eq("membership_id", meId); if(!n.error) notes = n.data||[]; } catch(_) {} }
   return {
     // People who left the team (status 'left') drop out of every list and
     // board; their past time and comments stay in the database.
     members: (members.data||[]).filter(m => m.status !== "left").map(m => ({ ...m, display_name: (m.display_name && String(m.display_name).trim()) ? m.display_name : prettyName(m.email) })),
     clients: clients.data||[], projects: projects.data||[],
     assignments: assignments.data||[], timeLogs: timeLogs.data||[], tasks: tasks.data||[],
-    holidays: holidays.data||[], billing, comments,
+    holidays: holidays.data||[], billing, comments, notes,
   };
 }
 

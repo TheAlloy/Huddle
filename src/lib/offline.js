@@ -37,10 +37,11 @@ const EMBED_FK = { organizations: "org_id", projects: "project_id", clients: "cl
 // so a delete made offline looks the same locally as it will on the server.
 const CASCADE = {
   clients: [["projects", "client_id", "null"]],
-  projects: [["assignments", "project_id", "cascade"], ["time_logs", "project_id", "null"], ["tasks", "project_id", "null"], ["running_timers", "project_id", "null"], ["billing_entries", "project_id", "null"]],
-  memberships: [["assignments", "membership_id", "cascade"], ["time_logs", "membership_id", "cascade"], ["tasks", "assignee_id", "null"], ["running_timers", "membership_id", "cascade"], ["billing_entries", "membership_id", "null"], ["assignment_comments", "membership_id", "null"]],
-  assignments: [["assignment_comments", "assignment_id", "cascade"]],
-  tasks: [["running_timers", "task_id", "cascade"]],
+  projects: [["assignments", "project_id", "cascade"], ["time_logs", "project_id", "null"], ["tasks", "project_id", "null"], ["running_timers", "project_id", "null"], ["billing_entries", "project_id", "null"], ["assignment_comments", "project_id", "cascade"], ["notes", "project_id", "null"]],
+  memberships: [["assignments", "membership_id", "cascade"], ["time_logs", "membership_id", "cascade"], ["tasks", "assignee_id", "null"], ["running_timers", "membership_id", "cascade"], ["billing_entries", "membership_id", "null"], ["assignment_comments", "membership_id", "null"], ["notes", "membership_id", "cascade"]],
+  assignments: [["assignment_comments", "assignment_id", "null"], ["notes", "assignment_id", "null"]],
+  tasks: [["running_timers", "task_id", "cascade"], ["notes", "task_id", "null"]],
+  time_logs: [["notes", "time_log_id", "null"]],
 };
 
 // Plain-English names for "Needs attention".
@@ -48,7 +49,7 @@ const NOUN = {
   time_logs: "time entry", assignments: "booking", projects: "project", clients: "client", tasks: "task",
   assignment_comments: "comment", memberships: "team member", public_holidays: "public holiday",
   organizations: "studio settings", running_timers: "timer", billing_entries: "billing entry",
-  invites: "invite", feedback: "feedback", audit_log: "activity record", profiles: "profile",
+  invites: "invite", notes: "private note", feedback: "feedback", audit_log: "activity record", profiles: "profile",
 };
 
 const uuid = () => (globalThis.crypto && crypto.randomUUID) ? crypto.randomUUID()

@@ -34,6 +34,10 @@ export const nextWeekday = (d) => { let x=new Date(d); while(!isWeekday(x)) x=ad
 export const addWorkingDays = (start,n) => { let d=new Date(start),c=0; while(true){ if(isWeekday(d)) c++; if(c>=n) return new Date(d); d=addDays(d,1); } };
 export const workdaysBetween = (s,e) => { let c=0; for(let d=new Date(s); d<=e; d=addDays(d,1)) if(isWeekday(d)) c++; return c; };
 export const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+// A database id made here, for rows something else must point at straight away
+// (a note on a time entry that's being saved in the same breath).
+export const newId = () => (globalThis.crypto && crypto.randomUUID) ? crypto.randomUUID()
+  : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,(c)=>{ const r=Math.random()*16|0; return (c==="x"?r:(r&3|8)).toString(16); });
 // filter(Boolean) guards against repeated spaces — "Ben  Achebe" gave "B", not "BA".
 export const initials = (name) => (name||"?").split(" ").filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join("");
 export const minsOf = (t) => { const [h,m]=String(t).split(":").map(Number); return h*60+(m||0); };
@@ -71,19 +75,37 @@ export const pfIncludes = (pf,id) => pf==="all" || (Array.isArray(pf)?pf.include
 export const pfList = (members,pf) => pf==="all"?members:members.filter(m=>pfIncludes(pf,m.id));
 export const lsGet = (k) => { try{ const v=localStorage.getItem(k); return v==null?null:JSON.parse(v); }catch(_){ return null; } };
 export const lsSet = (k,v) => { try{ v==null?localStorage.removeItem(k):localStorage.setItem(k,JSON.stringify(v)); }catch(_){} };
-export function openFloatingTimer({ getTop, getElapsed, onStop }){
-  const html='<div style="padding:6px 10px;display:flex;align-items:center;gap:10px;height:100%;box-sizing:border-box;font-family:system-ui,-apple-system,sans-serif;color:#fff">'
+export function openFloatingTimer({ getTop, getElapsed, onStop, onNote }){
+  const FONT="font-family:system-ui,-apple-system,sans-serif;";
+  const PEN='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+  const html='<div id="row" style="padding:6px 10px;display:flex;align-items:center;gap:10px;height:100%;box-sizing:border-box;'+FONT+'color:#fff">'
     +'<div style="min-width:0;flex:1;display:flex;flex-direction:column">'
     +'<div id="pl" style="font-size:10px;font-weight:600;color:#d7deec;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>'
     +'<div id="pt" style="font-size:17px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums"></div></div>'
-    +'<button id="ps" style="flex:none;display:flex;align-items:center;gap:5px;background:#fff;color:'+NAVY+';border:none;border-radius:7px;padding:6px 10px;font-size:11.5px;font-weight:700;white-space:nowrap;cursor:pointer">&#9632; Stop &amp; log</button></div>';
+    +(onNote?'<button id="pn" title="Add a private note" style="flex:none;display:grid;place-items:center;background:rgba(255,255,255,.18);color:#fff;border:none;border-radius:7px;padding:6px 7px;cursor:pointer">'+PEN+'</button>':'')
+    +'<button id="ps" style="flex:none;display:flex;align-items:center;gap:5px;background:#fff;color:'+NAVY+';border:none;border-radius:7px;padding:6px 10px;font-size:11.5px;font-weight:700;white-space:nowrap;cursor:pointer">&#9632; Stop &amp; log</button></div>'
+    // Note mode: the same strip becomes a one-line private note box.
+    +'<div id="nrow" style="display:none;padding:6px 10px;align-items:center;gap:6px;height:100%;box-sizing:border-box;'+FONT+'">'
+    +'<input id="ni" placeholder="Private note… (Enter to save)" style="flex:1;min-width:0;border:none;border-radius:7px;padding:7px 9px;font-size:12px;outline:none;'+FONT+'" />'
+    +'<button id="ns" style="flex:none;background:#fff;color:'+NAVY+';border:none;border-radius:7px;padding:6px 10px;font-size:11.5px;font-weight:700;cursor:pointer">Save</button>'
+    +'<button id="nx" title="Cancel" style="flex:none;background:transparent;color:#fff;border:none;font-size:18px;line-height:1;cursor:pointer">&times;</button></div>';
   const wire=(win)=>{
     if(!win) return null;
     const d=win.document; try{ d.title="Time Tracker — "+getTop(); }catch(_){}
     d.body.style.cssText="margin:0;background:"+NAVY+";overflow:hidden";
     d.body.innerHTML=html;
     const tEl=d.getElementById("pt"), lEl=d.getElementById("pl");
-    const paint=()=>{ try{ lEl.textContent=getTop(); tEl.textContent=getElapsed(); }catch(_){} };
+    let flash=null, flashUntil=0;
+    const paint=()=>{ try{ lEl.textContent=(flash&&Date.now()<flashUntil)?flash:getTop(); tEl.textContent=getElapsed(); }catch(_){} };
+    if(onNote){
+      const row=d.getElementById("row"), nrow=d.getElementById("nrow"), ni=d.getElementById("ni");
+      const show=(note)=>{ row.style.display=note?"none":"flex"; nrow.style.display=note?"flex":"none"; if(note){ ni.value=""; ni.focus(); } };
+      const save=async()=>{ const t=ni.value.trim(); if(!t){ show(false); return; } try{ await onNote(t); flash="\u2713 Saved to My notes"; flashUntil=Date.now()+2500; }catch(_){} show(false); paint(); };
+      d.getElementById("pn").addEventListener("click",()=>show(true));
+      d.getElementById("ns").addEventListener("click",save);
+      d.getElementById("nx").addEventListener("click",()=>show(false));
+      ni.addEventListener("keydown",(e)=>{ if(e.key==="Enter") save(); else if(e.key==="Escape") show(false); });
+    }
     paint();
     // Stop & log hands the person back to Huddle: the app switches to the
     // Timesheet (App listens for "huddle:open-tab") and the main window comes
@@ -166,12 +188,18 @@ export function PeoplePicker({ members, teams, value, onChange, me }){
 
 /* Huddle <-> studio-shape adapter */
 export function mapData(cad){
+  // Your private notes (nobody else's ever load) — a time entry shows the
+  // notes made on it as its note.
+  const notes=(cad.notes||[]).map(n=>({ id:n.id, memberId:n.membership_id, projectId:n.project_id||null, phaseId:n.phase_id||null, taskId:n.task_id||null, assignmentId:n.assignment_id||null, timeLogId:n.time_log_id||null, body:n.body, createdAt:n.created_at, updatedAt:n.updated_at||n.created_at }))
+    .sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
+  const logNote={}; notes.slice().reverse().forEach(n=>{ if(n.timeLogId) logNote[n.timeLogId]=logNote[n.timeLogId]?logNote[n.timeLogId]+"\n"+n.body:n.body; });
   return {
+    notes,
     members: (cad.members||[]).filter(m=>m.status!=="suspended").map(m=>({ id:m.id, name:m.display_name||m.email||"—", role:m.job_title||(m.role||""), email:m.email||"", teams:m.teams||[], daily:m.daily_hours||8, holidayAllowance:m.holiday_allowance??30, hourlyRate:m.hourly_rate })),
     clients: (cad.clients||[]).map(c=>({ id:c.id, name:c.name, color:c.color, paymentTerms:c.payment_terms, billingAddress:c.billing_address||"" })),
     projects: (cad.projects||[]).map(p=>({ id:p.id, index:p.code, name:p.name, clientId:p.client_id, phases:p.phases||[], cost:p.cost })),
     assignments: (cad.assignments||[]).map(a=>({ id:a.id, kind:a.kind==="task"?"internal":a.kind, memberId:a.membership_id, projectId:a.project_id, phaseId:a.phase_id, leaveType:a.leave_type, start:a.start_date, end:a.end_date, lane:Number.isFinite(a.lane)?a.lane:null, taskId:a.task_id, startTime:a.start_time, endTime:a.end_time, mode:a.mode, value:a.value })),
-    timeLogs: (cad.timeLogs||[]).map(l=>({ id:l.id, memberId:l.membership_id, projectId:l.project_id, phaseId:l.phase_id, taskId:l.task_id, date:l.log_date, minutes:l.minutes, source:l.source||"manual", note:l.note||"", startMin:Number.isFinite(l.start_min)?l.start_min:null })),
+    timeLogs: (cad.timeLogs||[]).map(l=>({ id:l.id, memberId:l.membership_id, projectId:l.project_id, phaseId:l.phase_id, taskId:l.task_id, date:l.log_date, minutes:l.minutes, source:l.source||"manual", note:logNote[l.id]||l.note||"", startMin:Number.isFinite(l.start_min)?l.start_min:null })),
     // Tasks can have several assignees (assignee_ids); assigneeId stays as the
     // first of them for older code paths and rows from before the change.
     internalTasks: (cad.tasks||[]).map(t=>{ const ids=Array.isArray(t.assignee_ids)&&t.assignee_ids.length?t.assignee_ids:(t.assignee_id?[t.assignee_id]:[]); return { id:t.id, title:t.title, notes:t.notes||"", assigneeId:ids[0]||null, assigneeIds:ids, startDate:t.start_date||null, status:t.status, priority:t.priority, team:t.team, projectId:t.project_id, phaseId:t.phase_id, ord:t.ord }; }),
@@ -193,9 +221,32 @@ export function makeHandlers(org, reload, cadData){
   // false return so callers (the running timer) can hold on to unsaved time.
   const failed = (res, what) => { if(!res?.error) return false; toast.add({ title: `Couldn't ${what}: ${res.error.message}`, type: "error" }); return true; };
   return {
-    addTimeLog: async ({memberId,projectId,phaseId,taskId,date,minutes,source,note,startMin}) => { const res=await sb.from("time_logs").insert({org_id:org.id,membership_id:memberId,project_id:projectId||null,phase_id:phaseId||null,task_id:taskId||null,log_date:date,minutes,source:source||"manual",note:note||null,start_min:Number.isFinite(startMin)?startMin:null}); if(failed(res,"save the time")) return false; R(); return true; },
+    // Resolves to the new entry's id (false if it couldn't be saved). A note
+    // typed with the time becomes the author's private note on that entry.
+    addTimeLog: async ({memberId,projectId,phaseId,taskId,date,minutes,source,note,startMin}) => {
+      const id=newId();
+      const res=await sb.from("time_logs").insert({id,org_id:org.id,membership_id:memberId,project_id:projectId||null,phase_id:phaseId||null,task_id:taskId||null,log_date:date,minutes,source:source||"manual",note:null,start_min:Number.isFinite(startMin)?startMin:null});
+      if(failed(res,"save the time")) return false;
+      if(note&&String(note).trim()) failed(await sb.from("notes").insert({org_id:org.id,membership_id:memberId,project_id:projectId||null,phase_id:phaseId||null,task_id:taskId||null,time_log_id:id,body:String(note).trim()}),"save the note");
+      R(); return id;
+    },
     updateTimeLog: async (id,minutes) => { if(minutes<=0){ await sb.from("time_logs").delete().eq("id",id); } else { await sb.from("time_logs").update({minutes}).eq("id",id); } R(); },
-    editTimeLog: async (id,patch) => { const row={}; if(patch.minutes!=null) row.minutes=patch.minutes; if("projectId" in patch) row.project_id=patch.projectId||null; if("phaseId" in patch) row.phase_id=patch.phaseId||null; if("taskId" in patch) row.task_id=patch.taskId||null; if("note" in patch) row.note=patch.note||null; if("startMin" in patch) row.start_min=Number.isFinite(patch.startMin)?patch.startMin:null; if(patch.date) row.log_date=patch.date; const res = (patch.minutes!=null && patch.minutes<=0) ? await sb.from("time_logs").delete().eq("id",id) : await sb.from("time_logs").update(row).eq("id",id); failed(res,"update the time"); R(); },
+    editTimeLog: async (id,patch) => { const row={}; if(patch.minutes!=null) row.minutes=patch.minutes; if("projectId" in patch) row.project_id=patch.projectId||null; if("phaseId" in patch) row.phase_id=patch.phaseId||null; if("taskId" in patch) row.task_id=patch.taskId||null; if("startMin" in patch) row.start_min=Number.isFinite(patch.startMin)?patch.startMin:null; if(patch.date) row.log_date=patch.date; const res = (patch.minutes!=null && patch.minutes<=0) ? await sb.from("time_logs").delete().eq("id",id) : await sb.from("time_logs").update(row).eq("id",id); failed(res,"update the time"); R(); },
+    // Private notes — only their author can ever read them (database rule).
+    addNote: async ({memberId,body,projectId,phaseId,taskId,assignmentId,timeLogId}) => {
+      const b=String(body||"").trim(); if(!b) return null;
+      const id=newId();
+      const res=await sb.from("notes").insert({id,org_id:org.id,membership_id:memberId,project_id:projectId||null,phase_id:phaseId||null,task_id:taskId||null,assignment_id:assignmentId||null,time_log_id:timeLogId||null,body:b});
+      if(failed(res,"save the note")) return null; R(); return id;
+    },
+    editNote: async (id,body) => { const b=String(body||"").trim(); if(!b) return; failed(await sb.from("notes").update({body:b,updated_at:new Date().toISOString()}).eq("id",id),"save the note"); R(); },
+    delNote: async (id) => { failed(await sb.from("notes").delete().eq("id",id),"delete the note"); R(); },
+    // Notes jotted while the timer ran join the entry it logs on stop.
+    linkRunNotes: async ({memberId,since,projectId,taskId,timeLogId}) => {
+      let q=sb.from("notes").update({time_log_id:timeLogId}).eq("membership_id",memberId).is("time_log_id",null).gte("created_at",new Date(since).toISOString());
+      q=taskId?q.eq("task_id",taskId):q.eq("project_id",projectId);
+      await q; R();
+    },
     delTimeLogs: async (ids) => { if(!ids||!ids.length) return; failed(await sb.from("time_logs").delete().in("id",ids),"delete the time"); R(); },
     moveTimeLogs: async (ids,newDate) => { if(!ids||!ids.length||!newDate) return; failed(await sb.from("time_logs").update({log_date:newDate}).in("id",ids),"move the time"); R(); },
     setTimeLogTotal: async ({ids,minutes,memberId,projectId,phaseId,taskId,date}) => {

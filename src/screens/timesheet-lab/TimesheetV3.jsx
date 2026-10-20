@@ -47,7 +47,7 @@ export default function TimesheetV3({ org, me, data: cadData, reload, fancyHours
 
   const canTrack = can(me, "time.track");
   const member = data.members.find((m) => m.id === meId);
-  const { run, start, startTask } = useRunningTimer(meId, { addTimeLog, orgId: org.id, dailyHours: member?.daily || 8 });
+  const { run, start, startTask } = useRunningTimer(meId, { addTimeLog, linkNotes: H.linkRunNotes, orgId: org.id, dailyHours: member?.daily || 8 });
   // Tick while a timer runs so the calendar's live "recording" block grows.
   const [, setNow] = useState(Date.now());
   useEffect(() => { if (!run) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [run]);
@@ -410,6 +410,8 @@ export default function TimesheetV3({ org, me, data: cadData, reload, fancyHours
                   template={aligned ? template : null} trailing={aligned} laneDividerClass="border-l border-border/40"
                   days={days} todayISO={todayISO} logs={weekLogs} labelFor={(l) => rowLabelFor(labels, NAVY, l)} groups={groups} recents={recents}
                   run={run} runColor={labels.runColor(run)}
+                  notesFor={(logId) => data.notes.filter((n) => n.timeLogId === logId && n.memberId === meId).slice().reverse()}
+                  onAddNote={(l, body) => H.addNote({ memberId: meId, body, projectId: l.projectId, phaseId: l.phaseId, taskId: l.taskId, timeLogId: l.id })}
                   onCreate={({ projectId, phaseId, taskId, date, startMin, minutes, note }) => {
                     // Task blocks (dragged-in task rows, copies) carry the task's own project/phase.
                     const attr = taskId ? taskProject(data, taskId) : { projectId, phaseId: phaseId || defaultPhase(data, meId, projectId, date) };

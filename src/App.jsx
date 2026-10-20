@@ -21,11 +21,12 @@ import Tasks from "./screens/Tasks.jsx";
 import Projects from "./screens/Projects.jsx";
 import TimesheetV3 from "./screens/timesheet-lab/TimesheetV3.jsx";
 import Billing from "./screens/Billing.jsx";
+import Notes from "./screens/Notes.jsx";
 import { initials } from "./studio/core.jsx";
 import { TimerOverrunGuard } from "./screens/tracker/shared.jsx";
 import SidebarTracker from "./screens/tracker/SidebarTracker.jsx";
 import { makeTerms } from "./lib/terms.js";
-import { CalendarDays, Table2, LayoutGrid, Landmark, Users, Settings as Cog, Clock, FolderKanban, Shield, Gift } from "lucide-react";
+import { CalendarDays, Table2, LayoutGrid, Landmark, Users, Settings as Cog, Clock, FolderKanban, Shield, Gift, NotebookPen } from "lucide-react";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
@@ -138,7 +139,7 @@ export default function App() {
     setErr("");
     try {
       setOrg(active.organizations);
-      setData(await loadOrgData(active.org_id));
+      setData(await loadOrgData(active.org_id, active.id));
     } catch (e) { setErr(e.message || "Could not load your studio's data."); }
   }, [active]);
   useEffect(() => { reload(); }, [reload]);
@@ -253,6 +254,7 @@ export default function App() {
     { key: "schedule", label: "Schedule", icon: CalendarDays, perm: "schedule.view" },
     { key: "summary", label: "Summary", icon: Table2, perm: "summary.view" }, // off the menu — its sections now live in the Timesheet (people picker, budgets, holidays)
     { key: "tasks", label: "Tasks", icon: LayoutGrid, perm: "tasks.view" },
+    { key: "notes", label: "My notes", icon: NotebookPen, perm: null }, // private to each person
     { key: "projects", label: terms.navProjects, icon: FolderKanban, perm: "projects.manage" },
     { key: "billing", label: "Billing", icon: Landmark, perm: "billing.view" },
     { key: "people", label: "People", icon: Users, perm: "team.view" },
@@ -271,7 +273,7 @@ export default function App() {
         teams={memberships.map(m => ({ id: m.org_id, name: m.organizations?.name || "Studio", plan: planLabel(m.organizations?.plan) }))}
         activeTeamId={active.org_id}
         onPickTeam={(id) => { setOrgId(id); localStorage.setItem("cadence_org", id); }}
-        nav={visible.filter(n => ["schedule", "time", "tasks"].includes(n.key)).map(navItem)}
+        nav={visible.filter(n => ["schedule", "time", "tasks", "notes"].includes(n.key)).map(navItem)}
         groups={[{ label: "Manage", items: visible.filter(n => ["projects", "people"].includes(n.key)).map(navItem) }]} // Billing hidden from the nav for now — screen still exists
         secondary={[
           ...visible.filter(n => n.key === "settings").map(navItem),
@@ -302,6 +304,7 @@ export default function App() {
             : current === "time" ? <TimesheetV3 org={org} me={me} data={data} reload={reload} fancyHours aligned playInProject bare planning variantLabel={null} />
             : current === "schedule" ? (can(me, "schedule.view") ? <Schedule org={org} me={me} data={data} reload={reload} onNavigate={setTab} peopleFilter={peopleFilter} onPeopleFilter={setPeopleFilter} /> : <NoAccess what="the schedule" />)
             : current === "summary" ? (can(me, "summary.view") ? <Summary org={org} me={me} data={data} reload={reload} /> : <NoAccess what="summaries" />)
+            : current === "notes" ? <Notes org={org} me={me} data={data} reload={reload} />
             : current === "tasks" ? (can(me, "tasks.view") ? <Tasks org={org} me={me} data={data} reload={reload} /> : <NoAccess what="tasks" />)
             : current === "billing" ? (can(me, "billing.view")
                 ? <Billing org={org} me={me} data={data} reload={reload} />

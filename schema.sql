@@ -121,7 +121,7 @@ create table if not exists time_logs (
   phase_id text, task_id uuid,
   log_date date not null, minutes integer not null default 0,
   start_min integer, -- minutes from midnight; null = duration-only entry with no claimed time-of-day
-  source text default 'manual', note text,
+  source text default 'manual', note text, -- legacy, always null: notes on time are private (notes.time_log_id)
   created_at timestamptz not null default now()
 );
 create index if not exists time_logs_org_date_idx on time_logs(org_id, log_date);
@@ -165,17 +165,42 @@ create table if not exists public_holidays (
   day date not null, name text
 );
 
--- ─── Assignment comments (shared thread on each piece of scheduled work) ───
+-- ─── Comments: one team thread per project ────────────────────────────────
+-- A comment made on a booking belongs to the booking and its project; a
+-- project can also take comments of its own. Deleting a booking keeps its
+-- comments in the project's thread.
 create table if not exists assignment_comments (
   id            uuid primary key default gen_random_uuid(),
   org_id        uuid not null references organizations(id) on delete cascade,
-  assignment_id uuid not null references assignments(id) on delete cascade,
+  assignment_id uuid references assignments(id) on delete set null,
+  project_id    uuid references projects(id) on delete cascade,
   membership_id uuid references memberships(id) on delete set null,   -- author
   body          text not null check (length(trim(body)) > 0),
   created_at    timestamptz not null default now()
 );
 create index if not exists assignment_comments_asg_idx on assignment_comments(assignment_id);
 create index if not exists assignment_comments_org_idx on assignment_comments(org_id);
+create index if not exists assignment_comments_project_idx on assignment_comments(project_id);
+
+-- ─── Private notes (each person's own dated notebook) ──────────────────────
+-- Only the author can read or change them — owners and admins included. A
+-- note can hang off a project/phase/task, a booking, a time entry, or nothing.
+create table if not exists notes (
+  id            uuid primary key default gen_random_uuid(),
+  org_id        uuid not null references organizations(id) on delete cascade,
+  membership_id uuid not null references memberships(id) on delete cascade,  -- author
+  project_id    uuid references projects(id) on delete set null,
+  phase_id      text,
+  task_id       uuid references tasks(id) on delete set null,
+  assignment_id uuid references assignments(id) on delete set null,
+  time_log_id   uuid references time_logs(id) on delete set null,
+  body          text not null check (length(trim(body)) > 0),
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+create index if not exists notes_author_idx  on notes(membership_id, created_at desc);
+create index if not exists notes_project_idx on notes(project_id);
+create index if not exists notes_log_idx     on notes(time_log_id);
 
 -- ─── Audit log (who did what — expected in team products) ──────────────────
 create table if not exists audit_log (
@@ -238,6 +263,18 @@ alter table billing_entries enable row level security;
 alter table public_holidays enable row level security;
 alter table audit_log       enable row level security;
 alter table assignment_comments enable row level security;
+alter table notes           enable row level security;
+
+-- notes: author only, for everything — no permission reads someone else's
+drop policy if exists notes_own on notes;
+create policy notes_own on notes for all
+  using (
+    membership_id in (select id from memberships where org_id = notes.org_id and user_id = auth.uid())
+  )
+  with check (
+    app_is_member(org_id)
+    and membership_id in (select id from memberships where org_id = notes.org_id and user_id = auth.uid() and status = 'active')
+  );
 
 -- assignment_comments: everyone in the studio reads; you post as yourself;
 -- you delete your own, schedule editors delete any

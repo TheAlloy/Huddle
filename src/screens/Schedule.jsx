@@ -5,6 +5,7 @@ import { NoAccess } from "./Workspace.jsx";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { createPortal } from "react-dom";
 import ProjectView from "./ProjectView.jsx";
+import CommentsThread from "./Comments.jsx";
 import { phaseRanges, PeoplePicker, AVATAR_BG, initials, fmtH } from "../studio/core.jsx";
 import { InviteModal } from "./Team.jsx";
 import { ProjectModal } from "./Projects.jsx";
@@ -380,42 +381,6 @@ function DatePicker({ value, onChange, className="w-full" }){
   );
 }
 
-// Notes & comments: a shared thread on one piece of scheduled work —
-// everyone in the studio can read and add; you delete your own (schedule
-// editors can delete any). Shown in both the bar's view and its edit form.
-function AssignmentComments({ assignmentId, orgId, meId, canEdit=false, members, onChanged }){
-  const [comments,setComments]=useState([]);
-  const [ready,setReady]=useState(false);
-  const [draft,setDraft]=useState("");
-  const load=async()=>{ const { data, error }=await sb.from("assignment_comments").select("*").eq("assignment_id",assignmentId).order("created_at"); if(!error) setComments(data||[]); setReady(true); };
-  useEffect(()=>{ load(); },[assignmentId]); // eslint-disable-line
-  const post=async()=>{ const body=draft.trim(); if(!body) return;
-    const { error }=await sb.from("assignment_comments").insert({ org_id:orgId, assignment_id:assignmentId, membership_id:meId, body });
-    if(error){ toast.add({ title:"Couldn't post the comment: "+error.message, type:"error" }); return; }
-    setDraft(""); load(); onChanged&&onChanged(); };
-  const remove=async(id)=>{ const { error }=await sb.from("assignment_comments").delete().eq("id",id); if(error){ toast.add({ title:"Couldn't delete the comment: "+error.message, type:"error" }); return; } load(); onChanged&&onChanged(); };
-  const whenOf=(iso)=>{ const d=new Date(iso); return `${d.getDate()} ${MONTHS[d.getMonth()]}, ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
-  return (
-    <FieldSet>
-      <FieldLegend variant="label">Notes &amp; comments</FieldLegend>
-      <div className="flex flex-col gap-3">
-        {ready && comments.length===0 && <p className="text-sm text-muted-foreground">No comments yet — add the first one below.</p>}
-        {comments.map(c=>{ const i=members.findIndex(m=>m.id===c.membership_id); const who=members[i]; const mine=c.membership_id===meId; return (
-          <div key={c.id} className="flex gap-2.5">
-            <Avatar size="sm"><AvatarFallback className="text-white" style={{background:AVATAR_BG[(i<0?0:i)%AVATAR_BG.length]}}>{initials(who?who.name:"?")}</AvatarFallback></Avatar>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-baseline gap-2 text-xs"><span className="font-medium text-foreground">{who?who.name:"Former member"}{mine?" (you)":""}</span><span className="text-muted-foreground">{whenOf(c.created_at)}</span>
-                {(mine||canEdit) && <Button variant="ghost" size="icon-xs" className="ml-auto" title="Delete comment" onClick={()=>remove(c.id)}><X/></Button>}</div>
-              <p className="text-sm whitespace-pre-wrap break-words">{c.body}</p>
-            </div>
-          </div>); })}
-        <Textarea rows={2} value={draft} onChange={e=>setDraft(e.target.value)} placeholder="Add a comment… (Ctrl + Enter to post)" onKeyDown={e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)) post(); }}/>
-        <Button variant="outline" className="self-end" onClick={post} disabled={!draft.trim()}>Post comment</Button>
-      </div>
-    </FieldSet>
-  );
-}
-
 // Clicking a bar opens this read-only view; Edit switches to the form.
 function AssignmentView({ a, data, projectById, clientById, phaseLogged, orgId, meId, canEdit, onEdit, onViewProject, onCommentsChanged, onClose }){
   const m=data.members.find(x=>x.id===a.memberId);
@@ -440,7 +405,7 @@ function AssignmentView({ a, data, projectById, clientById, phaseLogged, orgId, 
       <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-2 text-sm">
         {rows.map(([k,v])=><React.Fragment key={k}><dt className="text-muted-foreground">{k}</dt><dd className={k==="Phase budget"&&phBudget!=null&&phLogged-phBudget>0.05?"text-destructive":""}>{v}</dd></React.Fragment>)}
       </dl>
-      {a.kind!=="internal" && <AssignmentComments assignmentId={a.id} orgId={orgId} meId={meId} canEdit={canEdit} members={data.members} onChanged={onCommentsChanged} />}
+      {a.kind!=="internal" && <CommentsThread assignmentId={a.id} projectId={a.projectId||null} orgId={orgId} meId={meId} canModerate={canEdit} members={data.members} onChanged={onCommentsChanged} />}
     </FieldGroup>
     <DialogFooter>
       {pr && <Button variant="outline" className="sm:mr-auto" onClick={()=>onViewProject(pr.id)}>View project</Button>}
@@ -460,7 +425,7 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
     ? String(a.name).localeCompare(String(b.name))
     : String(b.createdAt||"").localeCompare(String(a.createdAt||"")) || String(a.name).localeCompare(String(b.name)));
   // New work can carry a first comment, posted once it's saved (the thread
-  // itself is AssignmentComments, shown when editing existing work).
+  // itself is CommentsThread, shown when editing existing work).
   const [firstNote,setFirstNote]=useState("");
   const [taskId,setTaskId]=useState(assignment?.taskId||"");
   const [taskTitle,setTaskTitle]=useState(""),[taskPri,setTaskPri]=useState("med"),[taskTeam,setTaskTeam]=useState("");
@@ -649,11 +614,11 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
     </div>}
     <p className="text-xs text-muted-foreground">Tip: on the board you can drag the bar to move it, or drag either end to change the dates.</p>
     {kind!=="internal" && (assignment ? (
-      <AssignmentComments assignmentId={assignment.id} orgId={orgId} meId={meId} canEdit={canEdit} members={members} onChanged={onCommentsChanged} />
+      <CommentsThread assignmentId={assignment.id} projectId={assignment.projectId||null} orgId={orgId} meId={meId} canModerate={canEdit} members={members} onChanged={onCommentsChanged} />
     ) : (
-      <Field><FieldLabel>Notes (optional)</FieldLabel>
+      <Field><FieldLabel>Comment (optional)</FieldLabel>
         <Textarea rows={2} value={firstNote} onChange={e=>setFirstNote(e.target.value)} placeholder="Anything the team should know about this work…"/>
-        <FieldDescription>Starts a comment thread on this work — everyone can read it and reply.</FieldDescription>
+        <FieldDescription>Starts the comments on this work — the whole team can read them and reply. They also appear in the project's comments.</FieldDescription>
       </Field>
     ))}
   </FieldGroup>
@@ -905,7 +870,7 @@ export default function Schedule({ org, me, data: cadData, reload, peopleFilter:
   const saveAssignment=async(a,ph,others=[],note=null)=>{ const row=asgRow(a);
     if(a.id) await sb.from("assignments").update(row).eq("id",a.id);
     else { const { data:ins }=await sb.from("assignments").insert(row).select().single();
-      if(note&&ins?.id){ const { error }=await sb.from("assignment_comments").insert({ org_id:org.id, assignment_id:ins.id, membership_id:me.id, body:note }); if(error) toast.add({ title:"The work was saved, but the note couldn't be: "+error.message, type:"error" }); } } if(others.length) await sb.from("assignments").insert(others.map(mid=>asgRow({...a,id:undefined,memberId:mid,lane:null}))); if(ph&&ph.hours!=null){ const proj=(cadData.projects||[]).find(p=>p.id===ph.projectId); if(proj){ const phases=(proj.phases||[]).map(x=>x.id===ph.phaseId?{...x,hours:ph.hours}:x); await sb.from("projects").update({phases}).eq("id",proj.id); } } reload(); };
+      if(note&&ins?.id){ const { error }=await sb.from("assignment_comments").insert({ org_id:org.id, assignment_id:ins.id, project_id:ins.project_id||null, membership_id:me.id, body:note }); if(error) toast.add({ title:"The work was saved, but the note couldn't be: "+error.message, type:"error" }); } } if(others.length) await sb.from("assignments").insert(others.map(mid=>asgRow({...a,id:undefined,memberId:mid,lane:null}))); if(ph&&ph.hours!=null){ const proj=(cadData.projects||[]).find(p=>p.id===ph.projectId); if(proj){ const phases=(proj.phases||[]).map(x=>x.id===ph.phaseId?{...x,hours:ph.hours}:x); await sb.from("projects").update({phases}).eq("id",proj.id); } } reload(); };
   const delAssign=async(id)=>{ await sb.from("assignments").delete().eq("id",id); reload(); };
   const saveInternalAssign=async({taskId,newTask,memberId,start,end})=>{ let tid=taskId; if(newTask){ const {data:t}=await sb.from("tasks").insert({org_id:org.id,title:newTask.title,priority:newTask.priority||"med",team:newTask.team||null,status:"todo",assignee_id:memberId||null,assignee_ids:memberId?[memberId]:[],ord:Date.now()}).select().single(); tid=t&&t.id; } await sb.from("assignments").insert({org_id:org.id,kind:"task",membership_id:memberId,task_id:tid,start_date:start,end_date:end}); reload(); };
   const createFromProposal=async({newClient,project,assignments})=>{ let clientId=project.clientId; if(newClient){ const {data:c}=await sb.from("clients").insert({org_id:org.id,name:newClient.name,color:newClient.color,payment_terms:30}).select().single(); clientId=c&&c.id; } const {data:p}=await sb.from("projects").insert({org_id:org.id,code:project.index,name:project.name,client_id:clientId,cost:project.cost,phases:project.phases}).select().single(); const projId=p&&p.id; if(projId&&assignments.length){ const rows=assignments.map(a=>({org_id:org.id,kind:"work",membership_id:a.memberId,project_id:projId,phase_id:a.phaseId||null,start_date:a.start,end_date:a.end})); await sb.from("assignments").insert(rows); } setModal(null); reload(); };

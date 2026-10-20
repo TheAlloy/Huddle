@@ -1,14 +1,20 @@
 // Read-only project view: who it's for, where it stands against its hours
-// budget, phase by phase, who has worked on it and who's on it now. Opened
+// budget, phase by phase, who has worked on it and who's on it now — plus the
+// team's comments on it (booking comments included) and your private notes. Opened
 // from the Schedule, the Timesheet's Project hours and Clients & Projects.
 // "Edit project" (projects.manage) opens the edit form; when the project has
 // overrun, "Add overflow phase" opens it with a new phase sized to the
 // overrun — e.g. once the client agrees extra budget for scope creep.
 // Works on the raw org data (loadOrgData), like Clients & Projects.
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { can } from "../lib/permissions.js";
-import { MONTHS, AVATAR_BG, initials, fmtH, money, toISO, startOfDay, parseISO } from "../studio/core.jsx";
+import { MONTHS, AVATAR_BG, initials, fmtH, money, toISO, startOfDay, parseISO, mapData, makeHandlers } from "../studio/core.jsx";
 import { ProjectModal } from "./Projects.jsx";
+import CommentsThread from "./Comments.jsx";
+import { NoteItem, NoteComposer, shareNote } from "./Notes.jsx";
+import { makeLabels } from "./tracker/shared.jsx";
+import { useConfirm } from "../components/confirm.tsx";
+import { FieldSet, FieldLegend } from "@/components/ui/field";
 import { Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +36,9 @@ export function projectStatus(assignments, todayISO) {
 
 export default function ProjectView({ org, me, data, projectId, reload, onClose }) {
   const [editing, setEditing] = useState(null); // null | { addPhase? }
+  const confirm = useConfirm();
+  const mapped = useMemo(() => mapData(data), [data]);
+  const H = useMemo(() => makeHandlers(org, reload, data), [org, data]); // eslint-disable-line
   const project = (data.projects || []).find((p) => p.id === projectId);
   if (!project) return null;
   const client = (data.clients || []).find((c) => c.id === project.client_id);
@@ -50,6 +59,18 @@ export default function ProjectView({ org, me, data, projectId, reload, onClose 
   const byPerson = Object.entries(logs.reduce((m, l) => { m[l.membership_id] = (m[l.membership_id] || 0) + l.minutes; return m; }, {})).sort((a, b) => b[1] - a[1]);
   const onItNow = [...new Set(bars.filter((a) => a.start_date <= todayISO && a.end_date >= todayISO).map((a) => a.membership_id))];
   const mayEdit = can(me, "projects.manage");
+  const labels = makeLabels(mapped);
+  const myNotes = mapped.notes.filter((n) => n.memberId === me.id && n.projectId === project.id);
+  const fmtShort = (iso) => { const d = parseISO(iso); return `${d.getDate()} ${MONTHS[d.getMonth()]}`; };
+  // A comment made on a booking says whose and when.
+  const tagFor = (c) => {
+    if (!c.assignment_id) return null;
+    const a = (data.assignments || []).find((x) => x.id === c.assignment_id);
+    if (!a) return "on a removed booking";
+    const m = memberOf(a.membership_id);
+    return `on ${m ? m.display_name + "'s" : "a"} booking, ${fmtShort(a.start_date)} – ${fmtShort(a.end_date)}`;
+  };
+  const delNote = async (n) => { if (await confirm({ title: "Delete this note?", description: "It's gone for good — notes aren't backed up anywhere else.", confirmLabel: "Delete", destructive: true })) H.delNote(n.id); };
 
   const Person = ({ id, children }) => { const m = memberOf(id); const i = memberIdx(id); return (
     <div className="flex items-center gap-2 text-sm">
@@ -133,6 +154,18 @@ export default function ProjectView({ org, me, data, projectId, reload, onClose 
             </div>
           </div>
         </div>
+
+        <CommentsThread orgId={org.id} meId={me.id} projectId={project.id} members={data.members || []} canModerate={can(me, "schedule.edit")} tagFor={tagFor} onChanged={reload} />
+
+        <FieldSet>
+          <FieldLegend variant="label">My notes</FieldLegend>
+          <div className="flex flex-col gap-2">
+            <NoteComposer projectId={project.id} placeholder="A private note on this project… (Ctrl + Enter to save)"
+              onSave={({ body }) => H.addNote({ memberId: me.id, body, projectId: project.id })} />
+            {myNotes.map((n) => <NoteItem key={n.id} note={n} labels={labels} logs={mapped.timeLogs} when="full" showProject={false}
+              onEdit={H.editNote} onDelete={delNote} onShare={async (x) => { if (await shareNote(org, me, x)) reload && reload(); }} />)}
+          </div>
+        </FieldSet>
 
         <DialogFooter>
           {mayEdit && over > 0.05 && <Button variant="outline" className="sm:mr-auto" title="Add a phase holding the extra hours, e.g. once the client agrees more budget"

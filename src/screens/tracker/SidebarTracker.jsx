@@ -19,7 +19,7 @@ export default function SidebarTracker({ org, me, data: cadData, reload }) {
   const meId = me.id;
   const data = useMemo(() => mapData(cadData), [cadData]);
   const H = useMemo(() => makeHandlers(org, reload, cadData), [org, cadData]); // eslint-disable-line
-  const { run, start, startTask, stop: stopTimer, capMinutes } = useRunningTimer(meId, { addTimeLog: H.addTimeLog, orgId: org.id, dailyHours: me.daily_hours });
+  const { run, start, startTask, stop: stopTimer, capMinutes } = useRunningTimer(meId, { addTimeLog: H.addTimeLog, linkNotes: H.linkRunNotes, orgId: org.id, dailyHours: me.daily_hours });
   const [stopNote, setStopNote] = useState("");
   const [, tick] = useState(0);
   useEffect(() => {
@@ -32,7 +32,15 @@ export default function SidebarTracker({ org, me, data: cadData, reload }) {
   const todayISO = toISO(startOfDay(new Date()));
 
   const stop = async () => { if (await stopTimer(todayISO, { note: stopNote.trim() || null })) setStopNote(""); };
-  const openPip = usePipTimer({ run, stop, top: () => labels.runTop(run), capMinutes });
+  // Notes while tracking are private, dated, and saved the moment you press
+  // Enter (here or in the pop-out) — on stop they join the logged entry.
+  const saveRunNote = async (text) => {
+    if (!run || !String(text || "").trim()) return null;
+    return H.addNote({ memberId: meId, body: text, projectId: run.projectId, phaseId: run.phaseId, taskId: run.taskId });
+  };
+  const addNoteNow = async () => { if (await saveRunNote(stopNote)) setStopNote(""); };
+  const runNotes = run ? (data.notes || []).filter((n) => n.memberId === meId && !n.timeLogId && new Date(n.createdAt).getTime() >= run.startedAt - 1000) : [];
+  const openPip = usePipTimer({ run, stop, top: () => labels.runTop(run), capMinutes, onNote: saveRunNote });
   const elapsed = run ? fmtClock(Math.min((Date.now() - run.startedAt) / 1000, capMinutes * 60)) : null;
 
   // Today's start list, from exactly three sources (in this order):
@@ -102,8 +110,9 @@ export default function SidebarTracker({ org, me, data: cadData, reload }) {
               {runPhase && <div className="text-xs opacity-90 truncate">{runPhase}</div>}
             </div>
             <div className="px-1 text-2xl font-medium tabular-nums leading-none">{elapsed}</div>
-            <SidebarInput value={stopNote} onChange={(e) => setStopNote(e.target.value)} placeholder="Add a note… (optional)" className="text-foreground"
-              onKeyDown={(e) => { if (e.key === "Enter") stop(); }} />
+            <SidebarInput value={stopNote} onChange={(e) => setStopNote(e.target.value)} placeholder="Private note… (Enter to save)" className="text-foreground"
+              onKeyDown={(e) => { if (e.key === "Enter") addNoteNow(); }} />
+            {runNotes.length > 0 && <div className="px-1 text-xs opacity-90">{runNotes.length} private {runNotes.length === 1 ? "note" : "notes"} this session · in My notes</div>}
             <div className="flex items-center gap-1.5">
               <Button variant="secondary" size="sm" className="flex-1" onClick={stop}><Square data-icon="inline-start" /> Stop &amp; log</Button>
               <Button variant="secondary" size="icon-sm" title="Pop out floating timer" onClick={openPip}><PictureInPicture2 /></Button>

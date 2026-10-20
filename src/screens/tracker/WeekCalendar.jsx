@@ -8,9 +8,9 @@
 // above (rowDragProps) drop straight onto a day as a new block. Duration
 // stays the source of truth — placement is optional garnish on top of it.
 import React, { useState, useRef, useEffect } from "react";
-import { DOW, pad, toISO, isWeekday, fmtH } from "../../studio/core.jsx";
+import { DOW, MONTHS, pad, toISO, isWeekday, fmtH } from "../../studio/core.jsx";
 import { ProjectCombobox, parseHours } from "./shared.jsx";
-import { ChevronRight, X, Plus, Check, Trash2, Layers } from "lucide-react";
+import { ChevronRight, X, Plus, Check, Trash2, Layers, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
@@ -44,7 +44,7 @@ export function rowDragProps(payload) {
 // unified V2.1 experiment): pass the parent's gridTemplateColumns, emit a
 // trailing spacer column, and skip the calendar's own day-label row.
 // `onDelete` enables the Delete button in the block editor.
-export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, recents, run, runColor, onCreate, onPatch, onDelete = null, frameless = false, template = null, trailing = false, showDayHeaders = true, laneDividerClass = "border-l border-border/60", durFmt = null }) {
+export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, recents, run, runColor, onCreate, onPatch, onDelete = null, frameless = false, template = null, trailing = false, showDayHeaders = true, laneDividerClass = "border-l border-border/60", durFmt = null, notesFor = null, onAddNote = null }) {
   // Duration formatter for chip labels and the create panel — overridable so
   // the clock-notation variant can keep every number in one dialect.
   const dur = durFmt || ((min) => `${fmtH(min / 60)}h`);
@@ -57,7 +57,9 @@ export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, r
   const [draft, setDraft] = useState(null);     // committed create-drag awaiting project pick
   const [pick, setPick] = useState({ projectId: "", phaseId: null });
   const [note, setNote] = useState("");
+  const [blockNote, setBlockNote] = useState(""); // a private note being added in the block editor
   const [editing, setEditing] = useState(null); // clicked block: {id, dISO, top, projectId, phaseId, taskId, startIn, durIn}
+  useEffect(() => { setBlockNote(""); }, [editing && editing.id]); // eslint-disable-line
   const colRefs = useRef({});
   const dragRef = useRef(null);
 
@@ -316,7 +318,7 @@ export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, r
                     <Button variant="ghost" size="icon-xs" title="Cancel" onClick={() => setDraft(null)}><X /></Button>
                   </div>
                   <ProjectCombobox selP={pick.projectId} selPh={pick.phaseId || ""} onPick={(p) => setPick({ projectId: p.projectId, phaseId: p.phaseId })} groups={groups} recents={recents} placeholder="Project…" className="w-full" autoFocus />
-                  {!tableMode && <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" onKeyDown={(e) => { if (e.key === "Enter") commitDraft(); }} />}
+                  {!tableMode && <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Private note (optional)" onKeyDown={(e) => { if (e.key === "Enter") commitDraft(); }} />}
                   <Button onClick={commitDraft} disabled={!pick.projectId}><Plus data-icon="inline-start" /> Log block</Button>
                 </div>
               )}
@@ -340,6 +342,15 @@ export default function WeekCalendar({ days, todayISO, logs, labelFor, groups, r
                       <InputGroupInput value={editing.durIn} onChange={(e) => setEditing((ed) => ({ ...ed, durIn: e.target.value }))} onKeyDown={editorKeys} className="tabular-nums" aria-label="Duration" autoFocus />
                     </InputGroup>
                   </div>
+                  {/* your private notes on this block, dated; add another */}
+                  {notesFor && (() => { const ns = notesFor(editLog.id); return (
+                    <div className="flex flex-col gap-1.5 border-t pt-2">
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground"><Lock className="size-3" /> My notes · only you see these</div>
+                      {ns.map((n) => { const d = new Date(n.createdAt); return (
+                        <div key={n.id} className="text-xs leading-snug"><span className="tabular-nums text-muted-foreground">{d.getDate()} {MONTHS[d.getMonth()]}, {pad(d.getHours())}:{pad(d.getMinutes())}</span> <span className="whitespace-pre-wrap break-words">{n.body}</span></div>); })}
+                      {onAddNote && <Input value={blockNote} onChange={(e) => setBlockNote(e.target.value)} placeholder="Add a private note… (Enter)"
+                        onKeyDown={(e) => { if (e.key === "Enter" && blockNote.trim()) { onAddNote(editLog, blockNote.trim()); setBlockNote(""); } }} />}
+                    </div>); })()}
                   <div className="flex items-center gap-2">
                     {onDelete && <Button variant="destructive" onClick={() => { onDelete(editing.id); setEditing(null); }}><Trash2 data-icon="inline-start" /> Delete</Button>}
                     <Button className="ml-auto" onClick={saveEditor}><Check data-icon="inline-start" /> Save</Button>

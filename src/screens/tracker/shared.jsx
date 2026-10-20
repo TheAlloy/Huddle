@@ -65,7 +65,7 @@ const persistStart = async (orgId, meId, run) => {
 };
 const persistClear = async (meId) => { await sb.from("running_timers").delete().eq("membership_id", meId); };
 
-export function useRunningTimer(meId, { addTimeLog, orgId, dailyHours } = {}) {
+export function useRunningTimer(meId, { addTimeLog, linkNotes, orgId, dailyHours } = {}) {
   const [run, setRunState] = useState(() => (meId ? lsGet(keyFor(meId)) : null));
   const capMinutes = capMinutesFor(dailyHours);
 
@@ -114,10 +114,12 @@ export function useRunningTimer(meId, { addTimeLog, orgId, dailyHours } = {}) {
     const startMin = startD.getHours() * 60 + startD.getMinutes();
     const saved = await addTimeLog({ memberId: meId, projectId: r.projectId, phaseId: r.phaseId, taskId: r.taskId, date, minutes: mins, source: "timer", note: note || null, startMin });
     if (saved === false) return false;
+    // Private notes jotted while it ran (tracker panel, pop-out) join the entry.
+    if (linkNotes && typeof saved === "string") linkNotes({ memberId: meId, since: r.startedAt, projectId: r.projectId, taskId: r.taskId, timeLogId: saved }).catch(() => {});
     applyRun(meId, null);
     persistClear(meId).catch(() => {});
     return true;
-  }, [meId, addTimeLog, dailyHours]);
+  }, [meId, addTimeLog, linkNotes, dailyHours]);
 
   const cancel = useCallback(() => {
     applyRun(meId, null);
@@ -137,9 +139,9 @@ export const taskProject = (data, taskId) => {
 /* ------------------------------- PiP wiring ------------------------------- */
 // One owner for the document-Picture-in-Picture floating timer: closes it
 // when the run ends or the owning component unmounts. Returns openPip.
-export function usePipTimer({ run, stop, top, capMinutes }) {
+export function usePipTimer({ run, stop, top, capMinutes, onNote }) {
   const pip = React.useRef(null), actions = React.useRef({});
-  actions.current = { run, stop, top, capMinutes };
+  actions.current = { run, stop, top, capMinutes, onNote };
   const closePip = () => { if (pip.current) { try { pip.current.close(); } catch (_) {} pip.current = null; } };
   useEffect(() => { if (!run) closePip(); }, [run]); // eslint-disable-line
   useEffect(() => () => closePip(), []); // eslint-disable-line
@@ -150,6 +152,7 @@ export function usePipTimer({ run, stop, top, capMinutes }) {
       getTop: () => { const a = actions.current; return a.top ? a.top() : "—"; },
       getElapsed: () => { const a = actions.current; const r = a.run; return r ? fmtClock(Math.min((Date.now() - r.startedAt) / 1000, (a.capMinutes || 720) * 60)) : "0:00:00"; },
       onStop: () => { const s = actions.current.stop; if (s) s(); },
+      onNote: onNote ? (text) => { const n = actions.current.onNote; return n ? n(text) : null; } : undefined,
     });
     if (ctl) pip.current = ctl;
   };
@@ -268,7 +271,7 @@ export function TimerOverrunGuard({ org, me, data: cadData, reload }) {
   const data = useMemo(() => mapData(cadData), [cadData]);
   const H = useMemo(() => makeHandlers(org, reload, cadData), [org, cadData]); // eslint-disable-line
   const dailyHours = me.daily_hours || 8;
-  const { run, stop, cancel, capMinutes } = useRunningTimer(me.id, { addTimeLog: H.addTimeLog, orgId: org.id, dailyHours });
+  const { run, stop, cancel, capMinutes } = useRunningTimer(me.id, { addTimeLog: H.addTimeLog, linkNotes: H.linkRunNotes, orgId: org.id, dailyHours });
   const [, tick] = useState(0);
   useEffect(() => { if (!run) return; const t = setInterval(() => tick((x) => x + 1), 30000); return () => clearInterval(t); }, [run]);
   if (!run || (Date.now() - run.startedAt) / 60000 <= capMinutes) return null;

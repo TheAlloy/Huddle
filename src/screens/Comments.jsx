@@ -1,10 +1,13 @@
 // Comments: the team's thread on a project — everyone in the studio can read
-// and add; you delete your own (schedule editors can delete any). Comments
-// made on a booking belong to that booking, its project and its phase, so:
-//   • on a booking (assignmentId): just that booking's comments;
-//   • on a project (projectId only): the whole thread, grouped by phase
-//     ("Whole project" for general ones), each comment from a booking tagged
-//     with it (tagFor). Posting here picks the phase.
+// and add; you delete your own (schedule editors can delete any). A comment
+// belongs to its project and (usually) a phase; one made on a booking also
+// remembers the booking. So:
+//   • on a booking (assignmentId): its phase's thread — its own comments,
+//     other bookings' on the same phase, notes shared to the phase — plus the
+//     project's general ("Whole project") comments. Posting here files it on
+//     the booking and its phase.
+//   • on a project (projectId only): the whole thread, grouped by phase.
+// Comments from elsewhere are tagged (tagFor: "on Devon's booking…").
 // Private notes are something else entirely — see Notes.jsx.
 import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
@@ -28,8 +31,12 @@ export default function CommentsThread({ orgId, meId, projectId = null, assignme
   const [postTo, setPostTo] = useState(GENERAL);
   const load = async () => {
     const q = sb.from("assignment_comments").select("*");
-    const { data, error } = await (assignmentId ? q.eq("assignment_id", assignmentId) : q.eq("project_id", projectId)).order("created_at");
-    if (!error) setComments(data || []);
+    const { data, error } = await (projectId ? q.eq("project_id", projectId) : q.eq("assignment_id", assignmentId)).order("created_at");
+    if (!error) {
+      // A booking sees its own, its phase's and the project's general comments.
+      const keep = (c) => !assignmentId || !projectId || c.assignment_id === assignmentId || (phaseId ? c.phase_id === phaseId : false) || !c.phase_id;
+      setComments((data || []).filter(keep));
+    }
     setReady(true);
   };
   useEffect(() => { load(); }, [assignmentId, projectId]); // eslint-disable-line
@@ -48,7 +55,7 @@ export default function CommentsThread({ orgId, meId, projectId = null, assignme
 
   const one = (c) => {
     const i = members.findIndex((m) => m.id === c.membership_id); const who = members[i]; const mine = c.membership_id === meId;
-    const tag = !assignmentId && tagFor ? tagFor(c) : null;
+    const tag = tagFor && (!assignmentId || c.assignment_id !== assignmentId) ? tagFor(c) : null;
     return (
       <div key={c.id} className="flex gap-2.5">
         <Avatar size="sm"><AvatarFallback className="text-white" style={{ background: AVATAR_BG[(i < 0 ? 0 : i) % AVATAR_BG.length] }}>{initials(nameOf(who))}</AvatarFallback></Avatar>
@@ -64,9 +71,9 @@ export default function CommentsThread({ orgId, meId, projectId = null, assignme
     );
   };
 
-  // Project view: one group per phase that has comments, general ones first.
+  // Grouped by phase, general ones first (a booking: its phase + general).
   const known = new Set(phases.map((p) => p.id));
-  const groups = assignmentId ? null : [
+  const groups = [
     { key: GENERAL, name: "Whole project", items: comments.filter((c) => !c.phase_id || !known.has(c.phase_id)) },
     ...phases.map((p) => ({ key: p.id, name: p.name, items: comments.filter((c) => c.phase_id === p.id) })),
   ].filter((g) => g.items.length);
@@ -77,7 +84,7 @@ export default function CommentsThread({ orgId, meId, projectId = null, assignme
       <FieldLegend variant="label">Comments</FieldLegend>
       <div className="flex flex-col gap-3">
         {ready && comments.length === 0 && <p className="text-sm text-muted-foreground">No comments yet — the whole team sees what you post here.</p>}
-        {assignmentId ? comments.map(one) : groups.map((g) => (
+        {groups.length === 1 && assignmentId ? groups[0].items.map(one) : groups.map((g) => (
           <div key={g.key} className="flex flex-col gap-2.5 rounded-lg border p-3">
             <div className="text-xs font-medium text-muted-foreground">{g.name} · {g.items.length} {g.items.length === 1 ? "comment" : "comments"}</div>
             {g.items.map(one)}

@@ -405,7 +405,8 @@ function AssignmentView({ a, data, projectById, clientById, phaseLogged, orgId, 
       <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-2 text-sm">
         {rows.map(([k,v])=><React.Fragment key={k}><dt className="text-muted-foreground">{k}</dt><dd className={k==="Phase budget"&&phBudget!=null&&phLogged-phBudget>0.05?"text-destructive":""}>{v}</dd></React.Fragment>)}
       </dl>
-      {a.kind!=="internal" && <CommentsThread assignmentId={a.id} projectId={a.projectId||null} phaseId={a.phaseId||null} orgId={orgId} meId={meId} canModerate={canEdit} members={data.members} onChanged={onCommentsChanged} />}
+      {a.kind!=="internal" && <CommentsThread assignmentId={a.id} projectId={a.projectId||null} phaseId={a.phaseId||null} phases={pr?pr.phases||[]:[]} orgId={orgId} meId={meId} canModerate={canEdit} members={data.members} onChanged={onCommentsChanged}
+        tagFor={(c)=>{ if(!c.assignment_id) return null; const o=data.assignments.find(x=>x.id===c.assignment_id); const who=o&&data.members.find(x=>x.id===o.memberId); return o?`on ${who?who.name+"'s":"another"} booking`:"on a removed booking"; }} />}
     </FieldGroup>
     <DialogFooter>
       {pr && <Button variant="outline" className="sm:mr-auto" onClick={()=>onViewProject(pr.id)}>View project</Button>}
@@ -614,7 +615,8 @@ function AssignForm({ assignment, preset, members, projects, clients, anchor, on
     </div>}
     <p className="text-xs text-muted-foreground">Tip: on the board you can drag the bar to move it, or drag either end to change the dates.</p>
     {kind!=="internal" && (assignment ? (
-      <CommentsThread assignmentId={assignment.id} projectId={assignment.projectId||null} phaseId={assignment.phaseId||null} orgId={orgId} meId={meId} canModerate={canEdit} members={members} onChanged={onCommentsChanged} />
+      <CommentsThread assignmentId={assignment.id} projectId={assignment.projectId||null} phaseId={assignment.phaseId||null} phases={(projects.find(p=>p.id===assignment.projectId)||{}).phases||[]} orgId={orgId} meId={meId} canModerate={canEdit} members={members} onChanged={onCommentsChanged}
+        tagFor={(c)=>c.assignment_id?"on another booking":null} />
     ) : (
       <Field><FieldLabel>Comment (optional)</FieldLabel>
         <Textarea rows={2} value={firstNote} onChange={e=>setFirstNote(e.target.value)} placeholder="Anything the team should know about this work…"/>
@@ -876,7 +878,22 @@ export default function Schedule({ org, me, data: cadData, reload, peopleFilter:
   const createFromProposal=async({newClient,project,assignments})=>{ let clientId=project.clientId; if(newClient){ const {data:c}=await sb.from("clients").insert({org_id:org.id,name:newClient.name,color:newClient.color,payment_terms:30}).select().single(); clientId=c&&c.id; } const {data:p}=await sb.from("projects").insert({org_id:org.id,code:project.index,name:project.name,client_id:clientId,cost:project.cost,phases:project.phases}).select().single(); const projId=p&&p.id; if(projId&&assignments.length){ const rows=assignments.map(a=>({org_id:org.id,kind:"work",membership_id:a.memberId,project_id:projId,phase_id:a.phaseId||null,start_date:a.start,end_date:a.end})); await sb.from("assignments").insert(rows); } setModal(null); reload(); };
 
   // How many comments each assignment has, for the count on its bar.
-  const commentCounts=useMemo(()=>{ const m={}; (cadData.comments||[]).forEach(c=>{ m[c.assignment_id]=(m[c.assignment_id]||0)+1; }); return m; },[cadData.comments]);
+  // The count on a bar: its own comments plus the rest of its phase's thread
+  // (other bookings on the phase, notes shared to it) — what opening it shows,
+  // less the project's general comments.
+  const commentCounts=useMemo(()=>{
+    const own={}, phase={};
+    (cadData.comments||[]).forEach(c=>{
+      if(c.assignment_id) own[c.assignment_id]=(own[c.assignment_id]||0)+1;
+      if(c.project_id&&c.phase_id){ const k=c.project_id+"|"+c.phase_id; (phase[k]=phase[k]||[]).push(c); }
+    });
+    const m={};
+    (cadData.assignments||[]).forEach(a=>{
+      const n=(own[a.id]||0)+(a.project_id&&a.phase_id?(phase[a.project_id+"|"+a.phase_id]||[]).filter(c=>c.assignment_id!==a.id).length:0);
+      if(n) m[a.id]=n;
+    });
+    return m;
+  },[cadData.comments,cadData.assignments]);
   // Picking a project in Over budget: jump to its most relevant bar (on now,
   // else the next, else the latest) and flash all of its bars once.
   const [flash,setFlash]=useState(null); // {projectId, n}

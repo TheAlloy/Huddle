@@ -94,7 +94,7 @@ export function openFloatingTimer({ getTop, getElapsed, onStop, onNote, getNotes
     +'<div style="flex:none;font-size:10px;font-weight:600;color:#d7deec">NOTES THIS SESSION · ONLY YOU SEE THESE</div>'
     +'<div id="list" style="flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:4px;font-size:12px"></div>'
     +'<div id="nrow" style="flex:none;display:flex;align-items:center;gap:6px">'
-    +'<input id="ni" placeholder="Add a note… (Enter to save)" style="flex:1;min-width:0;border:none;border-radius:7px;padding:7px 9px;font-size:12px;outline:none;'+FONT+'" />'
+    +'<input id="ni" placeholder="Add notes" style="flex:1;min-width:0;border:none;border-radius:7px;padding:7px 9px;font-size:12px;outline:none;'+FONT+'" />'
     +'<button id="ns" style="flex:none;background:#fff;color:'+NAVY+';border:none;border-radius:7px;padding:6px 10px;font-size:11.5px;font-weight:700;cursor:pointer">Save</button>'
     +'</div></div>';
   const wire=(win)=>{

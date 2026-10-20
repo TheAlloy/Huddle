@@ -126,7 +126,7 @@ export default function SidebarTracker({ org, me, data: cadData, reload }) {
                 </div>
               </div>
             )}
-            <SidebarInput value={stopNote} onChange={(e) => setStopNote(e.target.value)} placeholder="Private note… (Enter to save)" className="shrink-0 text-foreground"
+            <SidebarInput value={stopNote} onChange={(e) => setStopNote(e.target.value)} placeholder="Add notes" className="shrink-0 text-foreground"
               onKeyDown={(e) => { if (e.key === "Enter") addNoteNow(); }} />
             <div className="flex shrink-0 items-center gap-1.5">
               <Button variant="secondary" size="sm" className="flex-1" onClick={stop}><Square data-icon="inline-start" /> Stop &amp; log</Button>
